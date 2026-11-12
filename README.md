@@ -21,3 +21,4 @@ Suíte web autônoma (zero instalação / HTML5 + ES6 puro) para engenharia de g
 1. Clone ou baixe o repositório.
 2. Abra [`index.html`](./index.html) ou [`drivers-db.html`](./drivers-db.html) diretamente no navegador (ou sirva a pasta localmente com qualquer servidor HTTP estático, ex.: `python -m http.server`).
 3. No **Banco de Drivers**, cadastre ou selecione um transdutor e clique em **Abrir no Simulador** — ou importe um arquivo `.json` diretamente pela barra lateral do simulador.
+
