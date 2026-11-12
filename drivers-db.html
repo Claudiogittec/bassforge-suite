@@ -1,0 +1,3289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BassForge SUITE — Banco Oficial &amp; Auditoria Eletroacústica</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    :root {
+      --bg0: #06090f;
+      --bg1: #0b111d;
+      --bg2: #111927;
+      --bg3: #172235;
+      --bdr: rgba(148, 163, 184, 0.14);
+      --bdr2: rgba(0, 212, 255, 0.28);
+      --bdr3: rgba(0, 212, 255, 0.45);
+      --acc: #00d4ff;        /* Ciano elétrico */
+      --acc2: #f59e0b;       /* Laranja aviso */
+      --acc3: #10b981;       /* Verde acústico sucesso */
+      --acc4: #a855f7;       /* Roxo lab */
+      --dng: #ef4444;        /* Vermelho erro */
+      --txt: #f1f5f9;
+      --txt2: #94a3b8;
+      --txt3: #64748b;
+      --sans: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+      --mono: 'JetBrains Mono', 'Consolas', monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg0); }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.22); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 212, 255, 0.45); }
+
+    body {
+      background: var(--bg0);
+      color: var(--txt);
+      font-family: var(--sans);
+      font-size: 11.5px;
+      line-height: 1.4;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ═══════════ HEADER UNIFICADO — BASSFORGE SUITE ═══════════ */
+    header {
+      background: linear-gradient(180deg, #0d1524 0%, var(--bg1) 100%);
+      border-bottom: 1px solid var(--bdr);
+      height: 52px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 18px;
+      gap: 10px;
+      flex-shrink: 0;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--txt);
+    }
+    .brand-title { font-family: var(--mono); font-weight: 800; font-size: 14px; letter-spacing: 0.6px; color: #fff; }
+    .brand-accent { color: var(--acc); }
+    .brand-sub { font-family: var(--mono); font-size: 8.5px; color: var(--txt3); letter-spacing: 0.9px; }
+    .brand-sep { width: 1px; height: 24px; background: var(--bdr); margin: 0 4px; }
+    .suite-nav {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: #080d16;
+      border: 1px solid var(--bdr);
+      border-radius: 6px;
+      padding: 3px;
+    }
+    .suite-pill {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--txt2);
+      text-decoration: none;
+      padding: 4px 10px;
+      border-radius: 4px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .suite-pill:hover { color: var(--txt); background: var(--bg3); }
+    .suite-pill.active {
+      background: rgba(0, 212, 255, 0.16);
+      color: var(--acc);
+      border: 1px solid rgba(0, 212, 255, 0.35);
+      box-shadow: 0 0 10px rgba(0, 212, 255, 0.12);
+    }
+    .brand-badge {
+      background: rgba(0, 212, 255, 0.12);
+      color: var(--acc);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      font-family: var(--mono);
+      font-size: 9.5px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      font-weight: 700;
+    }
+    .h-actions {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn {
+      font-family: var(--mono);
+      font-size: 10.5px;
+      padding: 5px 10px;
+      border-radius: 5px;
+      border: 1px solid var(--bdr);
+      background: var(--bg2);
+      color: var(--txt);
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.15s ease;
+      white-space: nowrap;
+    }
+    .btn:hover {
+      background: var(--bg3);
+      border-color: var(--acc);
+      color: var(--acc);
+    }
+    .btn-primary {
+      background: var(--acc);
+      color: #000;
+      font-weight: 700;
+      border-color: var(--acc);
+    }
+    .btn-primary:hover {
+      background: #33ddff;
+      color: #000;
+      box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+    }
+
+    /* ═══════════ MAIN LAYOUT ═══════════ */
+    .app-body {
+      display: flex;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ═══════════ PAINEL ESQUERDO: CADASTRO DO TRANSDUTOR ═══════════ */
+    .pane-form {
+      width: 450px;
+      flex-shrink: 0;
+      background: var(--bg1);
+      border-right: 1px solid var(--bdr);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .pane-header {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--bdr);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--bg0);
+    }
+    .pane-title {
+      font-family: var(--mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--acc);
+      letter-spacing: 0.5px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .form-scroll {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .field-group {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .field-label {
+      font-family: var(--mono);
+      font-size: 9px;
+      color: var(--txt3);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .field-input {
+      background: var(--bg0);
+      border: 1px solid var(--bdr);
+      border-radius: 3px;
+      color: var(--txt);
+      font-family: var(--mono);
+      font-size: 11px;
+      padding: 5px 7px;
+      outline: none;
+      transition: border-color 0.15s;
+      width: 100%;
+    }
+    .field-input:focus {
+      border-color: var(--acc);
+    }
+    .field-grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+    .field-grid-3 {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .field-grid-4 {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 6px;
+    }
+
+    /* Cards de Informações Físicas & Validação */
+    .card-box {
+      background: var(--bg2);
+      border: 1px solid var(--bdr);
+      border-radius: 4px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .card-hdr {
+      font-family: var(--mono);
+      font-size: 9.5px;
+      font-weight: 700;
+      color: var(--acc);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .grid-derived {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 3px 8px;
+      font-family: var(--mono);
+      font-size: 10px;
+    }
+    .row-derived {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
+      padding: 1.5px 0;
+    }
+    .val-derived {
+      font-weight: 700;
+      color: var(--acc3);
+      white-space: nowrap;
+    }
+
+    /* ═══════════ PAINEL DIREITO: AUDITORIA CIENTÍFICA + TABELA MASTER ═══════════ */
+    .pane-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      background: var(--bg0);
+      overflow: hidden;
+    }
+
+    .sec-audit {
+      background: var(--bg1);
+      border-bottom: 1px solid var(--bdr);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .audit-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 1.1fr 1fr;
+      gap: 10px;
+    }
+    .audit-card {
+      background: var(--bg2);
+      border: 1px solid var(--bdr);
+      border-radius: 4px;
+      padding: 8px 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      font-family: var(--mono);
+      font-size: 10px;
+    }
+
+    .sec-table {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .table-toolbar {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--bdr);
+      padding: 8px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+    .table-scroll {
+      flex: 1;
+      overflow: auto;
+      background: var(--bg0);
+    }
+    .db-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--mono);
+      font-size: 10px;
+      white-space: nowrap;
+    }
+    .db-table th {
+      position: sticky;
+      top: 0;
+      background: var(--bg2);
+      color: var(--txt3);
+      padding: 6px 8px;
+      text-align: center;
+      border-bottom: 1px solid var(--bdr);
+      z-index: 2;
+    }
+    .db-table td {
+      padding: 5px 8px;
+      text-align: center;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      color: var(--txt2);
+    }
+    .db-table tbody tr { cursor: pointer; }
+    .db-table tbody tr:hover { background: rgba(0, 212, 255, 0.06); }
+    .db-table tbody tr.selected { background: rgba(0, 212, 255, 0.14); }
+    .db-table td.calc { color: var(--acc); font-weight: 500; }
+    .db-table td.cell-warn { color: var(--acc2) !important; font-weight: 700; }
+    .db-table td.cell-err { color: var(--dng) !important; font-weight: 700; }
+
+    /* Modais */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+      z-index: 1000;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-overlay.open { display: flex; }
+    .modal-box {
+      background: var(--bg1);
+      border: 1px solid var(--bdr2);
+      border-radius: 6px;
+      width: 850px;
+      max-width: 96vw;
+      max-height: 90vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .modal-hdr {
+      background: var(--bg2);
+      border-bottom: 1px solid var(--bdr);
+      padding: 10px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-family: var(--mono);
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--acc);
+    }
+    .modal-body { padding: 16px; overflow-y: auto; flex: 1; }
+    .modal-foot {
+      background: var(--bg0);
+      border-top: 1px solid var(--bdr);
+      padding: 10px 16px;
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════ HEADER UNIFICADO — BASSFORGE SUITE ═══════════ -->
+  <header>
+    <div class="brand">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="26" height="26" rx="6" fill="#080d16" stroke="#00d4ff" stroke-opacity="0.5" stroke-width="1.4"/>
+        <circle cx="14" cy="14" r="7.5" stroke="#00d4ff" stroke-width="1.6"/>
+        <circle cx="14" cy="14" r="3" fill="#00d4ff" fill-opacity="0.25" stroke="#00d4ff" stroke-width="1.4"/>
+        <path d="M5 20.5C8 20.5 9.5 17 11.5 17C13.5 17 14.5 21 16.5 21C18.5 21 20 17.5 23 17.5" stroke="#10b981" stroke-width="1.4" stroke-linecap="round"/>
+      </svg>
+      <div style="display:flex; flex-direction:column; line-height:1.15;">
+        <span class="brand-title">BassForge <span class="brand-accent">SUITE</span></span>
+        <span class="brand-sub">ECOSSISTEMA ELETROACÚSTICO OFICIAL</span>
+      </div>
+      <span class="brand-sep"></span>
+      <nav class="suite-nav" aria-label="Alternar módulo BassForge">
+        <a href="./index.html" class="suite-pill">📊 Simulador 4ª Ordem</a>
+        <a href="./drivers-db.html" class="suite-pill active">🗄️ Banco de Drivers</a>
+      </nav>
+    </div>
+
+    <div class="h-actions">
+      <button class="btn" id="btn-catalog-open" onclick="openCatalogModal()">📚 CATÁLOGO (77)</button>
+      <button class="btn" onclick="openImportTSVModal()">📥 TSV/JSON</button>
+      <button class="btn" onclick="exportTSV()">📤 TSV</button>
+      <button class="btn" onclick="exportCSV()">📤 CSV</button>
+      <button class="btn" style="border-color:rgba(16,185,129,0.45); color:#34d399;" onclick="exportJSON()">📦 JSON (SIM)</button>
+      <button class="btn btn-primary" onclick="openReportModal()">📑 LAUDO PDF</button>
+    </div>
+  </header>
+
+  <!-- ═══════════ CORPO PRINCIPAL ═══════════ -->
+  <div class="app-body">
+
+    <!-- ═══ PAINEL ESQUERDO: CADASTRO E DERIVAÇÃO DE PARÂMETROS ═══ -->
+    <aside class="pane-form">
+      <div class="pane-header">
+        <div class="pane-title">
+          <span>⚙️</span> CADASTRO DO TRANSDUTOR
+        </div>
+        <button class="btn" style="padding:2px 6px; font-size:9.5px;" onclick="resetForm()">LIMPAR</button>
+      </div>
+
+      <div class="form-scroll">
+        <!-- 1. Identificação -->
+        <div class="field-grid-2">
+          <div class="field-group">
+            <label class="field-label">FABRICANTE / MARCA *</label>
+            <input type="text" id="inp-brand" class="field-input" value="JBL" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">MODELO *</label>
+            <input type="text" id="inp-model" class="field-input" value="15SWT2200" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-4">
+          <div class="field-group">
+            <label class="field-label">SÉRIE / LINHA</label>
+            <input type="text" id="inp-series" class="field-input" value="Tornado" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">ANO</label>
+            <input type="number" id="inp-year" class="field-input" value="2023" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">DIÂMETRO (″)</label>
+            <input type="number" id="inp-dia" class="field-input" value="15" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">ZNOM (Ω)</label>
+            <input type="number" id="inp-znom" class="field-input" value="4" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-3">
+          <div class="field-group">
+            <label class="field-label">PE (W RMS) *</label>
+            <input type="number" id="inp-pe" class="field-input" value="1100" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">SD (cm²) *</label>
+            <input type="number" id="inp-sd" class="field-input" value="841" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">ORIGEM DADOS</label>
+            <select id="inp-origin" class="field-input" onchange="onParamInput()">
+              <option value="datasheet" selected>[D] Datasheet</option>
+              <option value="measured">[M] Medido (Lab)</option>
+              <option value="hybrid">[H] Híbrido</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 2. Parâmetros Thiele/Small Primários -->
+        <div class="field-grid-4">
+          <div class="field-group">
+            <label class="field-label">FS (Hz) *</label>
+            <input type="number" id="inp-fs" class="field-input" value="41.0" step="0.1" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">VAS (L) *</label>
+            <input type="number" id="inp-vas" class="field-input" value="76.3" step="0.1" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">QES *</label>
+            <input type="number" id="inp-qes" class="field-input" value="0.45" step="0.01" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">QMS *</label>
+            <input type="number" id="inp-qms" class="field-input" value="16.32" step="0.01" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-4">
+          <div class="field-group">
+            <label class="field-label">XMAX (mm)</label>
+            <input type="number" id="inp-xmax" class="field-input" value="10.6" step="0.1" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">RE (Ω)</label>
+            <input type="number" id="inp-re" class="field-input" value="3.39" step="0.01" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">LE (mH)</label>
+            <input type="number" id="inp-le" class="field-input" value="2.79" step="0.01" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">HVC / HGAP</label>
+            <input type="text" id="inp-coils" class="field-input" value="29 / 12" placeholder="Hvc / Hgap" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-3">
+          <div class="field-group">
+            <label class="field-label">MMS CAT. (g) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <input type="number" id="inp-mms" class="field-input" value="" step="0.1" placeholder="Opcional" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">BL CAT. (T·m) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <input type="number" id="inp-bl" class="field-input" value="" step="0.01" placeholder="Opcional" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label">VSUB (L) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <input type="number" id="inp-vsub" class="field-input" value="" step="0.1" placeholder="Auto" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-2">
+          <button class="btn btn-primary" onclick="adicionarTabela()" style="width:100%; justify-content:center; padding:7px 8px;">
+            💾 SALVAR NO BANCO
+          </button>
+          <button class="btn" onclick="enviarFormularioParaSimulador()" style="width:100%; justify-content:center; padding:7px 8px; border-color:var(--acc3); color:var(--acc3); background:rgba(57,255,20,0.08); font-weight:700;">
+            🚀 ABRIR NO SIMULADOR
+          </button>
+        </div>
+
+        <!-- 3. Card de Parâmetros Eletromecânicos & Acústicos Fundamentais -->
+        <div class="card-box">
+          <div class="card-hdr">
+            <span>🔬 1. MECÂNICA, ACÚSTICA & MASSA</span>
+            <span id="badge-ebp" style="background:var(--bg0); color:var(--acc); padding:1px 5px; border-radius:2px; font-size:9.5px;">EBP: 91.1</span>
+          </div>
+          <div class="grid-derived">
+            <div class="row-derived"><span>Qts (Total):</span><span class="val-derived" id="drv-qts">0.438</span></div>
+            <div class="row-derived"><span>Cms (Compliância):</span><span class="val-derived" id="drv-cms">0.106 mm/N</span></div>
+            <div class="row-derived"><span>Kms (Rigidez):</span><span class="val-derived" id="drv-kms">9.4 N/mm</span></div>
+            <div class="row-derived"><span>Mms (Massa Total):</span><span class="val-derived" id="drv-mms">141.2 g</span></div>
+            <div class="row-derived"><span>Mmd (Cone s/ ar):</span><span class="val-derived" id="drv-mmd">128.4 g</span></div>
+            <div class="row-derived"><span>Rms (Perdas):</span><span class="val-derived" id="drv-rms">2.23 kg/s</span></div>
+            <div class="row-derived"><span>Cas (Compl. Acúst):</span><span class="val-derived" id="drv-cas">5.45 ×10⁻⁸</span></div>
+            <div class="row-derived"><span>Mas (Massa Acúst):</span><span class="val-derived" id="drv-mas">199.6 kg/m⁴</span></div>
+            <div class="row-derived"><span>Ras (Resist. Acúst):</span><span class="val-derived" id="drv-ras">3150 N·s/m⁵</span></div>
+            <div class="row-derived"><span>Raio do Pistão (a):</span><span class="val-derived" id="drv-radius">16.36 cm</span></div>
+          </div>
+        </div>
+
+        <!-- 4. Card de Dinâmica do Motor & Resposta a Transientes -->
+        <div class="card-box" style="border-color:var(--acc2);">
+          <div class="card-hdr" style="color:var(--acc2);">
+            <span>⚡ 2. MOTOR, DINÂMICA & TRANSIENTES</span>
+            <span id="drv-motor-dense" style="color:var(--acc3); font-size:9.5px; font-weight:700;">Bl²/Re: 115.6 N²/W</span>
+          </div>
+          <div class="grid-derived">
+            <div class="row-derived"><span>Bl (Força Motor):</span><span class="val-derived" id="drv-bl">19.80 T·m</span></div>
+            <div class="row-derived"><span>Bl²/Re (Densidade):</span><span class="val-derived" id="drv-bl2re">115.6 N²/W</span></div>
+            <div class="row-derived"><span>Aceleração Cone (Γ):</span><span class="val-derived" id="drv-accel">140.2 m/s²/A</span></div>
+            <div class="row-derived"><span>Breakup Cone (f_max):</span><span class="val-derived" id="drv-fbreak">1050 Hz</span></div>
+            <div class="row-derived"><span>Constante Elétrica (τe):</span><span class="val-derived" id="drv-taue">0.82 ms</span></div>
+            <div class="row-derived"><span>Constante Mecânica (τm):</span><span class="val-derived" id="drv-taum">1.22 ms</span></div>
+          </div>
+        </div>
+
+        <!-- 5. Card de Eficiência, Potência & Limites Térmicos -->
+        <div class="card-box" style="border-color:var(--acc4);">
+          <div class="card-hdr" style="color:var(--acc4);">
+            <span>🔊 3. EFICIÊNCIA, POTÊNCIA & LIMITES</span>
+            <span id="drv-splmax-badge" style="color:var(--acc); font-size:9.5px; font-weight:700;">SPL Max: 126.1 dB</span>
+          </div>
+          <div class="grid-derived">
+            <div class="row-derived"><span>η₀ (Eficiência):</span><span class="val-derived" id="drv-eta">2.24 %</span></div>
+            <div class="row-derived"><span>SPL (1W @ 1m):</span><span class="val-derived" id="drv-spl1w">95.7 dB</span></div>
+            <div class="row-derived"><span>SPL (2.83V @ 1m):</span><span class="val-derived" id="drv-spl2v">99.4 dB</span></div>
+            <div class="row-derived"><span>SPL Max (Térmico):</span><span class="val-derived" id="drv-splmax">126.1 dB</span></div>
+            <div class="row-derived"><span>Potência Acústica (Pac):</span><span class="val-derived" id="drv-pac">24.6 W ac</span></div>
+            <div class="row-derived"><span>Volume Deslocado (Vd):</span><span class="val-derived" id="drv-vd">0.891 L</span></div>
+            <div class="row-derived"><span>Xmax Geométrico:</span><span class="val-derived" id="drv-xgeom">8.50 mm</span></div>
+            <div class="row-derived"><span>Pico Ressonância (R0):</span><span class="val-derived" id="drv-r0">126.3 Ω</span></div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- ═══ PAINEL DIREITO: AUDITORIA CIENTÍFICA & TABELA MASTER ═══ -->
+    <main class="pane-right">
+
+      <!-- 1. SEÇÃO DE AUDITORIA CRUZADA CIENTÍFICA (VALIDATOR LAB) -->
+      <div class="sec-audit">
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <div style="font-family:var(--mono); font-weight:700; font-size:11px; color:var(--acc4); display:flex; align-items:center; gap:6px;">
+            <span>🔬</span> AUDITORIA CRUZADA E CONSISTÊNCIA DE DATASHEET (ISO 9613-1)
+          </div>
+          <div style="font-family:var(--mono); font-size:10px; color:var(--txt3);" id="lbl-atmo-cond">
+            c = 343.21 m/s · ρ = 1.2041 kg/m³ · P₀ = 1013.25 hPa
+          </div>
+        </div>
+
+        <div class="audit-grid">
+          <!-- Card 1: Rotas Classe I de Fs -->
+          <div class="audit-card" style="border-color:var(--acc4);">
+            <div style="font-weight:700; color:var(--acc4); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:2px; margin-bottom:3px;">
+              1. ROTAS INDEPENDENTES DE FS (CLASSE I)
+            </div>
+            <div style="display:flex; justify-content:space-between;"><span>FS-01 (Mecânica Mms·Cms):</span><b id="aud-fs-1" style="color:var(--txt)">41.0 Hz (0.0%)</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>FS-02 (Acústica Vas·Sd):</span><b id="aud-fs-2" style="color:var(--txt)">41.0 Hz (0.0%)</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>FS-03 (Elétrica Bl·Re·Qes):</span><b id="aud-fs-3" style="color:var(--txt)">41.0 Hz (0.0%)</b></div>
+          </div>
+
+          <!-- Card 2: Derivação Algébrica & Impedância -->
+          <div class="audit-card">
+            <div style="font-weight:700; color:var(--acc); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:2px; margin-bottom:3px;">
+              2. DERIVAÇÕES & CURVA DE IMPEDÂNCIA
+            </div>
+            <div style="display:flex; justify-content:space-between;"><span>Pico Impedância (R0):</span><b id="aud-r0" style="color:var(--acc3)">126.3 Ω</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Largura Banda (Δf = f2 - f1):</span><b id="aud-deltaf" style="color:var(--acc)">15.3 Hz</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>ENV-05 Pressão Implícita:</span><b id="aud-p-imp" style="color:var(--txt)">1013 hPa</b></div>
+          </div>
+
+          <!-- Card 3: Semáforo e Diagnóstico de Consenso -->
+          <div class="audit-card" id="aud-veredito-card" style="border-color:var(--acc3); background:rgba(57,255,20,0.04);">
+            <div style="font-weight:700; color:var(--acc3); display:flex; justify-content:space-between;">
+              <span id="aud-ver-title">✓ AUDITORIA CONSISTENTE</span>
+              <span>🟢</span>
+            </div>
+            <div style="font-size:9.5px; color:var(--txt2); line-height:1.4;" id="aud-ver-desc">
+              Parâmetros consistentes entre as 3 formulações físicas (Desvio global ≤ 0.8%).
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2. SEÇÃO DA TABELA MESTRE (32 COLUNAS) -->
+      <div class="sec-table">
+        <div class="table-toolbar">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-family:var(--mono); font-size:11px; color:var(--txt3);">TOTAL:</span>
+            <b id="db-total-count" style="font-family:var(--mono); font-size:13px; color:var(--acc);">77</b>
+            <input type="text" id="db-search" class="field-input" placeholder="🔍 Buscar por marca, modelo, série..." style="width:240px;" oninput="renderTable()">
+          </div>
+
+          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+            <button class="btn btn-primary" id="btn-load-driver" disabled onclick="carregarLinhaSelecionada()">
+              📥 CARREGAR NO FORMULÁRIO
+            </button>
+            <button class="btn" id="btn-send-sim" disabled onclick="enviarLinhaParaSimulador()" style="border-color:var(--acc3); color:var(--acc3);">
+              🚀 ENVIAR AO SIMULADOR
+            </button>
+            <button class="btn" id="btn-del-driver" disabled onclick="excluirSelecionado()">
+              🗑 EXCLUIR ITEM
+            </button>
+            <button class="btn" onclick="excluirTodos()">
+              ⚠️ EXCLUIR TODOS
+            </button>
+            <button class="btn" onclick="restaurarCatalogoFabrica()" title="Restaurar os 77 drivers de fábrica">
+              ↺ RESTAURAR FÁBRICA
+            </button>
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="db-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Origem</th><th>Marca</th><th>Modelo</th><th>Série</th><th>Ano</th><th>Diâm</th>
+                <th>Znom</th><th>Pe</th><th>Sd</th><th>Fs</th><th>Vas</th><th>Qes</th><th>Qms</th>
+                <th>Xmax</th><th>Re</th><th>Le</th><th>Hvc</th><th>Hgap</th><th>Mms Cat</th><th>Bl Cat</th><th>Vsub</th>
+                <th>Qts</th><th>Cms</th><th>Kms</th><th>Mms</th><th>Bl</th><th>Rms</th>
+                <th>Bl²/Re</th><th>Γ (Acel)</th><th>η₀</th><th>SPL1W</th><th>SPL2.83</th><th>SPL_Max</th><th>Vd</th><th>EBP</th>
+                <th>Veredito</th>
+              </tr>
+            </thead>
+            <tbody id="db-table-body">
+              <!-- Preenchido via Javascript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ════════ MODAL: CATÁLOGO DE DRIVERS ════════ -->
+  <div class="modal-overlay" id="modal-catalog">
+    <div class="modal-box">
+      <div class="modal-hdr">
+        <span id="modal-catalog-title">📚 CATÁLOGO OFICIAL BASSFORGE (77 DRIVERS)</span>
+        <button class="btn" style="padding:2px 6px;" onclick="closeModal('modal-catalog')">✕</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+        <input type="text" id="cat-search" class="field-input" placeholder="🔍 Filtrar no catálogo..." oninput="renderCatalogList()">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; max-height:400px; overflow-y:auto;" id="cat-list-container">
+          <!-- Drivers do Catálogo -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ MODAL: IMPORTAÇÃO TSV / JSON COM PREVIEW SELETIVO ════════ -->
+  <div class="modal-overlay" id="modal-import">
+    <div class="modal-box">
+      <div class="modal-hdr">
+        <span>📥 IMPORTAÇÃO TSV / JSON COM PRÉ-VISUALIZAÇÃO</span>
+        <button class="btn" style="padding:2px 6px;" onclick="closeModal('modal-import')">✕</button>
+      </div>
+      <div class="modal-body">
+        <input type="file" id="tsvFileInput" accept=".json,.tsv,.txt,.csv" onchange="handleTSVFileSelect(this)" style="margin-bottom:12px;">
+        <div id="tsv-preview-area" style="font-family:var(--mono); font-size:11px; max-height:300px; overflow:auto;">
+          Selecione um arquivo .json (BassForge) ou .tsv para pré-visualizar os drivers antes de confirmar.
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="closeModal('modal-import')">Cancelar</button>
+        <button class="btn btn-primary" id="btn-confirm-import" disabled onclick="confirmTSVImport()">Confirmar Importação</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ MODAL: LAUDO TÉCNICO OFICIAL EM PDF ════════ -->
+  <div class="modal-overlay" id="modal-report">
+    <div class="modal-box" style="width:900px;">
+      <div class="modal-hdr">
+        <span>📑 GERADOR DE LAUDO TÉCNICO OFICIAL (PDF)</span>
+        <button class="btn" style="padding:2px 6px;" onclick="closeModal('modal-report')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div id="report-printable" style="background:#fff; color:#000; padding:24px; font-family:var(--sans); border-radius:4px;">
+          <!-- Preenchido dinamicamente -->
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button class="btn" onclick="window.print()">🖨 IMPRIMIR</button>
+        <button class="btn btn-primary" onclick="downloadReportPDF()">📥 BAIXAR PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       MOTOR COMPLETO DE FÍSICA ELETROACÚSTICA AVANÇADA (28 PARÂMETROS)
+       ══════════════════════════════════════════════════════════════════════════ -->
+  <script>
+    let DRIVER_CATALOG = [];
+    /**
+ * Catálogo Embutido de Drivers CL.Audio
+ * Gerado automaticamente a partir de drivers_export.tsv (77 alto-falantes)
+ */
+(function (global) {
+  'use strict';
+  const CATALOG = [
+  {
+    "id": 1,
+    "brand": "Kicker",
+    "model": "CompC 12 (44CWCD124)",
+    "series": "CompC",
+    "year": 2021,
+    "diameter_in": 12,
+    "znom": 4,
+    "pe": 300,
+    "sd": 520,
+    "fs": 30,
+    "vas": 95,
+    "qes": 0.55,
+    "qms": 9.5,
+    "xmax": 10.5,
+    "re": 3.7,
+    "le": 1.25,
+    "hvc": 29,
+    "hgap": 8,
+    "origin": "datasheet",
+    "qts": 0.52
+  },
+  {
+    "id": 2,
+    "brand": "JBL",
+    "model": "GTO 1214",
+    "series": "Grand Touring",
+    "year": 2018,
+    "diameter_in": 12,
+    "znom": 4,
+    "pe": 350,
+    "sd": 530,
+    "fs": 28,
+    "vas": 97,
+    "qes": 0.48,
+    "qms": 7.14,
+    "xmax": 14.5,
+    "re": 3.6,
+    "le": 2.1,
+    "hvc": 37,
+    "hgap": 8,
+    "origin": "datasheet",
+    "qts": 0.45
+  },
+  {
+    "id": 3,
+    "brand": "Dayton Audio",
+    "model": "DCS305-4",
+    "series": "Classic Series",
+    "year": 2022,
+    "diameter_in": 12,
+    "znom": 4,
+    "pe": 250,
+    "sd": 506.7,
+    "fs": 26.9,
+    "vas": 112.5,
+    "qes": 0.42,
+    "qms": 4.19,
+    "xmax": 9.3,
+    "re": 3.4,
+    "le": 1.34,
+    "hvc": 26.6,
+    "hgap": 8,
+    "origin": "datasheet",
+    "qts": 0.382
+  },
+  {
+    "id": 4,
+    "brand": "DaytonAudio",
+    "model": "DCS255-4",
+    "series": "Classic",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 4,
+    "pe": 200,
+    "sd": 346.4,
+    "fs": 37.7,
+    "vas": 32.1,
+    "qes": 0.5,
+    "qms": 7.42,
+    "xmax": 8.3,
+    "re": 3.45,
+    "le": 1.8,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.468
+  },
+  {
+    "id": 5,
+    "brand": "18 Sound",
+    "model": "18W1300",
+    "series": "-",
+    "year": 0,
+    "diameter_in": 18,
+    "znom": 8,
+    "pe": 600,
+    "sd": 1186,
+    "fs": 35,
+    "vas": 336.12,
+    "qes": 0.35,
+    "qms": 5,
+    "xmax": 8.5,
+    "re": 5,
+    "le": 1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.327
+  },
+  {
+    "id": 6,
+    "brand": "DEI Audio",
+    "model": "1124",
+    "series": "-",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 4,
+    "pe": 200,
+    "sd": 527,
+    "fs": 25,
+    "vas": 194.68,
+    "qes": 0.345,
+    "qms": 4.4,
+    "xmax": 8,
+    "re": 3.6,
+    "le": 1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.32
+  },
+  {
+    "id": 7,
+    "brand": "JBL",
+    "model": "15SWT2200",
+    "series": "Tornado",
+    "year": 2016,
+    "diameter_in": 15,
+    "znom": 4,
+    "pe": 1100,
+    "sd": 841,
+    "fs": 41,
+    "vas": 76.3,
+    "qes": 0.45,
+    "qms": 16.32,
+    "xmax": 10.6,
+    "re": 3.39,
+    "le": 2.79,
+    "hvc": 27,
+    "hgap": 11.5,
+    "origin": "datasheet",
+    "qts": 0.438
+  },
+  {
+    "id": 8,
+    "brand": "Referência",
+    "model": "LAB-12R",
+    "series": "-",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 200,
+    "sd": 538,
+    "fs": 39,
+    "vas": 52,
+    "qes": 0.443,
+    "qms": 7.2,
+    "xmax": 3.5,
+    "re": 7,
+    "le": 1,
+    "hvc": 15,
+    "hgap": 8,
+    "origin": "mixed",
+    "qts": 0.417
+  },
+  {
+    "id": 9,
+    "brand": "High Vox",
+    "model": "SBW605W15",
+    "series": "Tormento",
+    "year": 0,
+    "diameter_in": 15,
+    "znom": 4,
+    "pe": 650,
+    "sd": 824,
+    "fs": 26.9,
+    "vas": 148.57,
+    "qes": 0.486,
+    "qms": 8.718,
+    "xmax": 9,
+    "re": 4.2,
+    "le": 1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.46
+  },
+  {
+    "id": 10,
+    "brand": "KIKER",
+    "model": "50CWCD124",
+    "series": "CompC",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 4,
+    "pe": 300,
+    "sd": 530.9,
+    "fs": 32.06,
+    "vas": 79.3,
+    "qes": 1.902,
+    "qms": 8.111,
+    "xmax": 6.6,
+    "re": 3.76,
+    "le": 0.5174,
+    "hvc": 27.9,
+    "hgap": 14.6,
+    "origin": "measured",
+    "qts": 1.541
+  },
+  {
+    "id": 11,
+    "brand": "GRS",
+    "model": "10PF-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 8,
+    "pe": 220,
+    "sd": 344.7,
+    "fs": 45,
+    "vas": 58.9,
+    "qes": 1.57,
+    "qms": 5.3,
+    "xmax": 3,
+    "re": 7.2,
+    "le": 1.2,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 1.211
+  },
+  {
+    "id": 12,
+    "brand": "GRS",
+    "model": "10PR-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 8,
+    "pe": 160,
+    "sd": 345.1,
+    "fs": 40,
+    "vas": 57.3,
+    "qes": 1.32,
+    "qms": 3.68,
+    "xmax": 3,
+    "re": 7.3,
+    "le": 1.1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.972
+  },
+  {
+    "id": 13,
+    "brand": "GRS",
+    "model": "10PT-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 8,
+    "pe": 400,
+    "sd": 348,
+    "fs": 47,
+    "vas": 46.1,
+    "qes": 0.5,
+    "qms": 11.4,
+    "xmax": 6.8,
+    "re": 7.1,
+    "le": 1.6,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.479
+  },
+  {
+    "id": 14,
+    "brand": "GRS",
+    "model": "10SFPC-B",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 8,
+    "pe": 150,
+    "sd": 356.3,
+    "fs": 35.5,
+    "vas": 93.9,
+    "qes": 0.85,
+    "qms": 3,
+    "xmax": 4.3,
+    "re": 5.8,
+    "le": 0.72,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.662
+  },
+  {
+    "id": 15,
+    "brand": "Dayton Audio",
+    "model": "PCS10-4",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 4,
+    "pe": 300,
+    "sd": 328,
+    "fs": 33,
+    "vas": 49,
+    "qes": 0.73,
+    "qms": 4.91,
+    "xmax": 5.6,
+    "re": 4,
+    "le": 1.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.636
+  },
+  {
+    "id": 16,
+    "brand": "Dayton Audio",
+    "model": "PCS12-4",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 4,
+    "pe": 360,
+    "sd": 487,
+    "fs": 30,
+    "vas": 88.9,
+    "qes": 0.75,
+    "qms": 6.4,
+    "xmax": 7,
+    "re": 3.5,
+    "le": 2.1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.671
+  },
+  {
+    "id": 17,
+    "brand": "Dayton Audio",
+    "model": "PCS8-4",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 8,
+    "znom": 4,
+    "pe": 300,
+    "sd": 213,
+    "fs": 43,
+    "vas": 20.5,
+    "qes": 0.56,
+    "qms": 3.96,
+    "xmax": 5,
+    "re": 3.4,
+    "le": 1.55,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.491
+  },
+  {
+    "id": 18,
+    "brand": "Dayton Audio",
+    "model": "SS8-22",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 8,
+    "znom": 4,
+    "pe": 1000,
+    "sd": 200,
+    "fs": 38,
+    "vas": 9.7,
+    "qes": 0.5,
+    "qms": 4.37,
+    "xmax": 17,
+    "re": 4.4,
+    "le": 1.6,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.449
+  },
+  {
+    "id": 19,
+    "brand": "Dayton Audio",
+    "model": "UMII8-22",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 8,
+    "znom": 4,
+    "pe": 800,
+    "sd": 200,
+    "fs": 46,
+    "vas": 8.4,
+    "qes": 0.99,
+    "qms": 3.1,
+    "xmax": 18,
+    "re": 3.9,
+    "le": 0.75,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.75
+  },
+  {
+    "id": 20,
+    "brand": "Dayton Audio",
+    "model": "MB620-8",
+    "series": "Mid Bass",
+    "year": 0,
+    "diameter_in": 6.5,
+    "znom": 8,
+    "pe": 400,
+    "sd": 132.73,
+    "fs": 104,
+    "vas": 6.77,
+    "qes": 0.69,
+    "qms": 4.29,
+    "xmax": 2,
+    "re": 5.47,
+    "le": 0.93,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.594
+  },
+  {
+    "id": 21,
+    "brand": "Dayton Audio",
+    "model": "E150HE-44",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 5.5,
+    "znom": 8,
+    "pe": 400,
+    "sd": 95.03,
+    "fs": 40,
+    "vas": 7.65,
+    "qes": 0.45,
+    "qms": 2.94,
+    "xmax": 14.7,
+    "re": 6.6,
+    "le": 1.6,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.39
+  },
+  {
+    "id": 22,
+    "brand": "Dayton Audio",
+    "model": "Apollo 15N",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 15,
+    "znom": 8,
+    "pe": 1000,
+    "sd": 844.53,
+    "fs": 44,
+    "vas": 155,
+    "qes": 0.34,
+    "qms": 10.47,
+    "xmax": 6.55,
+    "re": 5.8,
+    "le": 0.14,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.329
+  },
+  {
+    "id": 23,
+    "brand": "Dayton Audio",
+    "model": "UM18-22",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 18,
+    "znom": 4,
+    "pe": 2000,
+    "sd": 1219,
+    "fs": 26.2,
+    "vas": 145,
+    "qes": 0.85,
+    "qms": 4.05,
+    "xmax": 22,
+    "re": 4.3,
+    "le": 1.5,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.703
+  },
+  {
+    "id": 24,
+    "brand": "Dayton Audio",
+    "model": "SD315A-88",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 16,
+    "pe": 240,
+    "sd": 522.8,
+    "fs": 24.2,
+    "vas": 152,
+    "qes": 0.37,
+    "qms": 3.54,
+    "xmax": 7,
+    "re": 12.4,
+    "le": 6,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.335
+  },
+  {
+    "id": 25,
+    "brand": "Dayton Audio",
+    "model": "RSS315HO-44",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1400,
+    "sd": 507.1,
+    "fs": 21.5,
+    "vas": 61.3,
+    "qes": 0.41,
+    "qms": 3.7,
+    "xmax": 14,
+    "re": 6.5,
+    "le": 3.17,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.369
+  },
+  {
+    "id": 26,
+    "brand": "Dayton Audio",
+    "model": "RSS265HF-8",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 8,
+    "pe": 700,
+    "sd": 346.4,
+    "fs": 24.9,
+    "vas": 52.5,
+    "qes": 0.59,
+    "qms": 2.68,
+    "xmax": 14.3,
+    "re": 6.5,
+    "le": 1.57,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.484
+  },
+  {
+    "id": 27,
+    "brand": "Dayton Audio",
+    "model": "RS225P-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 8,
+    "znom": 8,
+    "pe": 120,
+    "sd": 213.8,
+    "fs": 32.3,
+    "vas": 73.5,
+    "qes": 0.44,
+    "qms": 1.28,
+    "xmax": 7,
+    "re": 6.5,
+    "le": 0.85,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.327
+  },
+  {
+    "id": 28,
+    "brand": "Dayton Audio",
+    "model": "RS180P-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 7,
+    "znom": 8,
+    "pe": 90,
+    "sd": 126.7,
+    "fs": 45.8,
+    "vas": 22,
+    "qes": 0.44,
+    "qms": 1.49,
+    "xmax": 6,
+    "re": 6.3,
+    "le": 0.84,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.34
+  },
+  {
+    "id": 29,
+    "brand": "Dayton Audio",
+    "model": "RS150P-4A",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 6,
+    "znom": 4,
+    "pe": 65,
+    "sd": 85,
+    "fs": 43.7,
+    "vas": 15.7,
+    "qes": 0.42,
+    "qms": 1.85,
+    "xmax": 4.4,
+    "re": 3.5,
+    "le": 0.39,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.342
+  },
+  {
+    "id": 30,
+    "brand": "Dayton Audio",
+    "model": "RS125P-4",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 5,
+    "znom": 4,
+    "pe": 60,
+    "sd": 54.11,
+    "fs": 70,
+    "vas": 3.98,
+    "qes": 0.57,
+    "qms": 3.19,
+    "xmax": 4,
+    "re": 3.1,
+    "le": 0.32,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.484
+  },
+  {
+    "id": 31,
+    "brand": "Dayton Audio",
+    "model": "PN470-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 18,
+    "znom": 8,
+    "pe": 1600,
+    "sd": 1217,
+    "fs": 31.6,
+    "vas": 252,
+    "qes": 0.35,
+    "qms": 9.29,
+    "xmax": 6.5,
+    "re": 5.6,
+    "le": 2.2,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.337
+  },
+  {
+    "id": 32,
+    "brand": "Dayton Audio",
+    "model": "PA460-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 18,
+    "znom": 8,
+    "pe": 1000,
+    "sd": 1241.1,
+    "fs": 28.3,
+    "vas": 402,
+    "qes": 0.34,
+    "qms": 11.2,
+    "xmax": 6,
+    "re": 5.6,
+    "le": 3.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.33
+  },
+  {
+    "id": 33,
+    "brand": "Dayton Audio",
+    "model": "ND140-4",
+    "series": "Mid Bass",
+    "year": 0,
+    "diameter_in": 5.25,
+    "znom": 4,
+    "pe": 80,
+    "sd": 86.6,
+    "fs": 59.2,
+    "vas": 7.22,
+    "qes": 0.72,
+    "qms": 5.35,
+    "xmax": 4,
+    "re": 3.7,
+    "le": 0.79,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.635
+  },
+  {
+    "id": 34,
+    "brand": "Dayton Audio",
+    "model": "ES180TiA-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 7,
+    "znom": 8,
+    "pe": 200,
+    "sd": 132.7,
+    "fs": 33.7,
+    "vas": 20.7,
+    "qes": 0.44,
+    "qms": 4.9,
+    "xmax": 5.3,
+    "re": 7.4,
+    "le": 1.13,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.404
+  },
+  {
+    "id": 35,
+    "brand": "Dayton Audio",
+    "model": "DSA270-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 8,
+    "pe": 200,
+    "sd": 353,
+    "fs": 29.61,
+    "vas": 88.1,
+    "qes": 0.47,
+    "qms": 2.09,
+    "xmax": 5.5,
+    "re": 5.4,
+    "le": 1.07,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.384
+  },
+  {
+    "id": 36,
+    "brand": "Dayton Audio",
+    "model": "DS315-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 240,
+    "sd": 506.7,
+    "fs": 24.2,
+    "vas": 159,
+    "qes": 0.37,
+    "qms": 1.79,
+    "xmax": 5.5,
+    "re": 6.1,
+    "le": 1.43,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.307
+  },
+  {
+    "id": 37,
+    "brand": "Dayton Audio",
+    "model": "DCS450-4",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 18,
+    "znom": 4,
+    "pe": 600,
+    "sd": 1134.1,
+    "fs": 26.2,
+    "vas": 248,
+    "qes": 0.48,
+    "qms": 4.98,
+    "xmax": 8.25,
+    "re": 3,
+    "le": 3.23,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.438
+  },
+  {
+    "id": 38,
+    "brand": "Dayton Audio",
+    "model": "DCS165-4",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 6.5,
+    "znom": 4,
+    "pe": 200,
+    "sd": 124.7,
+    "fs": 35.7,
+    "vas": 12.1,
+    "qes": 0.36,
+    "qms": 6.62,
+    "xmax": 6,
+    "re": 3.4,
+    "le": 1.43,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.341
+  },
+  {
+    "id": 39,
+    "brand": "Dayton Audio",
+    "model": "DC160S-4",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 6.5,
+    "znom": 4,
+    "pe": 100,
+    "sd": 136.8,
+    "fs": 30.9,
+    "vas": 23.2,
+    "qes": 0.34,
+    "qms": 2.61,
+    "xmax": 3.4,
+    "re": 3.5,
+    "le": 0.89,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.301
+  },
+  {
+    "id": 40,
+    "brand": "Dayton Audio",
+    "model": "DC130B-4",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 5.25,
+    "znom": 4,
+    "pe": 80,
+    "sd": 91.6,
+    "fs": 51.8,
+    "vas": 12.3,
+    "qes": 0.41,
+    "qms": 2.52,
+    "xmax": 2.5,
+    "re": 3.2,
+    "le": 0.5,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.353
+  },
+  {
+    "id": 41,
+    "brand": "Dayton Audio",
+    "model": "DA135-8",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 5.25,
+    "znom": 8,
+    "pe": 60,
+    "sd": 75.4,
+    "fs": 56.5,
+    "vas": 7.4,
+    "qes": 0.68,
+    "qms": 2.61,
+    "xmax": 3,
+    "re": 6.4,
+    "le": 0.97,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.539
+  },
+  {
+    "id": 42,
+    "brand": "Beyma",
+    "model": "18LEX1000Fe",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 18,
+    "znom": 8,
+    "pe": 2000,
+    "sd": 1255,
+    "fs": 34,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 11,
+    "re": 5.4,
+    "le": 1.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 43,
+    "brand": "Beyma",
+    "model": "12MCB700",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1400,
+    "sd": 550,
+    "fs": 51,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 7,
+    "re": 5.4,
+    "le": 0.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 44,
+    "brand": "Beyma",
+    "model": "SM-115N",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 15,
+    "znom": 8,
+    "pe": 800,
+    "sd": 880,
+    "fs": 35,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 7.25,
+    "re": 6.4,
+    "le": 1.2,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 45,
+    "brand": "Beyma",
+    "model": "8WOOFER/P V2",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 8,
+    "znom": 8,
+    "pe": 100,
+    "sd": 220,
+    "fs": 35,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 4.5,
+    "re": 5.8,
+    "le": 0.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 46,
+    "brand": "Beyma",
+    "model": "8LW30",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 8,
+    "znom": 8,
+    "pe": 500,
+    "sd": 220,
+    "fs": 70,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 4.5,
+    "re": 5.8,
+    "le": 1.1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 47,
+    "brand": "Beyma",
+    "model": "8BR40/N",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 8,
+    "znom": 8,
+    "pe": 100,
+    "sd": 220,
+    "fs": 30,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 6.7,
+    "re": 5.5,
+    "le": 0.5,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 48,
+    "brand": "Beyma",
+    "model": "6G40Nd",
+    "series": "Mid Bass",
+    "year": 0,
+    "diameter_in": 6.5,
+    "znom": 8,
+    "pe": 340,
+    "sd": 140,
+    "fs": 85,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 3,
+    "re": 6,
+    "le": 0.2,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 49,
+    "brand": "Beyma",
+    "model": "6B30/P",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 6.5,
+    "znom": 8,
+    "pe": 100,
+    "sd": 140,
+    "fs": 56,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 5.5,
+    "re": 5.5,
+    "le": 0.3,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 50,
+    "brand": "Beyma",
+    "model": "5G40Nd/N",
+    "series": "Mid Bass",
+    "year": 0,
+    "diameter_in": 5,
+    "znom": 8,
+    "pe": 200,
+    "sd": 85,
+    "fs": 140,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 3,
+    "re": 6.6,
+    "le": 0.2,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 51,
+    "brand": "Beyma",
+    "model": "18SW1600Nd",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 18,
+    "znom": 8,
+    "pe": 3200,
+    "sd": 1255,
+    "fs": 32,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 10,
+    "re": 5.5,
+    "le": 3.1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 52,
+    "brand": "Beyma",
+    "model": "18LX60V2",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 18,
+    "znom": 8,
+    "pe": 1400,
+    "sd": 1320,
+    "fs": 35,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8,
+    "re": 5.1,
+    "le": 2.1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 53,
+    "brand": "Beyma",
+    "model": "15WR400",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 15,
+    "znom": 8,
+    "pe": 800,
+    "sd": 880,
+    "fs": 36,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 6.3,
+    "re": 5.6,
+    "le": 1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 54,
+    "brand": "Beyma",
+    "model": "15MI100",
+    "series": "Mid Bass",
+    "year": 0,
+    "diameter_in": 15,
+    "znom": 8,
+    "pe": 900,
+    "sd": 880,
+    "fs": 37,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 4.5,
+    "re": 6.2,
+    "le": 1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 55,
+    "brand": "Beyma",
+    "model": "15LX60V2",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 15,
+    "znom": 8,
+    "pe": 1400,
+    "sd": 910,
+    "fs": 42,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8,
+    "re": 5.1,
+    "le": 2.1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 56,
+    "brand": "Beyma",
+    "model": "12WRS400",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 800,
+    "sd": 530,
+    "fs": 42,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 6.3,
+    "re": 5.6,
+    "le": 1.3,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 57,
+    "brand": "Beyma",
+    "model": "12P1000Nd",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1800,
+    "sd": 550,
+    "fs": 47,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8,
+    "re": 5.1,
+    "le": 2,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 58,
+    "brand": "Beyma",
+    "model": "12LX60V2",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1400,
+    "sd": 550,
+    "fs": 49,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 9,
+    "re": 5.1,
+    "le": 2.1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 59,
+    "brand": "Beyma",
+    "model": "10WR300",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 8,
+    "pe": 600,
+    "sd": 350.00000000000006,
+    "fs": 52,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 6,
+    "re": 6.1,
+    "le": 1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 60,
+    "brand": "Beyma",
+    "model": "10LW30/N",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 10,
+    "znom": 8,
+    "pe": 900,
+    "sd": 350,
+    "fs": 55,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 7,
+    "re": 6.2,
+    "le": 1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 61,
+    "brand": "PRV Audio",
+    "model": "12W2000",
+    "series": "Low frequency",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 2000,
+    "sd": 594,
+    "fs": 53.4,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 10.25,
+    "re": 5.1,
+    "le": 1.5,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 62,
+    "brand": "B&C Speaker",
+    "model": "12PLB100",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1200,
+    "sd": 531,
+    "fs": 50,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 9,
+    "re": 5.1,
+    "le": 1.6,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 63,
+    "brand": "D.A.S. Audio",
+    "model": "12H",
+    "series": "Low frequency",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1200,
+    "sd": 540,
+    "fs": 48,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 6,
+    "re": 6.1,
+    "le": 2.52,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 64,
+    "brand": "D.A.S. Audio",
+    "model": "12G",
+    "series": "Low frequency",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1400,
+    "sd": 540,
+    "fs": 48,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 6,
+    "re": 6,
+    "le": 2.36,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 65,
+    "brand": "PHL audio",
+    "model": "4031",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1000,
+    "sd": 539,
+    "fs": 44,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 7.5,
+    "re": 5.6,
+    "le": 1.241,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 66,
+    "brand": "Ciare",
+    "model": "PWA12.75",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 900,
+    "sd": 531,
+    "fs": 53,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 5.8,
+    "re": 5.4,
+    "le": 1.06,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 67,
+    "brand": "PHL audio",
+    "model": "4031NdU",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1000,
+    "sd": 539,
+    "fs": 44,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 7.5,
+    "re": 5.6,
+    "le": 1.241,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 68,
+    "brand": "B&C Speaker",
+    "model": "12FW88",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1400,
+    "sd": 531,
+    "fs": 53,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8,
+    "re": 5.1,
+    "le": 0.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 69,
+    "brand": "Eighteen Sound",
+    "model": "12NW530",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 800,
+    "sd": 530,
+    "fs": 55,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8,
+    "re": 4.9,
+    "le": 0.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 70,
+    "brand": "Fane",
+    "model": "COLOSSUS 12MB",
+    "series": "Mid Bass",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1000,
+    "sd": 530,
+    "fs": 55,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 5.5,
+    "re": 5.5,
+    "le": 1.56,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 71,
+    "brand": "Eighteen Sound",
+    "model": "12NW350",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1600,
+    "sd": 531,
+    "fs": 54,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8.3,
+    "re": 5,
+    "le": 0.85,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 72,
+    "brand": "B&C Speaker",
+    "model": "12FL76",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 800,
+    "sd": 522,
+    "fs": 50,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 6,
+    "re": 5.4,
+    "le": 1,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 73,
+    "brand": "B&C Speaker",
+    "model": "12NDL88",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1400,
+    "sd": 522,
+    "fs": 51,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8,
+    "re": 5,
+    "le": 1.3,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 74,
+    "brand": "Eighteen Sound",
+    "model": "12LW800",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 800,
+    "sd": 531,
+    "fs": 52,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 6.5,
+    "re": 5.6,
+    "le": 1.72,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 75,
+    "brand": "Eighteen Sound",
+    "model": "12LW801",
+    "series": "Subwoofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 800,
+    "sd": 531,
+    "fs": 54,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8,
+    "re": 5,
+    "le": 1.7,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 76,
+    "brand": "Eighteen Sound",
+    "model": "12W1300",
+    "series": "Low frequency",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1000,
+    "sd": 530,
+    "fs": 50,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 7.5,
+    "re": 5.2,
+    "le": 1.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  },
+  {
+    "id": 77,
+    "brand": "LaVoce",
+    "model": "WAF124.02",
+    "series": "Woofer",
+    "year": 0,
+    "diameter_in": 12,
+    "znom": 8,
+    "pe": 1200,
+    "sd": 531,
+    "fs": 49,
+    "vas": 50,
+    "qes": 0.34,
+    "qms": 6.6,
+    "xmax": 8.2,
+    "re": 5,
+    "le": 0.9,
+    "hvc": 0,
+    "hgap": 0,
+    "origin": "datasheet",
+    "qts": 0.323
+  }
+];
+
+  if (typeof window !== 'undefined') {
+    window.DRIVERS_CATALOG = CATALOG;
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = CATALOG;
+  }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+    const STORAGE_DB_KEY = 'BASSFORGE_DRIVER_DB_V1';
+    const STORAGE_ACTIVE_KEY = 'BASSFORGE_ACTIVE_DRIVER_V1';
+    const FACTORY_CATALOG = (window.CL_DRIVERS_CATALOG || window.DRIVERS_CATALOG || []).slice();
+
+    const CLAudioDatabaseAgent = {
+      driverKey(brand, model) {
+        return (String(brand || '').trim() + '_' + String(model || '').trim()).toLowerCase().replace(/\s+/g, '_');
+      },
+      estimateVsub(diameterIn) {
+        const d = parseFloat(diameterIn) || 12;
+        if (d >= 21) return 12.0;
+        if (d >= 18) return 9.0;
+        if (d >= 15) return 6.5;
+        if (d >= 12) return 3.5;
+        if (d >= 10) return 2.5;
+        return 1.5;
+      },
+      nextId(table) {
+        const maxId = (table || []).reduce((m, x) => Math.max(m, Number(x.id) || 0), 0);
+        return maxId + 1;
+      },
+      findByBrandModel(table, brand, model) {
+        const key = this.driverKey(brand, model);
+        return table.find(d => this.driverKey(d.brand, d.model) === key) || null;
+      },
+      sanitize(driver) {
+        const num = (v, def = 0) => {
+          const n = parseFloat(v);
+          return isFinite(n) && !isNaN(n) ? n : def;
+        };
+        const dia = num(driver.diameter_in || driver.dia, 12);
+        const rawVsub = num(driver.vsub, 0);
+        return {
+          id: parseInt(driver.id) > 0 ? parseInt(driver.id) : 0,
+          origin: driver.origin || 'datasheet',
+          brand: String(driver.brand || '').trim(),
+          model: String(driver.model || '').trim(),
+          series: String(driver.series || '').trim(),
+          year: parseInt(driver.year) || 2024,
+          diameter_in: dia,
+          znom: num(driver.znom, 4),
+          pe: num(driver.pe, 100),
+          sd: num(driver.sd, 500),
+          fs: num(driver.fs, 40),
+          vas: num(driver.vas, 50),
+          qes: num(driver.qes, 0.4),
+          qms: num(driver.qms, 5),
+          xmax: num(driver.xmax, 5),
+          re: num(driver.re, 3.5),
+          le: num(driver.le, 1.0),
+          hvc: num(driver.hvc, 0),
+          hgap: num(driver.hgap, 0),
+          mms_cat: num(driver.mms_cat ?? driver.mms, 0),
+          bl_cat: num(driver.bl_cat ?? driver.bl, 0),
+          vsub: rawVsub > 0 ? rawVsub : this.estimateVsub(dia)
+        };
+      },
+      validate(driver) {
+        const errors = [];
+        if (!driver.brand) errors.push('Marca é obrigatória');
+        if (!driver.model) errors.push('Modelo é obrigatório');
+        if (driver.fs <= 0) errors.push('Fs deve ser > 0');
+        if (driver.qes <= 0) errors.push('Qes deve ser > 0');
+        if (driver.qms <= 0) errors.push('Qms deve ser > 0');
+        if (driver.vas <= 0) errors.push('Vas deve ser > 0');
+        if (driver.sd <= 0) errors.push('Sd deve ser > 0');
+        if (driver.re <= 0) errors.push('Re deve ser > 0');
+        return { valid: errors.length === 0, errors };
+      }
+    };
+
+    function updateCatalogCounters() {
+      const n = DRIVER_CATALOG.length;
+      const btn = document.getElementById('btn-catalog-open');
+      if (btn) btn.textContent = `📚 CATÁLOGO (${n})`;
+      const hdr = document.getElementById('modal-catalog-title');
+      if (hdr) hdr.textContent = `📚 CATÁLOGO OFICIAL (${n} DRIVERS)`;
+    }
+
+    function saveCatalogStorage() {
+      try {
+        localStorage.setItem(STORAGE_DB_KEY, JSON.stringify({
+          schema: 'bassforge-driver-db/v1',
+          updatedAt: new Date().toISOString(),
+          drivers: DRIVER_CATALOG
+        }));
+      } catch (e) { /* quota or file restriction */ }
+      updateCatalogCounters();
+    }
+
+    function loadCatalogStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_DB_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          const arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.drivers) ? parsed.drivers : null);
+          if (arr) {
+            DRIVER_CATALOG = arr.map((d, idx) => {
+              const s = CLAudioDatabaseAgent.sanitize(d);
+              if (!s.id) s.id = idx + 1;
+              return s;
+            });
+            updateCatalogCounters();
+            return;
+          }
+        }
+      } catch (e) { /* fallback to factory */ }
+      DRIVER_CATALOG = FACTORY_CATALOG.map((d, idx) => {
+        const s = CLAudioDatabaseAgent.sanitize(d);
+        if (!s.id) s.id = idx + 1;
+        return s;
+      });
+      updateCatalogCounters();
+    }
+
+    /**
+     * @namespace CLAudioCrossValidation
+     * @description Motor Físico Completo de 28 Parâmetros Eletroacústicos
+     */
+    const CLAudioCrossValidation = {
+      audit(d, atmo = { c: 343.21, rho: 1.2041, gamma: 1.400 }) {
+        const { c, rho, gamma } = atmo;
+        const Vas_m3 = (d.vas || 0) / 1000.0;
+        const Sd_m2 = (d.sd || 0) / 10000.0;
+        const w0 = 2 * Math.PI * (d.fs || 40);
+
+        // 1. Parâmetros Eletromecânicos Fundamentais
+        const Qts = (d.qes > 0 && d.qms > 0) ? (d.qes * d.qms) / (d.qes + d.qms) : 0;
+        const Cms = (rho > 0 && c > 0 && Sd_m2 > 0) ? Vas_m3 / (rho * Math.pow(c, 2) * Math.pow(Sd_m2, 2)) : 0;
+        const Kms = Cms > 0 ? 1.0 / Cms : 0;
+        const Mms = (w0 > 0 && Cms > 0) ? 1.0 / (Math.pow(w0, 2) * Cms) : 0;
+        const a_m = Sd_m2 > 0 ? Math.sqrt(Sd_m2 / Math.PI) : 0; // Raio do pistão em metros
+        // Massa de radiação total em espaço livre 4π (ambos os lados = 2 * 4/3 * rho * a^3 = 8/3 * rho * a^3; Morse 1968)
+        const Mma_free = (8.0 / 3.0) * rho * Math.pow(a_m, 3);
+        const Mmd = Math.max(Mms - Mma_free, 0.001);
+        const Bl = (d.qes > 0 && Mms > 0 && d.re > 0) ? Math.sqrt((w0 * Mms * d.re) / d.qes) : 0;
+        const Rms = (d.qms > 0 && Mms > 0) ? (w0 * Mms) / d.qms : 0;
+
+        // 2. Parâmetros Acústicos
+        const Cas = Cms * Math.pow(Sd_m2, 2);
+        const Mas = Sd_m2 > 0 ? Mms / Math.pow(Sd_m2, 2) : 0;
+        const Ras = Sd_m2 > 0 ? Rms / Math.pow(Sd_m2, 2) : 0;
+
+        // 3. Dinâmica do Motor & Transientes Avançados
+        const bl2_re = d.re > 0 ? Math.pow(Bl, 2) / d.re : 0; // N²/W (Densidade de força)
+        const accel_factor = Mms > 0 ? Bl / Mms : 0; // m/s²/A (Aceleração do cone)
+        const f_breakup = a_m > 0 ? c / (2 * Math.PI * a_m) : 0; // Breakup rígido do pistão em Hz
+        const tau_e_ms = d.re > 0 ? (d.le / d.re) : 0; // ms
+        const tau_m_ms = Math.pow(Bl, 2) > 0 ? ((Mms * d.re) / Math.pow(Bl, 2)) * 1000 : 0; // ms
+
+        // 4. Curva de Ressonância de Impedância
+        const r0 = d.qes > 0 ? 1 + (d.qms / d.qes) : 1; // Razão de impedância
+        const R0 = d.re * r0; // Impedância no pico de ressonância (Ω)
+        const delta_f = d.qms > 0 ? (d.fs * Math.sqrt(r0)) / d.qms : 0; // Largura de banda em Z12 = sqrt(Re * R0) (Hz)
+        const f1 = (-delta_f + Math.sqrt(Math.pow(delta_f, 2) + 4 * Math.pow(d.fs, 2))) / 2;
+        const f2 = f1 + delta_f;
+
+        // 5. Eficiência, Potência & Limites (First-Principles 2π sr @ p_ref = 20 µPa)
+        const eta0 = (c > 0 && d.qes > 0) ? ((4 * Math.pow(Math.PI, 2)) / Math.pow(c, 3)) * ((Math.pow(d.fs, 3) * Vas_m3) / d.qes) : 0;
+        const k_spl = (rho * c) / (2 * Math.PI * 4e-10);
+        const SPL1W = 10 * Math.log10(k_spl * Math.max(eta0, 1e-12));
+        const SPL2_83 = d.re > 0 ? SPL1W + 10 * Math.log10(8.0 / d.re) : SPL1W;
+        const SPL_max_term = d.pe > 0 ? SPL1W + 10 * Math.log10(d.pe) : SPL1W;
+        const Pac_max = eta0 * (d.pe || 1);
+        const Vd = (d.sd * (d.xmax / 10.0)) / 1000.0;
+        const EBP = d.qes > 0 ? d.fs / d.qes : 0;
+        const x_geom = (d.hvc > 0 && d.hgap > 0) ? Math.abs(d.hvc - d.hgap) / 2 : d.xmax;
+
+        // 6. Rotas de Auditoria Classe I de Fs (Não-Tautológicas quando Mms/Bl de catálogo são informados)
+        const hasMmsCat = (d.mms_cat || 0) > 0;
+        const hasBlCat = (d.bl_cat || 0) > 0;
+        const hasCatalogAudit = hasMmsCat || hasBlCat;
+        const Mms_audit = hasMmsCat ? (d.mms_cat / 1000.0) : Mms;
+        const Bl_audit = hasBlCat ? d.bl_cat : Bl;
+
+        const fs_1 = (Mms_audit > 0 && Cms > 0) ? 1.0 / (2 * Math.PI * Math.sqrt(Mms_audit * Cms)) : 0;
+        const Cms_vas = (rho > 0 && c > 0 && Sd_m2 > 0) ? Vas_m3 / (rho * c * c * Sd_m2 * Sd_m2) : 0;
+        const fs_2 = (Mms_audit > 0 && Cms_vas > 0) ? 1.0 / (2 * Math.PI * Math.sqrt(Mms_audit * Cms_vas)) : 0;
+        const fs_3 = (Mms_audit > 0 && d.re > 0) ? (d.qes * Math.pow(Bl_audit, 2)) / (2 * Math.PI * Mms_audit * d.re) : 0;
+
+        const dev_1 = d.fs > 0 ? Math.abs((fs_1 - d.fs) / d.fs) * 100.0 : 0;
+        const dev_2 = d.fs > 0 ? Math.abs((fs_2 - d.fs) / d.fs) * 100.0 : 0;
+        const dev_3 = d.fs > 0 ? Math.abs((fs_3 - d.fs) / d.fs) * 100.0 : 0;
+        const worst_dev = Math.max(dev_1, dev_2, dev_3);
+
+        const dev_mms_pct = (hasMmsCat && Mms > 0) ? ((d.mms_cat - Mms * 1000) / (Mms * 1000)) * 100.0 : null;
+        const dev_bl_pct = (hasBlCat && Bl > 0) ? ((d.bl_cat - Bl) / Bl) * 100.0 : null;
+
+        const p_implied = (gamma > 0 && Sd_m2 > 0 && Cms > 0) ? Vas_m3 / (gamma * Math.pow(Sd_m2, 2) * Cms) : (rho * c * c / gamma);
+        const p_atm = (rho * c * c) / gamma;
+
+        let veredito = 'VERIFIED';
+        let vereditoClass = 'good';
+        let vereditoLabel = hasCatalogAudit ? '✓ Consistente (≤ 5%)' : '✓ T/S Derivado (sem Mms/Bl cat.)';
+
+        if (worst_dev > 10.0) {
+          veredito = 'INCONSISTENT'; vereditoClass = 'bad'; vereditoLabel = '❌ Inconsistente (> 10%)';
+        } else if (worst_dev > 5.0) {
+          veredito = 'TOLERATED'; vereditoClass = 'warn'; vereditoLabel = '⚠ Tolerado (≤ 10%)';
+        }
+
+        return {
+          atmo: { c, rho, gamma, p_atm },
+          // Fundamentais
+          Qts, Cms, Cms_mm_N: Cms * 1000, Kms, Kms_N_mm: Kms / 1000,
+          Mms, Mms_g: Mms * 1000, Mmd_g: Mmd * 1000, Bl, Rms, Cas, Mas, Ras,
+          radius_cm: a_m * 100, radius_mm: a_m * 1000,
+          // Dinâmica & Motor
+          bl2_re, accel_factor, f_breakup, tau_e_ms, tau_m_ms,
+          // Curva de Impedância
+          r0, R0, delta_f, f1, f2,
+          // Eficiência & SPL
+          eta0, eta0_pct: eta0 * 100, SPL1W, SPL2_83, SPL_max_term, Pac_max, Vd, EBP, x_geom, p_implied,
+          // Auditoria
+          hasMmsCat, hasBlCat, hasCatalogAudit, dev_mms_pct, dev_bl_pct,
+          fs_1, fs_2, fs_3, dev_1, dev_2, dev_3, worst_dev,
+          veredito, vereditoClass, vereditoLabel
+        };
+      }
+    };
+
+    let currentCalculation = null;
+    let selectedDBId = null;
+    let parsedTsvData = [];
+
+    window.addEventListener('DOMContentLoaded', () => {
+      loadCatalogStorage();
+      if (DRIVER_CATALOG.length > 0) {
+        carregarNoFormulario(DRIVER_CATALOG[0]);
+      } else {
+        onParamInput();
+      }
+      renderTable();
+    });
+
+    function getFormValues() {
+      const g = id => parseFloat(document.getElementById(id)?.value) || 0;
+      const t = id => document.getElementById(id)?.value.trim() || '';
+
+      const coilsStr = t('inp-coils');
+      let hvc = 0, hgap = 0;
+      if (coilsStr.includes('/')) {
+        const parts = coilsStr.split('/');
+        hvc = parseFloat(parts[0]) || 0;
+        hgap = parseFloat(parts[1]) || 0;
+      }
+
+      return CLAudioDatabaseAgent.sanitize({
+        brand: t('inp-brand'), model: t('inp-model'), series: t('inp-series'),
+        year: g('inp-year'), diameter_in: g('inp-dia'), znom: g('inp-znom'),
+        pe: g('inp-pe'), sd: g('inp-sd'), fs: g('inp-fs'), vas: g('inp-vas'),
+        qes: g('inp-qes'), qms: g('inp-qms'), xmax: g('inp-xmax'), re: g('inp-re'),
+        le: g('inp-le'), hvc, hgap,
+        mms_cat: g('inp-mms'), bl_cat: g('inp-bl'), vsub: g('inp-vsub'),
+        origin: document.getElementById('inp-origin')?.value || 'datasheet'
+      });
+    }
+
+    function onParamInput() {
+      const d = getFormValues();
+      currentCalculation = CLAudioCrossValidation.audit(d);
+      const c = currentCalculation;
+
+      // 1. Mecânica & Acústica
+      document.getElementById('drv-qts').textContent = c.Qts.toFixed(3);
+      document.getElementById('drv-cms').textContent = c.Cms_mm_N.toFixed(3) + ' mm/N';
+      document.getElementById('drv-kms').textContent = c.Kms_N_mm.toFixed(1) + ' N/mm';
+      document.getElementById('drv-mms').textContent = c.Mms_g.toFixed(1) + ' g';
+      document.getElementById('drv-mmd').textContent = c.Mmd_g.toFixed(1) + ' g';
+      document.getElementById('drv-rms').textContent = c.Rms.toFixed(2) + ' kg/s';
+      document.getElementById('drv-cas').textContent = (c.Cas * 1e8).toFixed(2) + ' ×10⁻⁸';
+      document.getElementById('drv-mas').textContent = c.Mas.toFixed(1) + ' kg/m⁴';
+      document.getElementById('drv-ras').textContent = c.Ras.toFixed(0) + ' N·s/m⁵';
+      document.getElementById('drv-radius').textContent = c.radius_cm.toFixed(2) + ' cm';
+      document.getElementById('badge-ebp').textContent = 'EBP: ' + c.EBP.toFixed(1);
+
+      // 2. Dinâmica & Motor
+      document.getElementById('drv-bl').textContent = c.Bl.toFixed(2) + ' T·m';
+      document.getElementById('drv-bl2re').textContent = c.bl2_re.toFixed(1) + ' N²/W';
+      document.getElementById('drv-motor-dense').textContent = 'Bl²/Re: ' + c.bl2_re.toFixed(1) + ' N²/W';
+      document.getElementById('drv-accel').textContent = c.accel_factor.toFixed(1) + ' m/s²/A';
+      document.getElementById('drv-fbreak').textContent = Math.round(c.f_breakup) + ' Hz';
+      document.getElementById('drv-taue').textContent = c.tau_e_ms.toFixed(2) + ' ms';
+      document.getElementById('drv-taum').textContent = c.tau_m_ms.toFixed(2) + ' ms';
+
+      // 3. Eficiência & Limites
+      document.getElementById('drv-eta').textContent = c.eta0_pct.toFixed(2) + ' %';
+      document.getElementById('drv-spl1w').textContent = c.SPL1W.toFixed(1) + ' dB';
+      document.getElementById('drv-spl2v').textContent = c.SPL2_83.toFixed(1) + ' dB';
+      document.getElementById('drv-splmax').textContent = c.SPL_max_term.toFixed(1) + ' dB';
+      document.getElementById('drv-splmax-badge').textContent = 'SPL Max: ' + c.SPL_max_term.toFixed(1) + ' dB';
+      document.getElementById('drv-pac').textContent = c.Pac_max.toFixed(1) + ' W ac';
+      document.getElementById('drv-vd').textContent = c.Vd.toFixed(3) + ' L';
+      document.getElementById('drv-xgeom').textContent = c.x_geom.toFixed(2) + ' mm';
+      document.getElementById('drv-r0').textContent = c.R0.toFixed(1) + ' Ω';
+
+      // 4. Painel de Auditoria Cruzada
+      const lblAtmo = document.getElementById('lbl-atmo-cond');
+      if (lblAtmo && c.atmo) {
+        lblAtmo.textContent = `c = ${c.atmo.c.toFixed(2)} m/s · ρ = ${c.atmo.rho.toFixed(4)} kg/m³ · P₀ = ${(c.atmo.p_atm / 100).toFixed(2)} hPa`;
+      }
+      document.getElementById('aud-fs-1').textContent = `${c.fs_1.toFixed(2)} Hz (${c.dev_1.toFixed(1)}%)`;
+      document.getElementById('aud-fs-2').textContent = `${c.fs_2.toFixed(2)} Hz (${c.dev_2.toFixed(1)}%)`;
+      document.getElementById('aud-fs-3').textContent = `${c.fs_3.toFixed(2)} Hz (${c.dev_3.toFixed(1)}%)`;
+      document.getElementById('aud-r0').textContent = `${c.R0.toFixed(1)} Ω (r₀: ${c.r0.toFixed(1)})`;
+      document.getElementById('aud-deltaf').textContent = `${c.delta_f.toFixed(1)} Hz (${c.f1.toFixed(0)} - ${c.f2.toFixed(0)}Hz)`;
+      document.getElementById('aud-p-imp').textContent = Math.round(c.p_implied / 100) + ' hPa';
+
+      const vCard = document.getElementById('aud-veredito-card');
+      vCard.style.borderColor = (c.vereditoClass === 'good' ? 'var(--acc3)' : (c.vereditoClass === 'warn' ? 'var(--acc2)' : 'var(--dng)'));
+      document.getElementById('aud-ver-title').textContent = c.vereditoLabel.toUpperCase();
+      if (c.hasCatalogAudit) {
+        const parts = [];
+        if (c.dev_mms_pct !== null) parts.push(`ΔMms: ${c.dev_mms_pct >= 0 ? '+' : ''}${c.dev_mms_pct.toFixed(2)}%`);
+        if (c.dev_bl_pct !== null) parts.push(`ΔBl: ${c.dev_bl_pct >= 0 ? '+' : ''}${c.dev_bl_pct.toFixed(2)}%`);
+        document.getElementById('aud-ver-desc').textContent = `Auditoria não-tautológica · Desvio máx. Fs: ${c.worst_dev.toFixed(1)}%${parts.length ? ' · ' + parts.join(' · ') : ''}`;
+      } else {
+        document.getElementById('aud-ver-desc').textContent = `Modo derivação (0.0% por identidade algébrica). Informe Mms/Bl de catálogo para auditoria não-tautológica · Aceleração: ${c.accel_factor.toFixed(0)} m/s²/A.`;
+      }
+    }
+
+    function adicionarTabela() {
+      const d = getFormValues();
+      const val = CLAudioDatabaseAgent.validate(d);
+      if (!val.valid) {
+        alert('Erro ao salvar: ' + val.errors.join(', '));
+        return;
+      }
+
+      const existingIndex = DRIVER_CATALOG.findIndex(x => CLAudioDatabaseAgent.driverKey(x.brand, x.model) === CLAudioDatabaseAgent.driverKey(d.brand, d.model));
+      if (existingIndex >= 0) {
+        d.id = DRIVER_CATALOG[existingIndex].id || CLAudioDatabaseAgent.nextId(DRIVER_CATALOG);
+        DRIVER_CATALOG[existingIndex] = d;
+      } else {
+        d.id = CLAudioDatabaseAgent.nextId(DRIVER_CATALOG);
+        DRIVER_CATALOG.unshift(d);
+      }
+
+      selectedDBId = d.id;
+      saveCatalogStorage();
+      renderTable();
+      const bLoad = document.getElementById('btn-load-driver'); if (bLoad) bLoad.disabled = false;
+      const bDel = document.getElementById('btn-del-driver'); if (bDel) bDel.disabled = false;
+      const bSim = document.getElementById('btn-send-sim'); if (bSim) bSim.disabled = false;
+      alert(`Driver ${d.brand} ${d.model} salvo no banco oficial (localStorage)!`);
+    }
+
+    function renderTable() {
+      const tbody = document.getElementById('db-table-body');
+      const search = (document.getElementById('db-search')?.value || '').toLowerCase();
+      if (!tbody) return;
+
+      const filtered = DRIVER_CATALOG.filter(d => 
+        (d.brand + ' ' + d.model + ' ' + (d.series || '')).toLowerCase().includes(search)
+      );
+
+      document.getElementById('db-total-count').textContent = filtered.length;
+
+      tbody.innerHTML = filtered.map(d => {
+        const isSel = (d.id === selectedDBId);
+        const aud = CLAudioCrossValidation.audit(d);
+        const origCode = d.origin === 'measured' ? 'M' : (d.origin === 'hybrid' ? 'H' : 'D');
+        const origBg = d.origin === 'measured' ? 'var(--acc3)' : (d.origin === 'hybrid' ? 'var(--acc2)' : 'var(--acc4)');
+
+        return `
+          <tr class="${isSel ? 'selected' : ''}" onclick="selectRow(${d.id})">
+            <td>${d.id}</td>
+            <td><span style="background:${origBg};color:#000;padding:1px 4px;border-radius:2px;font-size:8.5px;font-weight:700;">${origCode}</span></td>
+            <td><b>${d.brand}</b></td><td>${d.model}</td><td>${d.series || '—'}</td><td>${d.year || 2024}</td><td>${d.diameter_in}″</td>
+            <td>${d.znom || 4}</td><td>${d.pe}</td><td>${d.sd}</td><td>${d.fs}</td><td>${d.vas}</td><td>${d.qes}</td><td>${d.qms}</td>
+            <td>${d.xmax}</td><td>${d.re}</td><td>${d.le}</td><td>${d.hvc || 0}</td><td>${d.hgap || 0}</td>
+            <td>${d.mms_cat > 0 ? d.mms_cat.toFixed(1) : '—'}</td><td>${d.bl_cat > 0 ? d.bl_cat.toFixed(2) : '—'}</td><td>${(d.vsub || CLAudioDatabaseAgent.estimateVsub(d.diameter_in)).toFixed(1)}</td>
+            <td class="calc">${aud.Qts.toFixed(3)}</td>
+            <td class="calc">${aud.Cms_mm_N.toFixed(3)}</td>
+            <td class="calc">${aud.Kms_N_mm.toFixed(1)}</td>
+            <td class="calc">${aud.Mms_g.toFixed(1)}</td>
+            <td class="calc">${aud.Bl.toFixed(2)}</td>
+            <td class="calc">${aud.Rms.toFixed(2)}</td>
+            <td class="calc" style="color:var(--acc2)">${aud.bl2_re.toFixed(1)}</td>
+            <td class="calc" style="color:var(--acc2)">${aud.accel_factor.toFixed(0)}</td>
+            <td class="calc">${aud.eta0_pct.toFixed(2)}%</td>
+            <td class="calc">${aud.SPL1W.toFixed(1)}</td>
+            <td class="calc">${aud.SPL2_83.toFixed(1)}</td>
+            <td class="calc" style="color:var(--acc3)">${aud.SPL_max_term.toFixed(1)}</td>
+            <td class="calc">${aud.Vd.toFixed(3)}</td>
+            <td class="calc">${aud.EBP.toFixed(0)}</td>
+            <td style="color:${aud.vereditoClass === 'good' ? 'var(--acc3)' : (aud.vereditoClass === 'warn' ? 'var(--acc2)' : 'var(--dng)')}">${aud.vereditoLabel}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function selectRow(id) {
+      selectedDBId = id;
+      document.getElementById('btn-load-driver').disabled = false;
+      document.getElementById('btn-del-driver').disabled = false;
+      const bSim = document.getElementById('btn-send-sim');
+      if (bSim) bSim.disabled = false;
+      renderTable();
+    }
+
+    function carregarLinhaSelecionada() {
+      const drv = DRIVER_CATALOG.find(x => x.id === selectedDBId);
+      if (drv) carregarNoFormulario(drv);
+    }
+
+    function carregarNoFormulario(d) {
+      document.getElementById('inp-brand').value = d.brand || '';
+      document.getElementById('inp-model').value = d.model || '';
+      document.getElementById('inp-series').value = d.series || '';
+      document.getElementById('inp-year').value = d.year || 2024;
+      document.getElementById('inp-dia').value = d.diameter_in || 15;
+      document.getElementById('inp-znom').value = d.znom || 4;
+      document.getElementById('inp-pe').value = d.pe || 600;
+      document.getElementById('inp-sd').value = d.sd || 800;
+      document.getElementById('inp-fs').value = d.fs || 40;
+      document.getElementById('inp-vas').value = d.vas || 70;
+      document.getElementById('inp-qes').value = d.qes || 0.45;
+      document.getElementById('inp-qms').value = d.qms || 10;
+      document.getElementById('inp-xmax').value = d.xmax || 10;
+      document.getElementById('inp-re').value = d.re || 3.6;
+      document.getElementById('inp-le').value = d.le || 2.0;
+      document.getElementById('inp-coils').value = (d.hvc && d.hgap) ? `${d.hvc} / ${d.hgap}` : '';
+      document.getElementById('inp-mms').value = (d.mms_cat || d.mms) ? (d.mms_cat || d.mms) : '';
+      document.getElementById('inp-bl').value = (d.bl_cat || d.bl) ? (d.bl_cat || d.bl) : '';
+      const vsubEl = document.getElementById('inp-vsub');
+      if (vsubEl) vsubEl.value = d.vsub > 0 ? d.vsub : '';
+      document.getElementById('inp-origin').value = d.origin || 'datasheet';
+      onParamInput();
+    }
+
+    function excluirSelecionado() {
+      if (!selectedDBId) return;
+      DRIVER_CATALOG = DRIVER_CATALOG.filter(x => x.id !== selectedDBId);
+      selectedDBId = null;
+      document.getElementById('btn-load-driver').disabled = true;
+      document.getElementById('btn-del-driver').disabled = true;
+      const bSim = document.getElementById('btn-send-sim');
+      if (bSim) bSim.disabled = true;
+      saveCatalogStorage();
+      renderTable();
+    }
+
+    function excluirTodos() {
+      if (confirm('Tem certeza de que deseja limpar TODOS os drivers do banco de dados?')) {
+        DRIVER_CATALOG = [];
+        selectedDBId = null;
+        document.getElementById('btn-load-driver').disabled = true;
+        document.getElementById('btn-del-driver').disabled = true;
+        const bSim = document.getElementById('btn-send-sim');
+        if (bSim) bSim.disabled = true;
+        saveCatalogStorage();
+        renderTable();
+      }
+    }
+
+    function restaurarCatalogoFabrica() {
+      if (!FACTORY_CATALOG.length) return;
+      if (confirm(`Restaurar os ${FACTORY_CATALOG.length} drivers de fábrica? (Os drivers atuais serão substituídos)`)) {
+        DRIVER_CATALOG = FACTORY_CATALOG.map((d, idx) => {
+          const s = CLAudioDatabaseAgent.sanitize(d);
+          if (!s.id) s.id = idx + 1;
+          return s;
+        });
+        selectedDBId = null;
+        saveCatalogStorage();
+        if (DRIVER_CATALOG.length > 0) carregarNoFormulario(DRIVER_CATALOG[0]);
+        renderTable();
+      }
+    }
+
+    function resetForm() {
+      document.getElementById('inp-brand').value = '';
+      document.getElementById('inp-model').value = '';
+      document.getElementById('inp-series').value = '';
+      document.getElementById('inp-fs').value = '';
+      document.getElementById('inp-vas').value = '';
+      document.getElementById('inp-qes').value = '';
+      document.getElementById('inp-qms').value = '';
+      document.getElementById('inp-re').value = '';
+      document.getElementById('inp-sd').value = '';
+      document.getElementById('inp-xmax').value = '';
+      document.getElementById('inp-coils').value = '';
+      document.getElementById('inp-mms').value = '';
+      document.getElementById('inp-bl').value = '';
+      const vsubEl = document.getElementById('inp-vsub');
+      if (vsubEl) vsubEl.value = '';
+      onParamInput();
+    }
+
+    function buildSimulatorPayload(driver) {
+      const d = CLAudioDatabaseAgent.sanitize(driver);
+      const a = CLAudioCrossValidation.audit(d);
+      return {
+        ...d,
+        name: `${d.brand} ${d.model}`.trim(),
+        derived: {
+          Qts: +a.Qts.toFixed(4), Cms_mm_N: +a.Cms_mm_N.toFixed(4), Kms_N_mm: +a.Kms_N_mm.toFixed(2),
+          Mms_g: +a.Mms_g.toFixed(2), Mmd_g: +a.Mmd_g.toFixed(2), Bl: +a.Bl.toFixed(3), Rms: +a.Rms.toFixed(3),
+          bl2_re: +a.bl2_re.toFixed(2), accel_factor: +a.accel_factor.toFixed(2),
+          f_breakup: Math.round(a.f_breakup), tau_e_ms: +a.tau_e_ms.toFixed(3), tau_m_ms: +a.tau_m_ms.toFixed(3),
+          r0: +a.r0.toFixed(2), R0: +a.R0.toFixed(2), delta_f: +a.delta_f.toFixed(2), f1: +a.f1.toFixed(2), f2: +a.f2.toFixed(2),
+          eta0_pct: +a.eta0_pct.toFixed(3), SPL1W: +a.SPL1W.toFixed(2), SPL2_83: +a.SPL2_83.toFixed(2),
+          SPL_max_term: +a.SPL_max_term.toFixed(2), Pac_max: +a.Pac_max.toFixed(2), Vd: +a.Vd.toFixed(4),
+          EBP: +a.EBP.toFixed(2), x_geom: +a.x_geom.toFixed(2),
+          worst_dev: +a.worst_dev.toFixed(2), veredito: a.veredito, vereditoLabel: a.vereditoLabel
+        }
+      };
+    }
+
+    function encodePayloadBase64Url(obj) {
+      const json = JSON.stringify(obj);
+      const bytes = new TextEncoder().encode(json);
+      let bin = '';
+      bytes.forEach(b => { bin += String.fromCharCode(b); });
+      return btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    function enviarParaSimulador(driver) {
+      const val = CLAudioDatabaseAgent.validate(driver);
+      if (!val.valid) {
+        alert('Corrija antes de enviar ao simulador: ' + val.errors.join(', '));
+        return;
+      }
+      const payload = buildSimulatorPayload(driver);
+      try {
+        localStorage.setItem(STORAGE_ACTIVE_KEY, JSON.stringify(payload));
+        saveCatalogStorage();
+      } catch (e) { /* ignore storage error */ }
+      const pLower = window.location.pathname.toLowerCase();
+      const simRel = (pLower.endsWith('drivers-db.html') || pLower.includes('bassforge-pro-x') || pLower.includes('bassforge_kit'))
+        ? './index.html'
+        : '../../../../bassforge-pro-x/index.html';
+      const targetUrl = `${simRel}#driver=${encodePayloadBase64Url(payload)}`;
+      window.open(targetUrl, '_blank');
+    }
+
+    function enviarFormularioParaSimulador() {
+      enviarParaSimulador(getFormValues());
+    }
+
+    function enviarLinhaParaSimulador() {
+      const drv = DRIVER_CATALOG.find(x => x.id === selectedDBId);
+      if (drv) enviarParaSimulador(drv);
+    }
+
+    function parseTsvRows(text) {
+      const lines = text.trim().split(/\r?\n/);
+      if (lines.length < 2) return [];
+      const headers = lines[0].split('\t').map(h => h.trim().toLowerCase());
+      const rows = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const parts = lines[i].split('\t');
+        if (parts.length < 3) continue;
+        const obj = {};
+        headers.forEach((h, idx) => { obj[h] = parts[idx] ? parts[idx].trim() : ''; });
+        rows.push(CLAudioDatabaseAgent.sanitize({
+          origin: obj.origin || obj.origem || parts[1] || 'datasheet',
+          brand: obj.brand || obj.marca || parts[2] || parts[1],
+          model: obj.model || obj.modelo || parts[3] || parts[2],
+          series: obj.series || obj.série || obj.serie || parts[4] || parts[3],
+          year: obj.year || obj.ano || parts[5] || parts[4],
+          diameter_in: obj.diameter_in || obj.diâmetro || obj.diam || obj.dia || parts[6] || parts[5],
+          znom: obj.znom || parts[7] || parts[6],
+          pe: obj.pe || parts[8] || parts[7],
+          sd: obj.sd || parts[9] || parts[8],
+          fs: obj.fs || parts[10] || parts[9],
+          vas: obj.vas || parts[11] || parts[10],
+          qes: obj.qes || parts[12] || parts[11],
+          qms: obj.qms || parts[13] || parts[12],
+          xmax: obj.xmax || parts[14] || parts[13],
+          re: obj.re || parts[15] || parts[14],
+          le: obj.le || parts[16] || parts[15],
+          hvc: obj.hvc || parts[17] || 0,
+          hgap: obj.hgap || parts[18] || 0,
+          mms_cat: obj.mms_cat || obj.mms || parts[19] || 0,
+          bl_cat: obj.bl_cat || obj.bl || parts[20] || 0,
+          vsub: obj.vsub || parts[21] || 0
+        }));
+      }
+      return rows;
+    }
+
+    function parseJsonImport(text) {
+      const parsed = JSON.parse(text);
+      const arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.drivers) ? parsed.drivers : (parsed?.brand && parsed?.model ? [parsed] : []));
+      return arr.map(d => CLAudioDatabaseAgent.sanitize(d));
+    }
+
+    function previewTSV(text, fileName = '') {
+      let rows = [];
+      const trimmed = (text || '').trim();
+      if (fileName.toLowerCase().endsWith('.json') || trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+          rows = parseJsonImport(trimmed);
+        } catch (e) {
+          rows = [];
+        }
+      } else {
+        rows = parseTsvRows(trimmed);
+      }
+      parsedTsvData = rows;
+      const prevArea = document.getElementById('tsv-preview-area');
+      if (rows.length === 0) {
+        prevArea.innerHTML = '<span style="color:var(--dng)">Nenhum driver válido encontrado no arquivo.</span>';
+        document.getElementById('btn-confirm-import').disabled = true;
+        return;
+      }
+      prevArea.innerHTML = `<b>${rows.length} drivers identificados para importação:</b><br><br>` +
+        rows.slice(0, 10).map((r, i) => `${i+1}. ${r.brand} ${r.model} (Fs ${r.fs}Hz, Vas ${r.vas}L, Qes ${r.qes}${r.mms_cat > 0 ? ', Mms ' + r.mms_cat + 'g' : ''}${r.bl_cat > 0 ? ', Bl ' + r.bl_cat + 'T·m' : ''})`).join('<br>') +
+        (rows.length > 10 ? `<br><i>... e mais ${rows.length - 10} drivers.</i>` : '');
+      document.getElementById('btn-confirm-import').disabled = false;
+    }
+
+    function handleTSVFileSelect(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => previewTSV(e.target.result, file.name);
+      reader.readAsText(file);
+    }
+
+    function confirmTSVImport() {
+      if (parsedTsvData.length > 0) {
+        parsedTsvData.forEach(item => {
+          const idx = DRIVER_CATALOG.findIndex(x => CLAudioDatabaseAgent.driverKey(x.brand, x.model) === CLAudioDatabaseAgent.driverKey(item.brand, item.model));
+          if (idx >= 0) {
+            item.id = DRIVER_CATALOG[idx].id || CLAudioDatabaseAgent.nextId(DRIVER_CATALOG);
+            DRIVER_CATALOG[idx] = item;
+          } else {
+            item.id = CLAudioDatabaseAgent.nextId(DRIVER_CATALOG);
+            DRIVER_CATALOG.unshift(item);
+          }
+        });
+        saveCatalogStorage();
+        renderTable();
+        closeModal('modal-import');
+        alert(`${parsedTsvData.length} drivers importados com sucesso!`);
+      }
+    }
+
+    function exportTSV() {
+      const headers = ['ID', 'Origem', 'Marca', 'Modelo', 'Série', 'Ano', 'Diâmetro', 'Znom', 'Pe', 'Sd', 'Fs', 'Vas', 'Qes', 'Qms', 'Xmax', 'Re', 'Le', 'Hvc', 'Hgap', 'Mms_cat', 'Bl_cat', 'Vsub'];
+      let tsv = headers.join('\t') + '\n';
+      DRIVER_CATALOG.forEach(d => {
+        tsv += [
+          d.id, d.origin || 'datasheet', d.brand, d.model, d.series || '', d.year || 2024,
+          d.diameter_in, d.znom || 4, d.pe, d.sd, d.fs, d.vas, d.qes, d.qms, d.xmax, d.re, d.le,
+          d.hvc || 0, d.hgap || 0, d.mms_cat || 0, d.bl_cat || 0, d.vsub || CLAudioDatabaseAgent.estimateVsub(d.diameter_in)
+        ].join('\t') + '\n';
+      });
+      downloadFile('drivers_catalog_22col.tsv', tsv, 'text/tab-separated-values');
+    }
+
+    function exportCSV() {
+      const headers = [
+        'ID', 'Origem', 'Marca', 'Modelo', 'Série', 'Ano', 'Diâmetro', 'Znom', 'Pe', 'Sd', 'Fs', 'Vas', 'Qes', 'Qms',
+        'Xmax', 'Re', 'Le', 'Hvc', 'Hgap', 'Mms_cat', 'Bl_cat', 'Vsub',
+        'Qts', 'Cms', 'Kms', 'Mms', 'Mmd', 'Bl', 'Rms', 'Bl2_Re', 'Accel_Gamma', 'eta0',
+        'SPL1W', 'SPL2.83', 'SPL_Max', 'Vd', 'EBP', 'FS01_Hz', 'FS02_Hz', 'FS03_Hz', 'Worst_Dev_%', 'Veredito'
+      ];
+      let csv = headers.join(',') + '\n';
+      DRIVER_CATALOG.forEach(d => {
+        const a = CLAudioCrossValidation.audit(d);
+        csv += [
+          d.id, d.origin || 'datasheet', `"${String(d.brand).replace(/"/g, '""')}"`, `"${String(d.model).replace(/"/g, '""')}"`,
+          `"${String(d.series || '').replace(/"/g, '""')}"`, d.year || 2024, d.diameter_in, d.znom || 4,
+          d.pe, d.sd, d.fs, d.vas, d.qes, d.qms, d.xmax, d.re, d.le,
+          d.hvc || 0, d.hgap || 0, d.mms_cat || 0, d.bl_cat || 0, d.vsub || CLAudioDatabaseAgent.estimateVsub(d.diameter_in),
+          a.Qts.toFixed(3), a.Cms_mm_N.toFixed(3), a.Kms_N_mm.toFixed(1), a.Mms_g.toFixed(1), a.Mmd_g.toFixed(1),
+          a.Bl.toFixed(2), a.Rms.toFixed(2), a.bl2_re.toFixed(1), a.accel_factor.toFixed(0), a.eta0_pct.toFixed(2),
+          a.SPL1W.toFixed(1), a.SPL2_83.toFixed(1), a.SPL_max_term.toFixed(1), a.Vd.toFixed(3), a.EBP.toFixed(0),
+          a.fs_1.toFixed(2), a.fs_2.toFixed(2), a.fs_3.toFixed(2), a.worst_dev.toFixed(2), a.veredito
+        ].join(',') + '\n';
+      });
+      downloadFile('drivers_complete_advanced.csv', csv, 'text/csv');
+    }
+
+    function exportJSON() {
+      const payload = {
+        schema: 'bassforge-driver-db/v1',
+        exportedAt: new Date().toISOString(),
+        atmo: { c: 343.21, rho: 1.2041, gamma: 1.400, p_atm_hpa: 1013.11 },
+        count: DRIVER_CATALOG.length,
+        drivers: DRIVER_CATALOG.map(d => buildSimulatorPayload(d))
+      };
+      downloadFile('drivers_db_official.json', JSON.stringify(payload, null, 2), 'application/json');
+    }
+
+    function downloadFile(name, content, type) {
+      const blob = new Blob([content], { type });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+
+    function openCatalogModal() { document.getElementById('modal-catalog').classList.add('open'); renderCatalogList(); }
+    function openImportTSVModal() { document.getElementById('modal-import').classList.add('open'); }
+    function openReportModal() { document.getElementById('modal-report').classList.add('open'); renderPrintableReport(); }
+    function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+
+    function renderCatalogList() {
+      const cont = document.getElementById('cat-list-container');
+      const search = (document.getElementById('cat-search')?.value || '').toLowerCase();
+      if (!cont) return;
+
+      const filtered = DRIVER_CATALOG.filter(d => 
+        (d.brand + ' ' + d.model + ' ' + (d.series || '')).toLowerCase().includes(search)
+      );
+
+      cont.innerHTML = filtered.map(d => `
+        <div style="background:var(--bg2); border:1px solid var(--bdr); border-radius:4px; padding:10px; display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="carregarNoFormulario(${JSON.stringify(d).replace(/"/g, '&quot;')}); closeModal('modal-catalog');">
+          <div>
+            <div style="font-weight:700; color:var(--acc); font-family:var(--mono);">${d.brand} ${d.model}</div>
+            <div style="font-size:10px; color:var(--txt3); font-family:var(--mono);">${d.diameter_in}″ · ${d.znom || 4}Ω · ${d.pe}W RMS</div>
+          </div>
+          <div style="text-align:right; font-family:var(--mono); font-size:10px; color:var(--acc3);">
+            Fs ${d.fs}Hz<br>Qts ${(d.qes > 0 && d.qms > 0 ? (d.qes * d.qms) / (d.qes + d.qms) : 0).toFixed(3)}
+          </div>
+        </div>
+      `).join('');
+    }
+
+    function renderPrintableReport() {
+      const d = getFormValues();
+      const a = CLAudioCrossValidation.audit(d);
+      const rep = document.getElementById('report-printable');
+      if (!rep) return;
+
+      rep.innerHTML = `
+        <div style="border-bottom:2px solid #000; padding-bottom:8px; margin-bottom:14px; display:flex; justify-content:space-between;">
+          <div>
+            <h2 style="margin:0; font-size:20px; font-weight:800; color:#0a3a55;">BassForge SUITE — LAUDO ELETROACÚSTICO OFICIAL</h2>
+            <div style="font-size:11px; color:#666;">Auditoria Física, Dinâmica do Motor &amp; Validação Cruzada (Banco Oficial de Drivers)</div>
+          </div>
+          <div style="text-align:right; font-size:11px; font-family:monospace;">
+            Data: ${new Date().toLocaleDateString('pt-BR')}<br>Veredito: <b>${a.vereditoLabel}</b>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:11px;">
+          <div>
+            <h4 style="margin:0 0 6px 0; border-bottom:1px solid #ccc; padding-bottom:2px;">1. IDENTIFICAÇÃO & THIELE-SMALL</h4>
+            <div><b>Driver:</b> ${d.brand} ${d.model} (${d.diameter_in}″ · Znom ${d.znom}Ω)</div>
+            <div><b>Potência Elétrica (Pe):</b> ${d.pe} Watts RMS · <b>Vsub:</b> ${(d.vsub || 0).toFixed(1)} L</div>
+            <div><b>Fs:</b> ${d.fs} Hz · <b>Qts:</b> ${a.Qts.toFixed(3)} · <b>Vas:</b> ${d.vas} L</div>
+            <div><b>Qes:</b> ${d.qes} · <b>Qms:</b> ${d.qms} · <b>Re:</b> ${d.re} Ω · <b>Le:</b> ${d.le} mH</div>
+            <div><b>Xmax:</b> ${d.xmax} mm (Geom: ${a.x_geom.toFixed(2)}mm · Hvc/Hgap: ${d.hvc || 0}/${d.hgap || 0}mm) · <b>Sd:</b> ${d.sd} cm²</div>
+          </div>
+          <div>
+            <h4 style="margin:0 0 6px 0; border-bottom:1px solid #ccc; padding-bottom:2px;">2. MOTOR, MASSA & DINÂMICA DE TRANSIENTES</h4>
+            <div><b>Mms / Mmd:</b> ${a.Mms_g.toFixed(1)} g / ${a.Mmd_g.toFixed(1)} g${d.mms_cat > 0 ? ` (Cat: ${d.mms_cat} g | Δ ${a.dev_mms_pct.toFixed(2)}%)` : ''}</div>
+            <div><b>Cms / Rms:</b> ${a.Cms_mm_N.toFixed(3)} mm/N / ${a.Rms.toFixed(2)} kg/s</div>
+            <div><b>Força do Motor (Bl):</b> ${a.Bl.toFixed(2)} T·m${d.bl_cat > 0 ? ` (Cat: ${d.bl_cat} T·m | Δ ${a.dev_bl_pct.toFixed(2)}%)` : ''}</div>
+            <div><b>Densidade de Força (Bl²/Re):</b> ${a.bl2_re.toFixed(1)} N²/W · <b>Γ:</b> ${a.accel_factor.toFixed(0)} m/s²/A</div>
+            <div><b>Breakup Cone:</b> ${Math.round(a.f_breakup)} Hz · <b>τe / τm:</b> ${a.tau_e_ms.toFixed(2)}ms / ${a.tau_m_ms.toFixed(2)}ms</div>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:11px; margin-top:12px;">
+          <div>
+            <h4 style="margin:0 0 6px 0; border-bottom:1px solid #ccc; padding-bottom:2px;">3. EFICIÊNCIA & PRESSÃO SONORA</h4>
+            <div><b>Sensibilidade (1W @ 1m):</b> ${a.SPL1W.toFixed(1)} dB SPL</div>
+            <div><b>Sensibilidade (2.83V @ 1m):</b> ${a.SPL2_83.toFixed(1)} dB SPL</div>
+            <div><b>SPL Máximo Contínuo (Térmico):</b> ${a.SPL_max_term.toFixed(1)} dB SPL</div>
+            <div><b>Potência Acústica Máxima:</b> ${a.Pac_max.toFixed(1)} Watts acústicos</div>
+            <div><b>EBP:</b> ${a.EBP.toFixed(1)}</div>
+          </div>
+          <div>
+            <h4 style="margin:0 0 6px 0; border-bottom:1px solid #ccc; padding-bottom:2px;">4. AUDITORIA DAS ROTAS REDUNDANTES DE Fs</h4>
+            <div>• Rota Mecânica FS-01 (Mms·Cms): <b>${a.fs_1.toFixed(2)} Hz</b> (Desvio: ${a.dev_1.toFixed(2)}%)</div>
+            <div>• Rota Acústica FS-02 (Vas·Sd): <b>${a.fs_2.toFixed(2)} Hz</b> (Desvio: ${a.dev_2.toFixed(2)}%)</div>
+            <div>• Rota Elétrica FS-03 (Bl·Re·Qes): <b>${a.fs_3.toFixed(2)} Hz</b> (Desvio: ${a.dev_3.toFixed(2)}%)</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function downloadReportPDF() {
+      const el = document.getElementById('report-printable');
+      const opt = {
+        margin: 10,
+        filename: `BassForge_Laudo_${document.getElementById('inp-brand').value}_${document.getElementById('inp-model').value}.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2 },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+      html2pdf().set(opt).from(el).save();
+    }
+  </script>
+</body>
+</html>
