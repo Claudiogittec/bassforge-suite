@@ -108,16 +108,300 @@
     overflow: hidden;
   }
 
-  /* SIDEBAR DE CONTROLES */
+  /* SIDEBAR DE CONTROLES (PAINEL RÁPIDO RECOLHÍVEL) */
   .sidebar {
-    width: 380px;
+    width: 316px;
     background: var(--bg-surface);
     border-right: 1px solid var(--border);
-    padding: 16px;
+    padding: 12px 14px;
     overflow-y: auto;
     flex-shrink: 0;
-    max-height: calc(100vh - 53px);
+    max-height: calc(100vh - 144px);
+    transition: width 0.18s ease, padding 0.18s ease, opacity 0.15s ease;
   }
+  .sidebar.collapsed {
+    width: 0 !important;
+    padding: 0 !important;
+    border-right: none !important;
+    overflow: hidden !important;
+    opacity: 0;
+  }
+  .sidebar-shortcut-btn {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text-main);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.15s;
+    text-align: left;
+  }
+  .sidebar-shortcut-btn:hover {
+    border-color: var(--accent);
+    background: var(--bg-hover);
+    color: #fff;
+  }
+  .sidebar-shortcut-btn kbd {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    padding: 2px 5px;
+    border-radius: 4px;
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    color: var(--accent);
+  }
+
+  /* DESKTOP MENU BAR */
+  .desktop-menubar {
+    background: #080d17;
+    border-bottom: 1px solid var(--border);
+    height: 28px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+    user-select: none;
+    position: relative;
+    z-index: 60;
+  }
+  .menu-item { position: relative; }
+  .menu-trigger {
+    background: transparent;
+    border: none;
+    color: #cbd5e1;
+    font-family: var(--font);
+    font-size: 11.5px;
+    font-weight: 500;
+    padding: 4px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .menu-trigger:hover, .menu-item.open .menu-trigger {
+    background: rgba(0, 212, 255, 0.14);
+    color: #fff;
+  }
+  .menu-dropdown {
+    display: none;
+    position: absolute;
+    top: 26px;
+    left: 0;
+    min-width: 248px;
+    background: #0d1524;
+    border: 1px solid rgba(148, 163, 184, 0.24);
+    border-radius: 7px;
+    padding: 5px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.65);
+    z-index: 100;
+  }
+  .menu-item.open .menu-dropdown { display: flex; flex-direction: column; gap: 2px; }
+  .menu-action {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: #e2e8f0;
+    font-family: var(--font);
+    font-size: 11.5px;
+    padding: 6px 9px;
+    border-radius: 5px;
+    cursor: pointer;
+    text-align: left;
+  }
+  .menu-action:hover { background: rgba(0, 212, 255, 0.16); color: #fff; }
+  .menu-action kbd {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: var(--text-dim);
+  }
+  .menu-sep { height: 1px; background: var(--border); margin: 4px 4px; }
+
+  /* DESKTOP ICON TOOLBAR */
+  .desktop-toolbar {
+    background: #0b111d;
+    border-bottom: 1px solid var(--border);
+    min-height: 36px;
+    padding: 4px 14px;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    flex-shrink: 0;
+    z-index: 40;
+  }
+  .tb-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: #cbd5e1;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 4px 8px;
+    border-radius: 5px;
+    cursor: pointer;
+    transition: all 0.14s;
+    white-space: nowrap;
+  }
+  .tb-btn:hover { background: var(--bg-hover); border-color: rgba(0, 212, 255, 0.45); color: #fff; }
+  .tb-btn.active { background: rgba(0, 212, 255, 0.16); border-color: var(--accent); color: var(--accent); }
+  .tb-btn.accent-wiz { background: rgba(16, 185, 129, 0.14); border-color: rgba(16, 185, 129, 0.42); color: #34d399; }
+  .tb-btn.accent-wiz:hover { background: rgba(16, 185, 129, 0.24); color: #fff; }
+  .tb-sep { width: 1px; height: 20px; background: var(--border); margin: 0 4px; }
+
+  /* STATUS BAR INFERIOR */
+  .desktop-statusbar {
+    background: #070b13;
+    border-top: 1px solid var(--border);
+    height: 26px;
+    padding: 0 14px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    font-family: var(--mono);
+    font-size: 10.5px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .sb-group { display: flex; align-items: center; gap: 10px; overflow: hidden; }
+  .sb-item { display: inline-flex; align-items: center; gap: 4px; }
+  .sb-sep { color: #334155; }
+  .sb-ok { color: #10b981; font-weight: 700; }
+
+  /* JANELAS MODAIS DE CONFIGURAÇÃO */
+  .bf-modal-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(2, 6, 14, 0.72);
+    backdrop-filter: blur(3px);
+    z-index: 200;
+    align-items: center;
+    justify-content: center;
+    padding: 18px;
+  }
+  .bf-modal-backdrop.open { display: flex; }
+  .bf-modal {
+    background: var(--bg-surface);
+    border: 1px solid rgba(0, 212, 255, 0.32);
+    border-radius: 10px;
+    width: 100%;
+    max-width: 680px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.75);
+    overflow: hidden;
+  }
+  .bf-modal-hdr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 11px 16px;
+    background: linear-gradient(180deg, #111b2e 0%, #0b111d 100%);
+    border-bottom: 1px solid var(--border);
+  }
+  .bf-modal-title {
+    font-family: var(--mono);
+    font-size: 12.5px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 0.4px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .bf-modal-close {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    width: 26px;
+    height: 26px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+  .bf-modal-close:hover { border-color: var(--danger); color: #fff; background: rgba(239, 68, 68, 0.18); }
+  .bf-modal-body {
+    padding: 16px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .bf-modal-ftr {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: #080d16;
+    border-top: 1px solid var(--border);
+    gap: 8px;
+  }
+  .bf-modal-tabs {
+    display: flex;
+    gap: 6px;
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+  }
+  .bf-mtab-btn {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 600;
+    padding: 5px 11px;
+    border-radius: 5px;
+    cursor: pointer;
+  }
+  .bf-mtab-btn.active { background: rgba(0, 212, 255, 0.15); border-color: var(--accent); color: var(--accent); }
+  .wiz-goal-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .wiz-goal-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    padding: 10px;
+    cursor: pointer;
+    text-align: left;
+    color: var(--text-main);
+    transition: all 0.15s;
+  }
+  .wiz-goal-card:hover { border-color: rgba(0, 212, 255, 0.45); }
+  .wiz-goal-card.active { background: rgba(0, 212, 255, 0.12); border-color: var(--accent); box-shadow: 0 0 12px rgba(0, 212, 255, 0.15); }
+
+  /* MENU DE CONTEXTO (BOTÃO DIREITO NOS GRÁFICOS) */
+  .bf-ctx-menu {
+    display: none;
+    position: fixed;
+    min-width: 220px;
+    background: #0d1524;
+    border: 1px solid rgba(0, 212, 255, 0.35);
+    border-radius: 7px;
+    padding: 5px;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.72);
+    z-index: 300;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .bf-ctx-menu.open { display: flex; }
 
   .section-title {
     font-size: 12px;
@@ -164,12 +448,12 @@
   /* ÁREA PRINCIPAL */
   main {
     flex: 1;
-    padding: 18px 24px;
+    padding: 14px 18px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    max-height: calc(100vh - 53px);
+    gap: 12px;
+    max-height: calc(100vh - 144px);
   }
 
   
@@ -448,14 +732,99 @@
   </div>
 </header>
 
+<!-- BARRA DE MENUS DESKTOP -->
+<div class="desktop-menubar" id="desktopMenubar" role="menubar">
+  <div class="menu-item">
+    <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Arquivo</button>
+    <div class="menu-dropdown">
+      <button type="button" class="menu-action" onclick="resetCurrentProject(); closeAllMenus()"><span>📄 Novo Projeto (Padrão)</span><kbd>Ctrl+N</kbd></button>
+      <button type="button" class="menu-action" onclick="document.getElementById('projJsonInput').click(); closeAllMenus()"><span>📂 Abrir Projeto (.json)...</span><kbd>Ctrl+O</kbd></button>
+      <button type="button" class="menu-action" onclick="exportProjectJson(); closeAllMenus()"><span>💾 Salvar Projeto (.json)</span><kbd>Ctrl+S</kbd></button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-action" onclick="document.getElementById('dbJsonInput').click(); closeAllMenus()"><span>📥 Importar Driver (.json)</span></button>
+      <button type="button" class="menu-action" onclick="exportExpandedPNG(); closeAllMenus()"><span>📷 Exportar Gráfico (PNG)</span></button>
+      <button type="button" class="menu-action" onclick="window.print(); closeAllMenus()"><span>🖨️ Imprimir / PDF</span><kbd>Ctrl+P</kbd></button>
+    </div>
+  </div>
+  <div class="menu-item">
+    <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Projeto</button>
+    <div class="menu-dropdown">
+      <button type="button" class="menu-action" onclick="openWizardModal(); closeAllMenus()"><span>🧭 Assistente de Projeto (Wizard)</span><kbd>F6</kbd></button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-action" onclick="openConfigModal('modalDriver'); closeAllMenus()"><span>🔊 Propriedades do Driver (T/S)</span><kbd>F2</kbd></button>
+      <button type="button" class="menu-action" onclick="openConfigModal('modalBox'); closeAllMenus()"><span>📦 Propriedades da Caixa &amp; Dutos</span><kbd>F3</kbd></button>
+      <button type="button" class="menu-action" onclick="openConfigModal('modalEnv'); closeAllMenus()"><span>🚗 Ambiente, Cabine, DSP &amp; Térmica</span><kbd>F4</kbd></button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-action" onclick="window.open('./drivers-db.html', '_blank'); closeAllMenus()"><span>🗄️ Abrir Banco Oficial de Drivers</span></button>
+    </div>
+  </div>
+  <div class="menu-item">
+    <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Gráficos</button>
+    <div class="menu-dropdown">
+      <button type="button" class="menu-action" onclick="switchTab('grid'); closeAllMenus()"><span>📊 Grade dos 13 Gráficos</span><kbd>1</kbd></button>
+      <button type="button" class="menu-action" onclick="switchTab('expanded'); closeAllMenus()"><span>🔍 Gráfico Expandido com Cursor</span><kbd>2</kbd></button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-action" onclick="captureSnapshotA(); closeAllMenus()"><span>📌 Congelar Curva A (A/B)</span><kbd>F8</kbd></button>
+      <button type="button" class="menu-action" onclick="clearSnapshotA(); closeAllMenus()"><span>❌ Limpar Curva A</span></button>
+      <div class="menu-sep"></div>
+      <button type="button" class="menu-action" onclick="openConfigModal('modalGraphPrefs'); closeAllMenus()"><span>⚙️ Preferências dos Gráficos</span><kbd>F5</kbd></button>
+    </div>
+  </div>
+  <div class="menu-item">
+    <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Ferramentas</button>
+    <div class="menu-dropdown">
+      <button type="button" class="menu-action" onclick="switchTab('woodlock'); closeAllMenus()"><span>🪵 Marcenaria CAD (WoodLock)</span><kbd>3</kbd></button>
+      <button type="button" class="menu-action" onclick="switchTab('electrical'); closeAllMenus()"><span>⚡ Engenharia Elétrica &amp; DSP</span><kbd>4</kbd></button>
+      <button type="button" class="menu-action" onclick="switchTab('audit'); closeAllMenus()"><span>📋 Tabela de Auditoria Numérica</span><kbd>5</kbd></button>
+    </div>
+  </div>
+  <div class="menu-item">
+    <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Exibir</button>
+    <div class="menu-dropdown">
+      <button type="button" class="menu-action" onclick="toggleQuickSidebar(); closeAllMenus()"><span>◧ Mostrar / Ocultar Painel Rápido</span><kbd>F9</kbd></button>
+      <button type="button" class="menu-action" onclick="toggleChartOpt('autoScaleY'); closeAllMenus()"><span>📐 Alternar Auto-Scale Y</span></button>
+      <button type="button" class="menu-action" onclick="toggleChartOpt('showMarkers'); closeAllMenus()"><span>📍 Alternar Marcadores (Fb/F3/Fs)</span></button>
+      <button type="button" class="menu-action" onclick="toggleChartOpt('showLimits'); closeAllMenus()"><span>⚠️ Alternar Limites (Xmax/Mach/20ms)</span></button>
+    </div>
+  </div>
+  <div class="menu-item">
+    <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Ajuda</button>
+    <div class="menu-dropdown">
+      <button type="button" class="menu-action" onclick="openConfigModal('modalShortcuts'); closeAllMenus()"><span>⌨️ Atalhos de Teclado &amp; Guia Rápido</span><kbd>F1</kbd></button>
+    </div>
+  </div>
+</div>
+
+<!-- BARRA DE FERRAMENTAS RÁPIDA (DESKTOP TOOLBAR) -->
+<div class="desktop-toolbar" role="toolbar" aria-label="Barra de ferramentas rápida">
+  <button type="button" class="tb-btn" onclick="resetCurrentProject()" title="Novo Projeto (Ctrl+N)">📄 Novo</button>
+  <button type="button" class="tb-btn" onclick="document.getElementById('projJsonInput').click()" title="Abrir Projeto .json (Ctrl+O)">📂 Abrir</button>
+  <button type="button" class="tb-btn" onclick="exportProjectJson()" title="Salvar Projeto .json (Ctrl+S)">💾 Salvar</button>
+  <span class="tb-sep"></span>
+  <button type="button" class="tb-btn accent-wiz" onclick="openWizardModal()" title="Assistente Guiado de Projeto (F6)">🧭 Assistente</button>
+  <span class="tb-sep"></span>
+  <button type="button" class="tb-btn" onclick="window.open('./drivers-db.html', '_blank')" title="Abrir Banco Oficial de Drivers">🗄️ Banco DB</button>
+  <button type="button" class="tb-btn" onclick="openConfigModal('modalDriver')" title="Propriedades do Driver e T/S (F2)">🔊 Driver (F2)</button>
+  <button type="button" class="tb-btn" onclick="openConfigModal('modalBox')" title="Propriedades da Caixa e Dutos (F3)">📦 Caixa &amp; Duto (F3)</button>
+  <button type="button" class="tb-btn" onclick="openConfigModal('modalEnv')" title="Ambiente, Cabine, DSP e Térmica (F4)">🚗 Ambiente/DSP (F4)</button>
+  <button type="button" class="tb-btn" onclick="openConfigModal('modalGraphPrefs')" title="Preferências dos Gráficos (F5)">⚙️ Gráficos (F5)</button>
+  <span class="tb-sep"></span>
+  <button type="button" class="tb-btn" id="tbFreezeA" onclick="captureSnapshotA()" title="Congelar Curva A para comparação A/B (F8)">📌 Curva A</button>
+  <button type="button" class="tb-btn" onclick="exportExpandedPNG()" title="Exportar Gráfico PNG 1280×720">📷 PNG</button>
+  <span class="tb-sep"></span>
+  <button type="button" class="tb-btn active" id="tbToggleSidebar" onclick="toggleQuickSidebar()" title="Mostrar / Ocultar Painel Rápido (F9)">◧ Painel (F9)</button>
+</div>
+
 <div class="app-container">
   
-  <!-- SIDEBAR DE CONFIGURAÇÃO -->
-  <aside class="sidebar">
-    <div class="section-title">📦 Seleção de Driver</div>
+  <!-- PAINEL RÁPIDO RECOLHÍVEL (F9) -->
+  <aside class="sidebar" id="quickSidebar">
+    <div class="section-title" style="margin-top:2px;">
+      <span>🔊 Driver Ativo</span>
+      <button type="button" onclick="openConfigModal('modalDriver')" style="background:none; border:none; color:var(--accent); font-family:var(--mono); font-size:10px; font-weight:700; cursor:pointer;">Editar T/S (F2) ▸</button>
+    </div>
     <div class="form-group">
-      <label for="driverPreset">Preset de Fábrica / Banco Oficial</label>
-      <select id="driverPreset" onchange="loadPreset()">
+      <select id="driverPreset" aria-label="Selecionar Driver" onchange="loadPreset()">
         <optgroup label="⚙️ Presets Calibrados de Fábrica">
           <option value="oversound">Oversound 18 SUB 800 XT (18" 800W Bass-Reflex)</option>
           <option value="alumapro">Alumapro Alchemy 12-8 (12" 300W Caixa Selada)</option>
@@ -467,20 +836,12 @@
         </optgroup>
         <optgroup id="customDriversGroup" label="📚 Banco Oficial de Drivers (DB)"></optgroup>
       </select>
-    </div>
-    <div style="display:flex; gap:6px; margin-bottom:6px;">
-      <button type="button" onclick="window.open('./drivers-db.html', '_blank')" style="flex:1; padding:6px 8px; background:rgba(0,212,255,0.12); border:1px solid rgba(0,212,255,0.35); border-radius:5px; color:var(--accent); font-family:var(--mono); font-size:10.5px; font-weight:700; cursor:pointer;">🗄️ Banco Oficial</button>
-      <button type="button" onclick="document.getElementById('dbJsonInput').click()" style="flex:1; padding:6px 8px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); border-radius:5px; color:#34d399; font-family:var(--mono); font-size:10.5px; font-weight:700; cursor:pointer;">📥 Importar .JSON</button>
       <input type="file" id="dbJsonInput" accept=".json" style="display:none" onchange="importDriversJsonFile(this)">
-    </div>
-    <div style="display:flex; gap:6px; margin-bottom:8px;">
-      <button type="button" onclick="exportProjectJson()" style="flex:1; padding:5px 8px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); border-radius:5px; color:#fbbf24; font-family:var(--mono); font-size:10px; font-weight:700; cursor:pointer;">💾 Salvar Projeto</button>
-      <button type="button" onclick="document.getElementById('projJsonInput').click()" style="flex:1; padding:5px 8px; background:rgba(139,92,246,0.12); border:1px solid rgba(139,92,246,0.35); border-radius:5px; color:#c4b5fd; font-family:var(--mono); font-size:10px; font-weight:700; cursor:pointer;">📂 Abrir Projeto</button>
       <input type="file" id="projJsonInput" accept=".json" style="display:none" onchange="importProjectJsonFile(this)">
     </div>
-    <div id="dbDriverBadge" style="display:none; margin-bottom:10px; padding:6px 8px; border-radius:6px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.28); font-size:10.5px; color:#a7f3d0; line-height:1.45;"></div>
+    <div id="dbDriverBadge" style="display:none; margin-bottom:8px; padding:6px 8px; border-radius:6px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.28); font-size:10px; color:#a7f3d0; line-height:1.4;"></div>
 
-    <div class="section-title">📐 Topologia da Caixa</div>
+    <div class="section-title">📐 Caixa &amp; Sintonia Rápida</div>
     <div class="grid-2">
       <div class="form-group">
         <label for="boxType">Alinhamento</label>
@@ -503,185 +864,56 @@
     </div>
 
     <!-- SELETOR DE MODO DE SINTONIA (BASS-REFLEX) -->
-    <div id="tuningModeContainer" style="margin-bottom: 12px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 8px; padding: 10px;">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-        <span style="font-size: 11px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px;">Síntese de Sintonia</span>
-        <span id="tuningModeBadge" style="font-size: 10px; padding: 2px 6px; border-radius: 4px; background: rgba(34, 197, 94, 0.2); color: #4ade80; font-weight: 600;">⚡ AUTO (α^0.31)</span>
+    <div id="tuningModeContainer" style="margin-bottom: 10px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.25); border-radius: 7px; padding: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 10.5px; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: 0.4px;">Síntese de Sintonia</span>
+        <span id="tuningModeBadge" style="font-size: 9.5px; padding: 2px 6px; border-radius: 4px; background: rgba(34, 197, 94, 0.2); color: #4ade80; font-weight: 600;">⚡ AUTO (α^0.31)</span>
       </div>
       <div style="display: flex; gap: 6px;">
-        <button type="button" id="btnAutoTune" class="tune-btn active" onclick="setTuningMode(true)">Auto Ótimo (α^0.31)</button>
-        <button type="button" id="btnManualTune" class="tune-btn" onclick="setTuningMode(false)">Livre / Manual</button>
+        <button type="button" id="btnAutoTune" class="tune-btn active" onclick="setTuningMode(true)">Auto Ótimo</button>
+        <button type="button" id="btnManualTune" class="tune-btn" onclick="setTuningMode(false)">Manual</button>
       </div>
     </div>
 
-    <!-- CONTROLE DE VOLUME VB COM SLIDER EM TEMPO REAL -->
+    <!-- CONTROLE DE VOLUME VB COM SLIDER -->
     <div class="form-group">
       <label for="vbInput">
-        <span>Volume Útil Vb <small>(Litros)</small></span>
+        <span>Volume Útil Vb <small>(L)</small></span>
         <span id="vbValBadge" style="color: var(--accent); font-weight: 700;">130.0 L</span>
       </label>
       <input type="range" id="vbRange" min="20" max="350" step="1" value="130" oninput="onVbRangeChange(this.value)">
       <input type="number" id="vbInput" value="130" step="1" oninput="onVbInputChange(this.value)">
     </div>
 
-    <!-- CONTROLE DE SINTONIA FB COM SLIDER E RETORNO AO ÓTIMO -->
+    <!-- CONTROLE DE SINTONIA FB COM SLIDER -->
     <div class="form-group" id="fbControlGroup">
       <label for="fbInput">
-        <span>Sintonia do Duto Fb <small>(Hz)</small></span>
+        <span>Sintonia Fb <small>(Hz)</small></span>
         <span id="fbValBadge" style="color: #38bdf8; font-weight: 700;">44.62 Hz</span>
       </label>
       <input type="range" id="fbRange" min="20" max="80" step="0.1" value="44.62" oninput="onFbRangeChange(this.value)">
       <div style="display: flex; gap: 6px;">
         <input type="number" id="fbInput" value="44.62" step="0.1" oninput="onFbInputChange(this.value)" style="flex: 1;">
-        <button type="button" id="btnResetFb" onclick="resetToOptimalFb()" title="Restaurar sintonia ótima calculada pela lei de escala analítica" style="padding: 0 10px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; color: #38bdf8; font-size: 11px; cursor: pointer; white-space: nowrap; font-weight: 600;">⚡ Ótimo</button>
+        <button type="button" id="btnResetFb" onclick="resetToOptimalFb()" title="Restaurar sintonia ótima" style="padding: 0 9px; background: rgba(56, 189, 248, 0.15); border: 1px solid rgba(56, 189, 248, 0.3); border-radius: 6px; color: #38bdf8; font-size: 10.5px; cursor: pointer; white-space: nowrap; font-weight: 600;">⚡ Ótimo</button>
       </div>
     </div>
 
-    <div class="grid-2">
-      <div class="form-group">
-        <label for="qlInput">Perda QL <small>(7–15)</small></label>
-        <input type="number" id="qlInput" value="15" step="0.5" oninput="recalculate()">
-      </div>
-      <div class="form-group">
-        <label for="tempInput">Temp. <small>(°C)</small></label>
-        <input type="number" id="tempInput" value="20" step="1" oninput="recalculate()">
-      </div>
-    </div>
-
-    <div id="portControls">
-      <div class="section-title">🔧 Dimensionamento dos Dutos</div>
-      <div class="form-group">
-        <label for="portType">Geometria &amp; Correção de Borda</label>
-        <select id="portType" onchange="recalculate()">
-          <option value="round" selected>Cilíndrico Padrão (k = 0.732)</option>
-          <option value="flared">Cilíndrico Aeroport / Flared (k = 0.850)</option>
-          <option value="slot">Duto Régua / Retangular Livre (k = 0.732)</option>
-          <option value="slot_wall">Duto Régua em Parede / Shelf (k = 1.343)</option>
-        </select>
-      </div>
-      <div id="portRoundFields" class="grid-3">
-        <div class="form-group">
-          <label for="numDucts">Nº Dutos</label>
-          <input type="number" id="numDucts" value="2" min="1" step="1" oninput="recalculate()">
-        </div>
-        <div class="form-group">
-          <label for="ductDia">Diâm. <small>(pol)</small></label>
-          <input type="number" id="ductDia" value="6.0" step="0.5" oninput="recalculate()">
-        </div>
-        <div class="form-group">
-          <label for="ductThick">Espess. <small>(mm)</small></label>
-          <input type="number" id="ductThick" value="1.5" step="0.5" oninput="recalculate()">
-        </div>
-      </div>
-      <div id="portSlotFields" class="grid-3" style="display:none;">
-        <div class="form-group">
-          <label for="slotW">Larg. W <small>(cm)</small></label>
-          <input type="number" id="slotW" value="35.0" min="1" step="0.5" oninput="recalculate()">
-        </div>
-        <div class="form-group">
-          <label for="slotH">Alt. H <small>(cm)</small></label>
-          <input type="number" id="slotH" value="6.0" min="1" step="0.5" oninput="recalculate()">
-        </div>
-        <div class="form-group">
-          <label for="slotWallThick">MDF <small>(mm)</small></label>
-          <input type="number" id="slotWallThick" value="18.0" min="1" step="1" oninput="recalculate()">
-        </div>
-      </div>
-      <div id="portTelemetryBox" style="margin-top:4px; margin-bottom:6px; padding:6px 8px; border-radius:6px; background:rgba(15,23,42,0.8); border:1px solid var(--border); font-family:var(--mono); font-size:10px; color:#cbd5e1; line-height:1.5;"></div>
-    </div>
-
-    <div class="section-title">🚗 Ambiente, DSP &amp; Termodinâmica</div>
-    <div class="grid-2">
-      <div class="form-group">
-        <label for="cabinLen">Cabine <small>(m)</small></label>
-        <input type="number" id="cabinLen" value="3.4" step="0.1" oninput="recalculate()">
-      </div>
-      <div class="form-group">
-        <label for="hpfCutoff">HPF LR4 <small>(Hz)</small></label>
-        <input type="number" id="hpfCutoff" value="36.0" step="1" oninput="recalculate()">
-      </div>
-    </div>
-    <div class="form-group">
-      <label for="thermalDeltaT">Compressão Térmica Bobina (ΔT)</label>
-      <select id="thermalDeltaT" onchange="recalculate()">
-        <option value="0" selected>0 °C — Frio / Nominal (Re 100%)</option>
-        <option value="60">+60 °C — Musical Moderado (Re +23.6%)</option>
-        <option value="100">+100 °C — Uso Intenso / Trio (Re +39.3%)</option>
-        <option value="130">+130 °C — Limite Térmico (Re +51.1%)</option>
-      </select>
-    </div>
-    <div id="thermalCompBadge" style="display:none; margin-bottom:8px; padding:5px 8px; border-radius:6px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); font-family:var(--mono); font-size:10px; color:#fde68a; line-height:1.45;"></div>
-
-    <div class="section-title">⚙️ Parâmetros Thiele-Small</div>
-    <div class="grid-2">
-      <div class="form-group"><label for="tsFs">Fs <small>(Hz)</small></label><input type="number" id="tsFs" value="40" step="0.1" oninput="recalculate()"></div>
-      <div class="form-group"><label for="tsQes">Qes</label><input type="number" id="tsQes" value="0.446" step="0.001" oninput="recalculate()"></div>
-    </div>
-    <div class="grid-2">
-      <div class="form-group"><label for="tsQms">Qms</label><input type="number" id="tsQms" value="7.2" step="0.1" oninput="recalculate()"></div>
-      <div class="form-group"><label for="tsVas">Vas <small>(L)</small></label><input type="number" id="tsVas" value="185" step="1" oninput="recalculate()"></div>
-    </div>
-    <div class="grid-2">
-      <div class="form-group"><label for="tsRe">Re <small>(Ω)</small></label><input type="number" id="tsRe" value="5.1" step="0.1" oninput="recalculate()"></div>
-      <div class="form-group"><label for="tsPe">Pe <small>(W RMS)</small></label><input type="number" id="tsPe" value="800" step="10" oninput="recalculate()"></div>
-    </div>
-    <div class="grid-2">
-      <div class="form-group"><label for="tsSd">Sd <small>(cm²)</small></label><input type="number" id="tsSd" value="1186" step="1" oninput="recalculate()"></div>
-      <div class="form-group"><label for="tsXmax">Xmax <small>(mm)</small></label><input type="number" id="tsXmax" value="9.8" step="0.1" oninput="recalculate()"></div>
-    </div>
-    <div class="form-group">
-      <label for="tsVsub">Vol. Ocupado Sub (Vsub) <small>(L)</small></label>
-      <input type="number" id="tsVsub" value="9.0" step="0.5" oninput="recalculate()">
-    </div>
-
-    <details open style="margin-top:8px; background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:8px 10px;">
-      <summary style="cursor:pointer; font-family:var(--mono); font-size:10.5px; font-weight:700; color:var(--accent); text-transform:uppercase; letter-spacing:0.4px; margin-bottom:6px;">
-        🔬 Parâmetros Avançados &amp; Catálogo (DB)
-      </summary>
-      <div class="grid-3">
-        <div class="form-group">
-          <label for="tsLe">Le <small>(mH)</small></label>
-          <input type="number" id="tsLe" value="1.5" step="0.01" oninput="syncSimLeToElec(); recalculate()">
-        </div>
-        <div class="form-group">
-          <label for="tsZnom">Znom <small>(Ω)</small></label>
-          <input type="number" id="tsZnom" value="4" step="1" oninput="syncSimZnomToElec(); recalculate()">
-        </div>
-        <div class="form-group">
-          <label for="tsDia">Diâm <small>(pol)</small></label>
-          <input type="number" id="tsDia" value="15" step="1" oninput="recalculate()">
-        </div>
-      </div>
-      <div class="grid-3">
-        <div class="form-group">
-          <label for="tsCoils">Hvc/Hgap</label>
-          <input type="text" id="tsCoils" value="" placeholder="mm/mm" oninput="recalculate()">
-        </div>
-        <div class="form-group">
-          <label for="tsMmsCat">Mms <small>(g)</small></label>
-          <input type="number" id="tsMmsCat" value="" step="0.1" placeholder="opc." oninput="recalculate()">
-        </div>
-        <div class="form-group">
-          <label for="tsBlCat">Bl <small>(T·m)</small></label>
-          <input type="number" id="tsBlCat" value="" step="0.01" placeholder="opc." oninput="recalculate()">
-        </div>
-      </div>
-      <div id="simAdvancedGrid" style="display:grid; grid-template-columns:1fr 1fr; gap:4px 8px; font-size:10.5px; border-top:1px solid var(--border); padding-top:6px; margin-top:2px; color:#cbd5e1;">
-        <div>Qts: <b id="sim-qts" style="color:#4ade80;">--</b></div>
-        <div>EBP: <b id="sim-ebp" style="color:#38bdf8;">--</b></div>
-        <div>Mms (deriv.): <b id="sim-mms">--</b></div>
-        <div>Mmd (s/ ar): <b id="sim-mmd">--</b></div>
-        <div>Cms: <b id="sim-cms">--</b></div>
-        <div>Rms: <b id="sim-rms">--</b></div>
-        <div>Bl (deriv.): <b id="sim-bl">--</b></div>
-        <div>Bl²/Re: <b id="sim-bl2re">--</b></div>
-        <div>η₀: <b id="sim-eta0">--</b></div>
-        <div>SPL 1W/2.83V: <b id="sim-spl1w">--</b></div>
-        <div>Vd / Xgeom: <b id="sim-vd">--</b></div>
-        <div>Pico R0: <b id="sim-r0">--</b></div>
-        <div style="grid-column:1 / -1; border-top:1px dashed var(--border); padding-top:4px; color:#94a3b8;" id="sim-audit">Auditoria: --</div>
-      </div>
-    </details>
+    <div class="section-title">🪟 Janelas de Configuração</div>
+    <button type="button" class="sidebar-shortcut-btn" onclick="openWizardModal()" style="border-color:rgba(16,185,129,0.4); color:#6ee7b7;">
+      <span>🧭 Assistente de Projeto (Wizard)</span><kbd>F6</kbd>
+    </button>
+    <button type="button" class="sidebar-shortcut-btn" onclick="openConfigModal('modalDriver')">
+      <span>🔊 Propriedades do Driver (T/S)</span><kbd>F2</kbd>
+    </button>
+    <button type="button" class="sidebar-shortcut-btn" onclick="openConfigModal('modalBox')">
+      <span>📦 Caixa, Perdas QL &amp; Dutos</span><kbd>F3</kbd>
+    </button>
+    <button type="button" class="sidebar-shortcut-btn" onclick="openConfigModal('modalEnv')">
+      <span>🚗 Cabine, HPF &amp; Térmica (ΔT)</span><kbd>F4</kbd>
+    </button>
+    <button type="button" class="sidebar-shortcut-btn" onclick="openConfigModal('modalGraphPrefs')">
+      <span>⚙️ Preferências dos Gráficos</span><kbd>F5</kbd>
+    </button>
   </aside>
 
   <!-- PAINEL PRINCIPAL DE RESULTADOS -->
@@ -1025,6 +1257,305 @@
   </main>
 </div>
 
+<!-- BARRA DE STATUS INFERIOR (DESKTOP STATUS BAR) -->
+<footer class="desktop-statusbar" id="desktopStatusBar">
+  <div class="sb-group">
+    <span class="sb-item" id="sbDriver" style="color:#e2e8f0; font-weight:700;">🔊 --</span>
+    <span class="sb-sep">|</span>
+    <span class="sb-item" id="sbBox">📦 --</span>
+    <span class="sb-sep">|</span>
+    <span class="sb-item" id="sbPort">💨 --</span>
+    <span class="sb-sep">|</span>
+    <span class="sb-item" id="sbEpdr">⚡ --</span>
+  </div>
+  <div class="sb-group">
+    <span class="sb-item" id="sbThermal" style="display:none; color:#fbbf24;"></span>
+    <span class="sb-item" id="sbAB" style="display:none; color:#fbbf24;"></span>
+    <span class="sb-item sb-ok">● BassForge PRO X · Pronto</span>
+  </div>
+</footer>
+
+<!-- JANELA MODAL 1: PROPRIEDADES DO DRIVER (F2) -->
+<div class="bf-modal-backdrop" id="modalDriver" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">🔊 Propriedades do Driver — Parâmetros Thiele-Small &amp; Motor (F2)</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body">
+      <div class="bf-modal-tabs">
+        <button type="button" class="bf-mtab-btn active" data-mtab="drv-ts" onclick="switchModalTab('modalDriver','drv-ts',this)">Parâmetros Thiele-Small</button>
+        <button type="button" class="bf-mtab-btn" data-mtab="drv-adv" onclick="switchModalTab('modalDriver','drv-adv',this)">Avançado, Catálogo &amp; Auditoria</button>
+      </div>
+      <div data-mpane="drv-ts">
+        <div class="grid-3">
+          <div class="form-group"><label for="tsFs">Fs <small>(Hz)</small></label><input type="number" id="tsFs" value="40" step="0.1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsQes">Qes</label><input type="number" id="tsQes" value="0.446" step="0.001" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsQms">Qms</label><input type="number" id="tsQms" value="7.2" step="0.1" oninput="recalculate()"></div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group"><label for="tsVas">Vas <small>(L)</small></label><input type="number" id="tsVas" value="185" step="1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsRe">Re <small>(Ω)</small></label><input type="number" id="tsRe" value="5.1" step="0.1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsPe">Pe <small>(W RMS)</small></label><input type="number" id="tsPe" value="800" step="10" oninput="recalculate()"></div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group"><label for="tsSd">Sd <small>(cm²)</small></label><input type="number" id="tsSd" value="1186" step="1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsXmax">Xmax <small>(mm)</small></label><input type="number" id="tsXmax" value="9.8" step="0.1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsVsub">Vsub <small>(L)</small></label><input type="number" id="tsVsub" value="9.0" step="0.5" oninput="recalculate()"></div>
+        </div>
+      </div>
+      <div data-mpane="drv-adv" style="display:none;">
+        <div class="grid-3">
+          <div class="form-group"><label for="tsLe">Le <small>(mH)</small></label><input type="number" id="tsLe" value="1.5" step="0.01" oninput="syncSimLeToElec(); recalculate()"></div>
+          <div class="form-group"><label for="tsZnom">Znom <small>(Ω)</small></label><input type="number" id="tsZnom" value="4" step="1" oninput="syncSimZnomToElec(); recalculate()"></div>
+          <div class="form-group"><label for="tsDia">Diâm <small>(pol)</small></label><input type="number" id="tsDia" value="15" step="1" oninput="recalculate()"></div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group"><label for="tsCoils">Hvc / Hgap</label><input type="text" id="tsCoils" value="" placeholder="mm/mm" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsMmsCat">Mms Cat. <small>(g)</small></label><input type="number" id="tsMmsCat" value="" step="0.1" placeholder="opc." oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsBlCat">Bl Cat. <small>(T·m)</small></label><input type="number" id="tsBlCat" value="" step="0.01" placeholder="opc." oninput="recalculate()"></div>
+        </div>
+      </div>
+      <div id="simAdvancedGrid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px 10px; font-family:var(--mono); font-size:11px; background:var(--bg-card); border:1px solid var(--border); border-radius:7px; padding:10px 12px; color:#cbd5e1;">
+        <div>Qts: <b id="sim-qts" style="color:#4ade80;">--</b></div>
+        <div>EBP: <b id="sim-ebp" style="color:#38bdf8;">--</b></div>
+        <div>Mms (deriv.): <b id="sim-mms">--</b></div>
+        <div>Mmd (s/ ar): <b id="sim-mmd">--</b></div>
+        <div>Cms: <b id="sim-cms">--</b></div>
+        <div>Rms: <b id="sim-rms">--</b></div>
+        <div>Bl (deriv.): <b id="sim-bl">--</b></div>
+        <div>Bl²/Re: <b id="sim-bl2re">--</b></div>
+        <div>η₀: <b id="sim-eta0">--</b></div>
+        <div>SPL 1W/2.83V: <b id="sim-spl1w">--</b></div>
+        <div>Vd / Xgeom: <b id="sim-vd">--</b></div>
+        <div>Pico R0: <b id="sim-r0">--</b></div>
+        <div style="grid-column:1 / -1; border-top:1px dashed var(--border); padding-top:6px; color:#94a3b8;" id="sim-audit">Auditoria: --</div>
+      </div>
+    </div>
+    <div class="bf-modal-ftr">
+      <button type="button" class="tb-btn" onclick="window.open('./drivers-db.html', '_blank')">🗄️ Abrir Banco Oficial de Drivers</button>
+      <button type="button" class="tb-btn active" onclick="closeConfigModals()">✓ Concluir (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- JANELA MODAL 2: PROPRIEDADES DA CAIXA & DUTOS (F3) -->
+<div class="bf-modal-backdrop" id="modalBox" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">📦 Propriedades da Caixa, Perdas &amp; Aerodinâmica de Dutos (F3)</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body">
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="qlInput">Perda por Vazamento QL <small>(7 = típico · 15 = rígida)</small></label>
+          <input type="number" id="qlInput" value="15" step="0.5" oninput="recalculate()">
+        </div>
+        <div class="form-group">
+          <label for="tempInput">Temperatura do Ar <small>(°C)</small></label>
+          <input type="number" id="tempInput" value="20" step="1" oninput="recalculate()">
+        </div>
+      </div>
+      <div id="portControls" style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:12px;">
+        <div class="section-title" style="margin-top:0;">🔧 Dimensionamento &amp; Geometria dos Dutos</div>
+        <div class="form-group">
+          <label for="portType">Geometria &amp; Correção de Extremidade</label>
+          <select id="portType" onchange="recalculate()">
+            <option value="round" selected>Cilíndrico Padrão (k = 0.732)</option>
+            <option value="flared">Cilíndrico Aeroport / Flared (k = 0.850 · até 24 m/s)</option>
+            <option value="slot">Duto Régua / Retangular Livre (k = 0.732)</option>
+            <option value="slot_wall">Duto Régua em Parede / Shelf (k = 1.343)</option>
+          </select>
+        </div>
+        <div id="portRoundFields" class="grid-3">
+          <div class="form-group"><label for="numDucts">Nº Dutos</label><input type="number" id="numDucts" value="2" min="1" step="1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="ductDia">Diâm. <small>(pol)</small></label><input type="number" id="ductDia" value="6.0" step="0.5" oninput="recalculate()"></div>
+          <div class="form-group"><label for="ductThick">Espess. <small>(mm)</small></label><input type="number" id="ductThick" value="1.5" step="0.5" oninput="recalculate()"></div>
+        </div>
+        <div id="portSlotFields" class="grid-3" style="display:none;">
+          <div class="form-group"><label for="slotW">Larg. W <small>(cm)</small></label><input type="number" id="slotW" value="35.0" min="1" step="0.5" oninput="recalculate()"></div>
+          <div class="form-group"><label for="slotH">Alt. H <small>(cm)</small></label><input type="number" id="slotH" value="6.0" min="1" step="0.5" oninput="recalculate()"></div>
+          <div class="form-group"><label for="slotWallThick">MDF <small>(mm)</small></label><input type="number" id="slotWallThick" value="18.0" min="1" step="1" oninput="recalculate()"></div>
+        </div>
+        <div id="portTelemetryBox" style="margin-top:8px; padding:8px 10px; border-radius:6px; background:rgba(6,9,15,0.85); border:1px solid var(--border); font-family:var(--mono); font-size:11px; color:#cbd5e1; line-height:1.55;"></div>
+      </div>
+    </div>
+    <div class="bf-modal-ftr">
+      <span style="font-size:11px; color:var(--text-dim);">As alterações atualizam os gráficos e o WoodLock CAD em tempo real.</span>
+      <button type="button" class="tb-btn active" onclick="closeConfigModals()">✓ Concluir (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- JANELA MODAL 3: AMBIENTE, CABINE, DSP & TERMODINÂMICA (F4) -->
+<div class="bf-modal-backdrop" id="modalEnv" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal" style="max-width:540px;">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">🚗 Ambiente, Cabine, DSP &amp; Termodinâmica da Bobina (F4)</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body">
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="cabinLen">Comprimento da Cabine <small>(m)</small></label>
+          <input type="number" id="cabinLen" value="3.4" step="0.1" oninput="recalculate()">
+        </div>
+        <div class="form-group">
+          <label for="hpfCutoff">Filtro Subsônico HPF LR4 <small>(Hz)</small></label>
+          <input type="number" id="hpfCutoff" value="36.0" step="1" oninput="recalculate()">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="thermalDeltaT">Compressão Térmica da Bobina (Elevação ΔT)</label>
+        <select id="thermalDeltaT" onchange="recalculate()">
+          <option value="0" selected>0 °C — Frio / Nominal (Re 100%)</option>
+          <option value="60">+60 °C — Musical Moderado (Re +23.6%)</option>
+          <option value="100">+100 °C — Uso Intenso / Trio (Re +39.3%)</option>
+          <option value="130">+130 °C — Limite Térmico (Re +51.1%)</option>
+        </select>
+      </div>
+      <div id="thermalCompBadge" style="display:none; padding:8px 10px; border-radius:6px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); font-family:var(--mono); font-size:11px; color:#fde68a; line-height:1.5;"></div>
+    </div>
+    <div class="bf-modal-ftr">
+      <span style="font-size:11px; color:var(--text-dim);">Dica: congele a Curva A (F8) a 0°C e compare com +130°C.</span>
+      <button type="button" class="tb-btn active" onclick="closeConfigModals()">✓ Concluir (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- JANELA MODAL 4: PREFERÊNCIAS DOS GRÁFICOS (F5) -->
+<div class="bf-modal-backdrop" id="modalGraphPrefs" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal" style="max-width:540px;">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">⚙️ Preferências dos Gráficos &amp; Comparador A/B (F5)</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body">
+      <div class="form-group">
+        <label>Banda de Frequência (Eixo X Logarítmico)</label>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+          <button type="button" class="chart-pill-btn" onclick="setFreqRange(15, 200, document.querySelector('[data-freq-btn=&quot;15-200&quot;]'))">15–200 Hz</button>
+          <button type="button" class="chart-pill-btn" onclick="setFreqRange(15, 500, document.querySelector('[data-freq-btn=&quot;15-500&quot;]'))">15–500 Hz</button>
+          <button type="button" class="chart-pill-btn" onclick="setFreqRange(10, 1000, document.querySelector('[data-freq-btn=&quot;10-1000&quot;]'))">10–1k Hz</button>
+          <button type="button" class="chart-pill-btn" onclick="setFreqRange(10, 2000, document.querySelector('[data-freq-btn=&quot;10-2000&quot;]'))">10–2k Hz</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Camadas de Diagnóstico (Eixo Y &amp; Engenharia)</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+          <button type="button" class="tb-btn" onclick="toggleChartOpt('autoScaleY')">📐 Alternar Auto-Scale Y</button>
+          <button type="button" class="tb-btn" onclick="toggleChartOpt('showMarkers')">📍 Alternar Marcadores</button>
+          <button type="button" class="tb-btn" onclick="toggleChartOpt('showLimits')">⚠️ Alternar Limites</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Comparador A/B &amp; Exportação</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+          <button type="button" class="tb-btn" onclick="captureSnapshotA()">📌 Congelar Curva A (F8)</button>
+          <button type="button" class="tb-btn" onclick="clearSnapshotA()">❌ Limpar Curva A</button>
+          <button type="button" class="tb-btn" onclick="exportExpandedPNG()">📷 Exportar PNG (1280×720)</button>
+        </div>
+      </div>
+    </div>
+    <div class="bf-modal-ftr">
+      <span style="font-size:11px; color:var(--text-dim);">Clique com o botão direito sobre qualquer gráfico para ações rápidas.</span>
+      <button type="button" class="tb-btn active" onclick="closeConfigModals()">✓ Concluir (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- JANELA MODAL 5: ASSISTENTE DE PROJETO (WIZARD GUIADO - F6) -->
+<div class="bf-modal-backdrop" id="modalWizard" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal" style="max-width:640px;">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">🧭 Assistente Inteligente de Projeto — BassForge Wizard (F6)</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body">
+      <div id="wizDriverSummary" style="background:var(--bg-card); border:1px solid var(--border); border-radius:7px; padding:10px 12px; font-family:var(--mono); font-size:11px; color:#cbd5e1; line-height:1.55;"></div>
+      <div class="form-group" style="margin-bottom:4px;">
+        <label>1. Escolha o Objetivo Acústico do Projeto</label>
+        <div class="wiz-goal-grid">
+          <button type="button" class="wiz-goal-card" data-wiz-goal="sq" onclick="selectWizardGoal('sq', this)">
+            <div style="font-weight:700; color:#38bdf8; font-size:12px;">🎯 SQ / Hi-Fi Plano</div>
+            <div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Resposta plana, baixo atraso de grupo e máxima fidelidade.</div>
+          </button>
+          <button type="button" class="wiz-goal-card active" data-wiz-goal="balanced" onclick="selectWizardGoal('balanced', this)">
+            <div style="font-weight:700; color:#10b981; font-size:12px;">⚖️ Musical Equilibrado</div>
+            <div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Alinhamento ótimo (SC4/QB3) com ótimo peso e controle.</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="spl" onclick="selectWizardGoal('spl', this)">
+            <div style="font-weight:700; color:#f59e0b; font-size:12px;">🔥 SPL / Subgrave Forte</div>
+            <div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Máximo rendimento de pico e duto largo anti-sopro.</div>
+          </button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="wizPortPref">2. Preferência de Duto (se Dutada)</label>
+          <select id="wizPortPref" onchange="updateWizardPreview()">
+            <option value="round" selected>Cilíndrico Padrão (PVC / Aero)</option>
+            <option value="slot_wall">Duto Régua em Parede / Shelf (MDF)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="wizBoxOverride">3. Topologia Recomendada</label>
+          <select id="wizBoxOverride" onchange="updateWizardPreview()">
+            <option value="auto" selected>Automática pelo EBP do Driver</option>
+            <option value="bass-reflex">Forçar Bass-Reflex (Dutada)</option>
+            <option value="sealed">Forçar Caixa Selada</option>
+          </select>
+        </div>
+      </div>
+      <div id="wizPreviewBox" style="background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.35); border-radius:7px; padding:12px; font-family:var(--mono); font-size:11.5px; color:#d1fae5; line-height:1.65;"></div>
+    </div>
+    <div class="bf-modal-ftr">
+      <button type="button" class="tb-btn" onclick="closeConfigModals()">Cancelar</button>
+      <button type="button" class="tb-btn accent-wiz" onclick="applyWizardRecommendation()">🚀 Aplicar Projeto do Assistente</button>
+    </div>
+  </div>
+</div>
+
+<!-- JANELA MODAL 6: ATALHOS & GUIA RÁPIDO (F1) -->
+<div class="bf-modal-backdrop" id="modalShortcuts" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal" style="max-width:520px;">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">⌨️ Atalhos de Teclado &amp; Guia Rápido — BassForge SUITE</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body" style="font-family:var(--mono); font-size:11.5px; color:#cbd5e1; line-height:1.7;">
+      <div style="display:grid; grid-template-columns:110px 1fr; gap:6px 12px;">
+        <b style="color:var(--accent);">F2</b><span>Abrir Propriedades do Driver (T/S &amp; Auditoria)</span>
+        <b style="color:var(--accent);">F3</b><span>Abrir Propriedades da Caixa &amp; Dutos (Cilíndrico / Régua)</span>
+        <b style="color:var(--accent);">F4</b><span>Abrir Ambiente, Cabine, HPF &amp; Compressão Térmica</span>
+        <b style="color:var(--accent);">F5</b><span>Abrir Preferências dos Gráficos</span>
+        <b style="color:var(--accent);">F6</b><span>Abrir Assistente Inteligente de Projeto (Wizard)</span>
+        <b style="color:var(--accent);">F8</b><span>Congelar / Atualizar Curva A (Comparador A/B)</span>
+        <b style="color:var(--accent);">F9</b><span>Mostrar / Ocultar Painel Rápido (Tela Cheia de Gráficos)</span>
+        <b style="color:var(--accent);">Ctrl + S / O</b><span>Salvar / Abrir Projeto Completo (.json)</span>
+        <b style="color:var(--accent);">Botão Direito</b><span>Menu de contexto sobre qualquer gráfico</span>
+        <b style="color:var(--accent);">Esc</b><span>Fechar janelas e menus abertos</span>
+      </div>
+    </div>
+    <div class="bf-modal-ftr">
+      <span style="font-size:11px; color:var(--text-dim);">BassForge SUITE v2 · Motor Eletroacústico PRO X</span>
+      <button type="button" class="tb-btn active" onclick="closeConfigModals()">✓ Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MENU DE CONTEXTO (BOTÃO DIREITO NOS GRÁFICOS) -->
+<div class="bf-ctx-menu" id="chartContextMenu" role="menu">
+  <button type="button" class="menu-action" onclick="ctxAction('expand')"><span>🔍 Abrir no Gráfico Expandido</span></button>
+  <button type="button" class="menu-action" onclick="ctxAction('freezeA')"><span>📌 Congelar Curva A (A/B)</span><kbd>F8</kbd></button>
+  <button type="button" class="menu-action" id="ctxClearA" style="display:none;" onclick="ctxAction('clearA')"><span>❌ Limpar Curva A</span></button>
+  <div class="menu-sep"></div>
+  <button type="button" class="menu-action" onclick="ctxAction('exportPng')"><span>📷 Exportar este Gráfico (PNG)</span></button>
+  <button type="button" class="menu-action" onclick="ctxAction('autoScale')"><span>📐 Alternar Auto-Scale Y</span></button>
+  <button type="button" class="menu-action" onclick="ctxAction('prefs')"><span>⚙️ Preferências dos Gráficos</span><kbd>F5</kbd></button>
+</div>
+
 <script>
 "use strict";
 
@@ -1125,9 +1656,13 @@ function captureSnapshotA() {
   const btnClr = document.getElementById('btnClearA');
   const badge = document.getElementById('snapshotABadge');
   const btnFrz = document.getElementById('btnFreezeA');
+  const tbFrz = document.getElementById('tbFreezeA');
   if (btnClr) btnClr.style.display = 'inline-flex';
   if (btnFrz) btnFrz.classList.add('active');
+  if (tbFrz) tbFrz.classList.add('active');
   if (badge) { badge.style.display = 'inline'; badge.textContent = referenceSnapshot.label; }
+  const sbAB = document.getElementById('sbAB');
+  if (sbAB) { sbAB.style.display = 'inline-flex'; sbAB.textContent = '📌 A/B Ativo'; }
   drawAllCharts();
   renderExpanded();
 }
@@ -1137,9 +1672,13 @@ function clearSnapshotA() {
   const btnClr = document.getElementById('btnClearA');
   const badge = document.getElementById('snapshotABadge');
   const btnFrz = document.getElementById('btnFreezeA');
+  const tbFrz = document.getElementById('tbFreezeA');
   if (btnClr) btnClr.style.display = 'none';
   if (btnFrz) btnFrz.classList.remove('active');
+  if (tbFrz) tbFrz.classList.remove('active');
   if (badge) { badge.style.display = 'none'; badge.textContent = ''; }
+  const sbAB = document.getElementById('sbAB');
+  if (sbAB) sbAB.style.display = 'none';
   drawAllCharts();
   renderExpanded();
 }
@@ -2041,6 +2580,7 @@ function recalculate() {
   updateWoodlock();
   updateElectrical();
   updateSimAdvancedTelemetry({ Fs, Qes: Qes_nom, Qms, Qts: (Qms * Qes_nom) / (Qms + Qes_nom), Vas: Vas_single, Re: Re_nom, Pe: Pe_single, Sd_m2: Sd_single_m2, Xmax_mm, c, rho, spl_1w, spl_rated, Vd, EBP: Fs / Qes_nom, no_frac });
+  updateDesktopStatusBar({ boxType, nDrivers, Vb, Fb, fc, F3, LvCm, airVel, fPipe1, deltaT, powerCompDb });
 }
 
 function generateSimulationData(p) {
@@ -2942,6 +3482,7 @@ function drawAllCharts() {
     const drawFn = crossX => drawLogChart(cv, currentCurves.frequencies, currentCurves[c.key], c, { isExpanded: false, crosshairX: crossX, overlaySeries: abSeries });
     setSummary();
     drawFn(null);
+    cv.oncontextmenu = e => openChartContextMenu(e, c.id);
     bindInteractiveChart(
       cv,
       drawFn,
@@ -2977,6 +3518,7 @@ function renderExpanded() {
     { isExpanded: true, crosshairX: crossX, overlaySeries: series }
   );
   drawFn(null);
+  cv.oncontextmenu = e => openChartContextMenu(e, cfg.id);
   bindInteractiveChart(
     cv,
     drawFn,
@@ -3379,6 +3921,321 @@ function updateElectrical(fromUser) {
     `;
   }
 }
+
+// ============================================================================
+// SHELL DESKTOP PROFISSIONAL (MENUS, MODAIS, WIZARD, CONTEXT MENU, STATUS BAR)
+// ============================================================================
+let activeWizardGoal = 'balanced';
+let activeWizardPlan = null;
+let ctxTargetChartId = 'G4';
+
+function closeAllMenus() {
+  document.querySelectorAll('.menu-item.open').forEach(el => el.classList.remove('open'));
+  closeChartContextMenu();
+}
+
+function toggleMenu(btn) {
+  const item = btn && btn.parentElement;
+  if (!item) return;
+  const wasOpen = item.classList.contains('open');
+  closeAllMenus();
+  if (!wasOpen) item.classList.add('open');
+}
+
+function openConfigModal(modalId) {
+  closeAllMenus();
+  closeConfigModals();
+  const el = document.getElementById(modalId);
+  if (el) el.classList.add('open');
+}
+
+function closeConfigModals() {
+  document.querySelectorAll('.bf-modal-backdrop.open').forEach(m => m.classList.remove('open'));
+}
+
+function switchModalTab(modalId, paneKey, btnEl) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return;
+  modal.querySelectorAll('.bf-mtab-btn').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  modal.querySelectorAll('[data-mpane]').forEach(p => {
+    p.style.display = (p.getAttribute('data-mpane') === paneKey) ? 'block' : 'none';
+  });
+}
+
+function toggleQuickSidebar() {
+  const sb = document.getElementById('quickSidebar');
+  const tb = document.getElementById('tbToggleSidebar');
+  if (!sb) return;
+  const collapsed = sb.classList.toggle('collapsed');
+  if (tb) tb.classList.toggle('active', !collapsed);
+  setTimeout(() => { drawAllCharts(); renderExpanded(); updateWoodlock(); }, 210);
+}
+
+function resetCurrentProject() {
+  const simN = document.getElementById('simNumDrivers');
+  const th = document.getElementById('thermalDeltaT');
+  const pt = document.getElementById('portType');
+  if (simN) simN.value = '1';
+  if (th) th.value = '0';
+  if (pt) pt.value = 'round';
+  clearSnapshotA();
+  loadPreset();
+}
+
+function updateDesktopStatusBar(s) {
+  const sel = document.getElementById('driverPreset');
+  const dName = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text.split('(')[0].trim() : 'Driver';
+  const sbDrv = document.getElementById('sbDriver');
+  const sbBox = document.getElementById('sbBox');
+  const sbPort = document.getElementById('sbPort');
+  const sbEpdr = document.getElementById('sbEpdr');
+  const sbTh = document.getElementById('sbThermal');
+  if (sbDrv) sbDrv.textContent = `🔊 ${dName.slice(0, 26)}${s.nDrivers > 1 ? ` (${s.nDrivers}x)` : ''}`;
+  if (sbBox) {
+    sbBox.textContent = s.boxType === 'bass-reflex'
+      ? `📦 Dutada ${s.Vb.toFixed(1)}L @ ${s.Fb.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`
+      : `📦 Selada ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
+  }
+  if (sbPort) {
+    sbPort.textContent = s.boxType === 'bass-reflex'
+      ? `💨 Lv ${s.LvCm.toFixed(1)}cm · ${s.airVel.toFixed(1)} m/s · f₁ ${s.fPipe1.toFixed(0)}Hz`
+      : `💨 Caixa Selada (sem duto)`;
+  }
+  if (sbEpdr && currentCurves && currentCurves.meta) {
+    sbEpdr.textContent = `⚡ EPDR ${currentCurves.meta.minEpdrVal.toFixed(2)}Ω @ ${currentCurves.meta.minEpdrFreq.toFixed(0)}Hz`;
+  }
+  if (sbTh) {
+    if (s.deltaT > 0) {
+      sbTh.style.display = 'inline-flex';
+      sbTh.textContent = `🔥 +${s.deltaT}°C (${s.powerCompDb.toFixed(1)}dB)`;
+    } else {
+      sbTh.style.display = 'none';
+    }
+  }
+}
+
+function openWizardModal() {
+  openConfigModal('modalWizard');
+  updateWizardPreview();
+}
+
+function selectWizardGoal(goal, btnEl) {
+  activeWizardGoal = goal;
+  document.querySelectorAll('[data-wiz-goal]').forEach(b => b.classList.remove('active'));
+  if (btnEl) btnEl.classList.add('active');
+  updateWizardPreview();
+}
+
+function computeWizardPlan() {
+  const Fs = parseFloat(document.getElementById('tsFs').value) || 40;
+  const Qes = parseFloat(document.getElementById('tsQes').value) || 0.45;
+  const Qms = parseFloat(document.getElementById('tsQms').value) || 7.2;
+  const VasSingle = parseFloat(document.getElementById('tsVas').value) || 100;
+  const PeSingle = parseFloat(document.getElementById('tsPe').value) || 500;
+  const SdSingle = (parseFloat(document.getElementById('tsSd').value) || 500) / 10000.0;
+  const Xmax = parseFloat(document.getElementById('tsXmax').value) || 10;
+  const nDrivers = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
+  const tempC = parseFloat(document.getElementById('tempInput').value) || 20;
+  const c = 20.0547605 * Math.sqrt(273.15 + tempC);
+
+  const Qts = (Qms * Qes) / (Qms + Qes);
+  const EBP = Fs / Qes;
+  const Vas = VasSingle * nDrivers;
+  const Pe = PeSingle * nDrivers;
+  const Sd = SdSingle * nDrivers;
+  const override = document.getElementById('wizBoxOverride')?.value || 'auto';
+  const portPref = document.getElementById('wizPortPref')?.value || 'round';
+
+  let boxType = override;
+  if (boxType === 'auto') {
+    if (activeWizardGoal === 'sq' && (EBP < 60 || Qts > 0.48)) boxType = 'sealed';
+    else if (EBP < 50 && Qts > 0.50) boxType = 'sealed';
+    else boxType = 'bass-reflex';
+  }
+
+  let Vb = Vas * 0.7;
+  let Fb = Fs;
+  let hpf = Math.max(18, Math.round(Fs * 0.7));
+  let portType = portPref;
+  let numDucts = 2, ductDia = 4.0, slotW = 35.0, slotH = 6.0;
+  let LvCm = 0, airVel = 0, fPipe1 = 0, alignDesc = '';
+
+  if (boxType === 'sealed') {
+    const qTarget = activeWizardGoal === 'sq' ? 0.7071 : (activeWizardGoal === 'balanced' ? 0.80 : 0.95);
+    const ratio2 = Math.pow(qTarget / Math.max(0.15, Qts), 2);
+    const alpha = Math.max(0.35, Math.min(4.0, ratio2 - 1.0));
+    Vb = Math.max(10, Math.round((Vas / alpha) * 10) / 10);
+    const fc = Fs * Math.sqrt(1 + Vas / Vb);
+    hpf = Math.max(18, Math.round(fc * 0.45));
+    alignDesc = `Caixa Selada (Qtc ≈ ${(Qts * Math.sqrt(1 + Vas / Vb)).toFixed(2)}, Fc ≈ ${fc.toFixed(1)} Hz)`;
+  } else {
+    const kVol = activeWizardGoal === 'sq' ? 1.15 : (activeWizardGoal === 'balanced' ? 0.85 : 1.05);
+    const vbBase = Math.max(Vas * 0.35, Math.min(Vas * 2.2, 15.0 * Math.pow(Math.min(0.65, Math.max(0.25, Qts)), 2.8) * Vas));
+    Vb = Math.max(15, Math.round(vbBase * kVol));
+    const alpha = Vas / Vb;
+    const fbOpt = Fs * Math.pow(alpha, 0.31);
+    Fb = activeWizardGoal === 'sq' ? Math.max(24, fbOpt * 0.90) : (activeWizardGoal === 'spl' ? fbOpt * 1.08 : fbOpt);
+    Fb = Math.round(Fb * 10) / 10;
+    hpf = Math.max(20, Math.round(Fb * 0.78));
+
+    // Dimensionamento aerodinâmico automático para v_ar <= 14.5 m/s
+    const no_frac = (4.0 * Math.PI * Math.PI / Math.pow(c, 3)) * (Math.pow(Fs, 3) * (Vas / 1000.0) / Qes);
+    const targetVel = activeWizardGoal === 'sq' ? 11.0 : (activeWizardGoal === 'balanced' ? 14.0 : 16.0);
+    const spMinM2 = Math.max(0.8 * Fb * Sd * (Xmax / 1000.0), (4.540262351285604 * Math.sqrt(no_frac * Pe)) / (targetVel * Fb));
+    const spMinCm2 = spMinM2 * 10000.0;
+
+    if (portPref === 'slot_wall') {
+      portType = 'slot_wall';
+      slotW = Math.max(20, Math.round(Math.sqrt(spMinCm2 * 5.0)));
+      slotH = Math.max(3.5, Math.round((spMinCm2 / slotW) * 2) / 2);
+      const pg = computePortGeometry({ portType, slotW, slotH, slotWallThick: 18, Fb, Vb, c });
+      LvCm = pg.LvCm; fPipe1 = pg.fPipe1;
+      airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (pg.Sp * Fb);
+    } else {
+      portType = 'round';
+      const diaOpts = [3, 4, 6];
+      let chosen = { n: 2, d: 6 };
+      outer: for (const d of diaOpts) {
+        const a1 = Math.PI * Math.pow((d * 2.54) / 2, 2);
+        for (let n = 1; n <= 4; n++) {
+          if (n * a1 >= spMinCm2) { chosen = { n, d }; break outer; }
+        }
+      }
+      numDucts = chosen.n; ductDia = chosen.d;
+      const pg = computePortGeometry({ portType, numDucts, ductDia, ductThick: 1.5, Fb, Vb, c });
+      LvCm = pg.LvCm; fPipe1 = pg.fPipe1;
+      airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (pg.Sp * Fb);
+    }
+    alignDesc = `Bass-Reflex ${activeWizardGoal === 'sq' ? 'Estendida (SQ)' : (activeWizardGoal === 'spl' ? 'Alto Rendimento (SPL)' : 'Equilibrada (SC4/QB3)')}`;
+  }
+
+  return { boxType, Vb, Fb, hpf, portType, numDucts, ductDia, slotW, slotH, LvCm, airVel, fPipe1, EBP, Qts, nDrivers, alignDesc };
+}
+
+function updateWizardPreview() {
+  activeWizardPlan = computeWizardPlan();
+  const p = activeWizardPlan;
+  const drvEl = document.getElementById('wizDriverSummary');
+  const prevEl = document.getElementById('wizPreviewBox');
+  const sel = document.getElementById('driverPreset');
+  const dName = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : 'Driver Atual';
+  if (drvEl) {
+    const ebpVerdict = p.EBP < 50 ? 'Indicado para Caixa Selada' : (p.EBP <= 90 ? 'Versátil (Selada ou Dutada)' : 'Ideal para Bass-Reflex (Dutada)');
+    drvEl.innerHTML =
+      `<div><b>Transdutor:</b> ${dName} (${p.nDrivers}x)</div>` +
+      `<div><b>Diagnóstico EBP:</b> <span style="color:var(--accent);font-weight:700;">${p.EBP.toFixed(1)} Hz</span> | <b>Qts:</b> ${p.Qts.toFixed(3)} ➔ <span style="color:#4ade80;">${ebpVerdict}</span></div>`;
+  }
+  if (prevEl) {
+    if (p.boxType === 'sealed') {
+      prevEl.innerHTML =
+        `<div><b>Alinhamento Sugerido:</b> ${p.alignDesc}</div>` +
+        `<div><b>Volume Útil (Vb):</b> <span style="color:#fff;font-weight:700;">${p.Vb.toFixed(1)} L</span> | <b>HPF Protetor:</b> ${p.hpf} Hz</div>`;
+    } else {
+      const dutoTxt = p.portType === 'slot_wall'
+        ? `Duto Régua em Parede ${p.slotW}×${p.slotH} cm (Lv = ${p.LvCm.toFixed(1)} cm)`
+        : `${p.numDucts}× Cilíndrico ${p.ductDia}" (Lv = ${p.LvCm.toFixed(1)} cm)`;
+      prevEl.innerHTML =
+        `<div><b>Alinhamento Sugerido:</b> ${p.alignDesc}</div>` +
+        `<div><b>Volume &amp; Sintonia:</b> <span style="color:#fff;font-weight:700;">Vb = ${p.Vb.toFixed(1)} L @ Fb = ${p.Fb.toFixed(1)} Hz</span> | <b>HPF:</b> ${p.hpf} Hz</div>` +
+        `<div><b>Duto Calculado:</b> ${dutoTxt}</div>` +
+        `<div><b>Aerodinâmica:</b> Vel. Ar = <b>${p.airVel.toFixed(1)} m/s</b> | Tubo de Órgão f₁ = <b>${p.fPipe1.toFixed(0)} Hz</b></div>`;
+    }
+  }
+}
+
+function applyWizardRecommendation() {
+  if (!activeWizardPlan) activeWizardPlan = computeWizardPlan();
+  const p = activeWizardPlan;
+  document.getElementById('boxType').value = p.boxType;
+  document.getElementById('vbInput').value = p.Vb;
+  const vbR = document.getElementById('vbRange');
+  if (vbR) {
+    if (p.Vb > parseFloat(vbR.max)) vbR.max = Math.ceil(p.Vb * 1.3);
+    if (p.Vb < parseFloat(vbR.min)) vbR.min = Math.max(5, Math.floor(p.Vb * 0.7));
+    vbR.value = p.Vb;
+  }
+  document.getElementById('hpfCutoff').value = p.hpf;
+  if (p.boxType === 'bass-reflex') {
+    document.getElementById('fbInput').value = p.Fb;
+    const fbR = document.getElementById('fbRange');
+    if (fbR) fbR.value = p.Fb;
+    document.getElementById('portType').value = p.portType;
+    if (p.portType === 'slot_wall') {
+      document.getElementById('slotW').value = p.slotW;
+      document.getElementById('slotH').value = p.slotH;
+    } else {
+      document.getElementById('numDucts').value = p.numDucts;
+      document.getElementById('ductDia').value = p.ductDia;
+    }
+    setTuningMode(false);
+  } else {
+    recalculate();
+  }
+  closeConfigModals();
+}
+
+function openChartContextMenu(e, chartId) {
+  e.preventDefault();
+  closeAllMenus();
+  ctxTargetChartId = chartId || 'G4';
+  const menu = document.getElementById('chartContextMenu');
+  const clrBtn = document.getElementById('ctxClearA');
+  if (!menu) return;
+  if (clrBtn) clrBtn.style.display = referenceSnapshot ? 'flex' : 'none';
+  menu.classList.add('open');
+  const mx = Math.min(window.innerWidth - 235, e.clientX);
+  const my = Math.min(window.innerHeight - 210, e.clientY);
+  menu.style.left = Math.max(8, mx) + 'px';
+  menu.style.top = Math.max(8, my) + 'px';
+}
+
+function closeChartContextMenu() {
+  const menu = document.getElementById('chartContextMenu');
+  if (menu) menu.classList.remove('open');
+}
+
+function ctxAction(action) {
+  closeChartContextMenu();
+  if (action === 'expand') openExpandedChart(ctxTargetChartId);
+  else if (action === 'freezeA') captureSnapshotA();
+  else if (action === 'clearA') clearSnapshotA();
+  else if (action === 'autoScale') toggleChartOpt('autoScaleY');
+  else if (action === 'prefs') openConfigModal('modalGraphPrefs');
+  else if (action === 'exportPng') {
+    const sel = document.getElementById('expandedSelect');
+    if (sel) sel.value = ctxTargetChartId;
+    exportExpandedPNG();
+  }
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest || (!e.target.closest('.menu-item') && !e.target.closest('#chartContextMenu'))) {
+    closeAllMenus();
+  }
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { closeAllMenus(); closeConfigModals(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); exportProjectJson(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'o') { e.preventDefault(); document.getElementById('projJsonInput')?.click(); return; }
+  if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); resetCurrentProject(); return; }
+  if (e.key === 'F1') { e.preventDefault(); openConfigModal('modalShortcuts'); return; }
+  if (e.key === 'F2') { e.preventDefault(); openConfigModal('modalDriver'); return; }
+  if (e.key === 'F3') { e.preventDefault(); openConfigModal('modalBox'); return; }
+  if (e.key === 'F4') { e.preventDefault(); openConfigModal('modalEnv'); return; }
+  if (e.key === 'F5') { e.preventDefault(); openConfigModal('modalGraphPrefs'); return; }
+  if (e.key === 'F6') { e.preventDefault(); openWizardModal(); return; }
+  if (e.key === 'F8') { e.preventDefault(); captureSnapshotA(); return; }
+  if (e.key === 'F9') { e.preventDefault(); toggleQuickSidebar(); return; }
+  const tag = (e.target && e.target.tagName) || '';
+  if (['INPUT', 'SELECT', 'TEXTAREA'].includes(tag)) return;
+  if (e.key === '1') switchTab('grid');
+  else if (e.key === '2') switchTab('expanded');
+  else if (e.key === '3') switchTab('woodlock');
+  else if (e.key === '4') switchTab('electrical');
+  else if (e.key === '5') switchTab('audit');
+});
 
 window.onload = () => { initUI(); };
 window.onresize = () => { drawAllCharts(); renderExpanded(); updateWoodlock(); };
