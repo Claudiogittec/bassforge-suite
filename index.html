@@ -468,20 +468,38 @@
         <optgroup id="customDriversGroup" label="📚 Banco Oficial de Drivers (DB)"></optgroup>
       </select>
     </div>
-    <div style="display:flex; gap:6px; margin-bottom:8px;">
+    <div style="display:flex; gap:6px; margin-bottom:6px;">
       <button type="button" onclick="window.open('./drivers-db.html', '_blank')" style="flex:1; padding:6px 8px; background:rgba(0,212,255,0.12); border:1px solid rgba(0,212,255,0.35); border-radius:5px; color:var(--accent); font-family:var(--mono); font-size:10.5px; font-weight:700; cursor:pointer;">🗄️ Banco Oficial</button>
       <button type="button" onclick="document.getElementById('dbJsonInput').click()" style="flex:1; padding:6px 8px; background:rgba(16,185,129,0.12); border:1px solid rgba(16,185,129,0.35); border-radius:5px; color:#34d399; font-family:var(--mono); font-size:10.5px; font-weight:700; cursor:pointer;">📥 Importar .JSON</button>
       <input type="file" id="dbJsonInput" accept=".json" style="display:none" onchange="importDriversJsonFile(this)">
     </div>
+    <div style="display:flex; gap:6px; margin-bottom:8px;">
+      <button type="button" onclick="exportProjectJson()" style="flex:1; padding:5px 8px; background:rgba(245,158,11,0.12); border:1px solid rgba(245,158,11,0.35); border-radius:5px; color:#fbbf24; font-family:var(--mono); font-size:10px; font-weight:700; cursor:pointer;">💾 Salvar Projeto</button>
+      <button type="button" onclick="document.getElementById('projJsonInput').click()" style="flex:1; padding:5px 8px; background:rgba(139,92,246,0.12); border:1px solid rgba(139,92,246,0.35); border-radius:5px; color:#c4b5fd; font-family:var(--mono); font-size:10px; font-weight:700; cursor:pointer;">📂 Abrir Projeto</button>
+      <input type="file" id="projJsonInput" accept=".json" style="display:none" onchange="importProjectJsonFile(this)">
+    </div>
     <div id="dbDriverBadge" style="display:none; margin-bottom:10px; padding:6px 8px; border-radius:6px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.28); font-size:10.5px; color:#a7f3d0; line-height:1.45;"></div>
 
     <div class="section-title">📐 Topologia da Caixa</div>
-    <div class="form-group">
-      <label for="boxType">Tipo de Alinhamento</label>
-      <select id="boxType" onchange="recalculate()">
-        <option value="bass-reflex" selected>Bass-Reflex (Ventilada com Dutos)</option>
-        <option value="sealed">Caixa Selada (Closed Box)</option>
-      </select>
+    <div class="grid-2">
+      <div class="form-group">
+        <label for="boxType">Alinhamento</label>
+        <select id="boxType" onchange="recalculate()">
+          <option value="bass-reflex" selected>Bass-Reflex (Dutada)</option>
+          <option value="sealed">Caixa Selada</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="simNumDrivers">Nº Falantes</label>
+        <select id="simNumDrivers" onchange="onSimNumDriversChange()">
+          <option value="1" selected>1x Driver</option>
+          <option value="2">2x (+6 dB)</option>
+          <option value="3">3x (+9.5 dB)</option>
+          <option value="4">4x (+12 dB)</option>
+          <option value="6">6x (+15.6 dB)</option>
+          <option value="8">8x (+18 dB)</option>
+        </select>
+      </div>
     </div>
 
     <!-- SELETOR DE MODO DE SINTONIA (BASS-REFLEX) -->
@@ -532,7 +550,16 @@
 
     <div id="portControls">
       <div class="section-title">🔧 Dimensionamento dos Dutos</div>
-      <div class="grid-3">
+      <div class="form-group">
+        <label for="portType">Geometria &amp; Correção de Borda</label>
+        <select id="portType" onchange="recalculate()">
+          <option value="round" selected>Cilíndrico Padrão (k = 0.732)</option>
+          <option value="flared">Cilíndrico Aeroport / Flared (k = 0.850)</option>
+          <option value="slot">Duto Régua / Retangular Livre (k = 0.732)</option>
+          <option value="slot_wall">Duto Régua em Parede / Shelf (k = 1.343)</option>
+        </select>
+      </div>
+      <div id="portRoundFields" class="grid-3">
         <div class="form-group">
           <label for="numDucts">Nº Dutos</label>
           <input type="number" id="numDucts" value="2" min="1" step="1" oninput="recalculate()">
@@ -546,9 +573,24 @@
           <input type="number" id="ductThick" value="1.5" step="0.5" oninput="recalculate()">
         </div>
       </div>
+      <div id="portSlotFields" class="grid-3" style="display:none;">
+        <div class="form-group">
+          <label for="slotW">Larg. W <small>(cm)</small></label>
+          <input type="number" id="slotW" value="35.0" min="1" step="0.5" oninput="recalculate()">
+        </div>
+        <div class="form-group">
+          <label for="slotH">Alt. H <small>(cm)</small></label>
+          <input type="number" id="slotH" value="6.0" min="1" step="0.5" oninput="recalculate()">
+        </div>
+        <div class="form-group">
+          <label for="slotWallThick">MDF <small>(mm)</small></label>
+          <input type="number" id="slotWallThick" value="18.0" min="1" step="1" oninput="recalculate()">
+        </div>
+      </div>
+      <div id="portTelemetryBox" style="margin-top:4px; margin-bottom:6px; padding:6px 8px; border-radius:6px; background:rgba(15,23,42,0.8); border:1px solid var(--border); font-family:var(--mono); font-size:10px; color:#cbd5e1; line-height:1.5;"></div>
     </div>
 
-    <div class="section-title">🚗 Ambiente e DSP</div>
+    <div class="section-title">🚗 Ambiente, DSP &amp; Termodinâmica</div>
     <div class="grid-2">
       <div class="form-group">
         <label for="cabinLen">Cabine <small>(m)</small></label>
@@ -559,6 +601,16 @@
         <input type="number" id="hpfCutoff" value="36.0" step="1" oninput="recalculate()">
       </div>
     </div>
+    <div class="form-group">
+      <label for="thermalDeltaT">Compressão Térmica Bobina (ΔT)</label>
+      <select id="thermalDeltaT" onchange="recalculate()">
+        <option value="0" selected>0 °C — Frio / Nominal (Re 100%)</option>
+        <option value="60">+60 °C — Musical Moderado (Re +23.6%)</option>
+        <option value="100">+100 °C — Uso Intenso / Trio (Re +39.3%)</option>
+        <option value="130">+130 °C — Limite Térmico (Re +51.1%)</option>
+      </select>
+    </div>
+    <div id="thermalCompBadge" style="display:none; margin-bottom:8px; padding:5px 8px; border-radius:6px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); font-family:var(--mono); font-size:10px; color:#fde68a; line-height:1.45;"></div>
 
     <div class="section-title">⚙️ Parâmetros Thiele-Small</div>
     <div class="grid-2">
@@ -680,14 +732,14 @@
 
     <!-- TABS BAR -->
     <div class="tabs-bar" style="flex-wrap:wrap;">
-      <button type="button" class="tab-btn active" onclick="switchTab('grid')">📊 Grade dos 12 Gráficos Eletroacústicos</button>
+      <button type="button" class="tab-btn active" onclick="switchTab('grid')">📊 Grade dos 13 Gráficos Eletroacústicos</button>
       <button type="button" class="tab-btn" onclick="switchTab('expanded')">🔍 Gráfico Expandido com Cursor</button>
       <button type="button" class="tab-btn" onclick="switchTab('woodlock')">🪵 Marcenaria CAD & Plano de Corte (WoodLock)</button>
       <button type="button" class="tab-btn" onclick="switchTab('electrical')">⚡ Elétrica, Cabos, Ganho & DSP</button>
       <button type="button" class="tab-btn" onclick="switchTab('audit')">📋 Tabela de Auditoria com Golden Master</button>
     </div>
 
-    <!-- TOOLBAR GLOBAL DOS GRÁFICOS (EIXOS X/Y & MARCADORES) -->
+    <!-- TOOLBAR GLOBAL DOS GRÁFICOS (EIXOS X/Y, MARCADORES & COMPARADOR A/B) -->
     <div id="chartToolbar" class="chart-toolbar">
       <div class="chart-toolbar-group">
         <span class="chart-toolbar-label">Eixo X (Banda):</span>
@@ -700,13 +752,19 @@
         <span class="chart-toolbar-label">Eixo Y &amp; Diagnóstico:</span>
         <button type="button" id="btnAutoScaleY" class="chart-pill-btn active" onclick="toggleChartOpt('autoScaleY')">📐 Auto-Scale Y</button>
         <button type="button" id="btnShowMarkers" class="chart-pill-btn active" onclick="toggleChartOpt('showMarkers')">📍 Fb / F3 / Fs / HPF</button>
-        <button type="button" id="btnShowLimits" class="chart-pill-btn active" onclick="toggleChartOpt('showLimits')">⚠️ Limites (Xmax / Mach / 0dB)</button>
+        <button type="button" id="btnShowLimits" class="chart-pill-btn active" onclick="toggleChartOpt('showLimits')">⚠️ Limites (Xmax / Mach / 20ms)</button>
+      </div>
+      <div class="chart-toolbar-group">
+        <span class="chart-toolbar-label">Comparador A/B:</span>
+        <button type="button" id="btnFreezeA" class="chart-pill-btn" onclick="captureSnapshotA()" title="Congela a simulação atual como Curva A (tracejada âmbar) para comparar com novos ajustes">📌 Congelar Curva A</button>
+        <button type="button" id="btnClearA" class="chart-pill-btn" style="display:none; border-color:rgba(245,158,11,0.5); color:#fbbf24;" onclick="clearSnapshotA()">❌ Limpar A</button>
+        <span id="snapshotABadge" style="display:none; font-family:var(--mono); font-size:10px; color:#fbbf24; font-weight:700;"></span>
       </div>
     </div>
 
-    <!-- TAB 1: GRADE 12 GRÁFICOS -->
+    <!-- TAB 1: GRADE 13 GRÁFICOS -->
     <div id="tabGrid" class="charts-grid-12">
-      <!-- Os 12 canvases serão montados aqui via JS -->
+      <!-- Os 13 canvases serão montados aqui via JS -->
     </div>
 
     <!-- TAB 2: GRÁFICO EXPANDIDO -->
@@ -726,6 +784,7 @@
             <option value="G10">#10 Cone SPL (dB-SPL)</option>
             <option value="G11">#11 In Box Impedance (Ohms)</option>
             <option value="G12">#12 Fase Acústica (Graus)</option>
+            <option value="G13">#13 Group Delay (ms)</option>
           </select>
           <select id="expandedOverlay" aria-label="Sobreposição de Curvas" style="padding:6px 12px; background:var(--bg-input); border:1px solid var(--border); color:#cbd5e1; border-radius:6px;" onchange="onExpandedOverlayChange()">
             <option value="none">Sobreposição: Nenhuma</option>
@@ -825,7 +884,7 @@
           <div class="input-row" style="margin-bottom:8px;">
             <div class="form-group">
               <label for="elNumSpk">Qtd. Alto-Falantes</label>
-              <input type="number" id="elNumSpk" value="2" min="1" max="16" step="1" onchange="updateElectrical()">
+              <input type="number" id="elNumSpk" value="1" min="1" max="16" step="1" onchange="updateElectrical(true)">
             </div>
             <div class="form-group">
               <label for="elCoils">Tipo de Bobina</label>
@@ -1030,10 +1089,12 @@ const CHARTS_INFO = [
   { id: 'G9',  key: 'G9_PortAirVel',    title: '#9 Port Air Velocity (m/s)',   unit: 'm/s', kind: 'linear', nonNeg: true,  decimals: 1, min: 0,    max: 60,   color: '#f43f5e' },
   { id: 'G10', key: 'G10_ConeSPL',      title: '#10 Cone SPL (dB-SPL)',        unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 0, min: 80,   max: 150,  color: '#dc2626' },
   { id: 'G11', key: 'G11_InBoxZ',       title: '#11 In Box Impedance (Ohms)',  unit: 'Ω',   kind: 'linear', nonNeg: true,  decimals: 1, min: 0,    max: 60,   color: '#dc2626' },
-  { id: 'G12', key: 'G12_Phase',        title: '#12 Fase Acústica (Graus)',    unit: '°',   kind: 'phase',  nonNeg: false, decimals: 0, min: -180, max: 180,  color: '#ea580c' }
+  { id: 'G12', key: 'G12_Phase',        title: '#12 Fase Acústica (Graus)',    unit: '°',   kind: 'phase',  nonNeg: false, decimals: 0, min: -180, max: 180,  color: '#ea580c' },
+  { id: 'G13', key: 'G13_GroupDelay',   title: '#13 Group Delay (ms)',         unit: 'ms',  kind: 'linear', nonNeg: true,  decimals: 1, min: 0,    max: 40,   color: '#14b8a6' }
 ];
 
 let currentCurves = null;
+let referenceSnapshot = null;
 let isAutoTune = true;
 const chartOpts = {
   fMin: 10,
@@ -1042,6 +1103,136 @@ const chartOpts = {
   showMarkers: true,
   showLimits: true
 };
+
+function captureSnapshotA() {
+  if (!currentCurves) return;
+  const m = currentCurves.meta || {};
+  const sel = document.getElementById('driverPreset');
+  const dName = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text.split('(')[0].trim() : 'Ref';
+  const tuneTxt = m.boxType === 'bass-reflex'
+    ? `${(m.Vb || 0).toFixed(0)}L @ ${(m.Fb || 0).toFixed(1)}Hz`
+    : `Selada ${(m.Vb || 0).toFixed(0)}L`;
+  const extra = (m.nDrivers > 1 ? ` ${m.nDrivers}x` : '') + (m.deltaT > 0 ? ` +${m.deltaT}°C` : '');
+  const cloned = {};
+  CHARTS_INFO.forEach(c => { cloned[c.key] = Array.from(currentCurves[c.key] || []); });
+  referenceSnapshot = {
+    label: `Ref A: ${dName.slice(0, 18)} (${tuneTxt}${extra})`,
+    shortLabel: 'Ref A',
+    frequencies: Array.from(currentCurves.frequencies || []),
+    curves: cloned,
+    meta: { ...m }
+  };
+  const btnClr = document.getElementById('btnClearA');
+  const badge = document.getElementById('snapshotABadge');
+  const btnFrz = document.getElementById('btnFreezeA');
+  if (btnClr) btnClr.style.display = 'inline-flex';
+  if (btnFrz) btnFrz.classList.add('active');
+  if (badge) { badge.style.display = 'inline'; badge.textContent = referenceSnapshot.label; }
+  drawAllCharts();
+  renderExpanded();
+}
+
+function clearSnapshotA() {
+  referenceSnapshot = null;
+  const btnClr = document.getElementById('btnClearA');
+  const badge = document.getElementById('snapshotABadge');
+  const btnFrz = document.getElementById('btnFreezeA');
+  if (btnClr) btnClr.style.display = 'none';
+  if (btnFrz) btnFrz.classList.remove('active');
+  if (badge) { badge.style.display = 'none'; badge.textContent = ''; }
+  drawAllCharts();
+  renderExpanded();
+}
+
+function onSimNumDriversChange() {
+  const n = parseInt(document.getElementById('simNumDrivers')?.value) || 1;
+  const elSpk = document.getElementById('elNumSpk');
+  if (elSpk && parseInt(elSpk.value) !== n) elSpk.value = n;
+  recalculate();
+}
+
+const PROJECT_FIELD_IDS = [
+  'driverPreset', 'boxType', 'simNumDrivers', 'vbInput', 'fbInput', 'qlInput', 'tempInput',
+  'portType', 'numDucts', 'ductDia', 'ductThick', 'slotW', 'slotH', 'slotWallThick',
+  'cabinLen', 'hpfCutoff', 'thermalDeltaT',
+  'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
+  'tsLe', 'tsZnom', 'tsDia', 'tsCoils', 'tsMmsCat', 'tsBlCat',
+  'wlShape', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens',
+  'elNumSpk', 'elCoils', 'elZCoil', 'elCoilMode', 'elSpkMode',
+  'elAmpPower', 'elVbat', 'elPwrLen', 'elPwrGauge', 'elSpkLen', 'elSpkGauge',
+  'elPreoutV', 'elLimProfile', 'elXoverHz', 'elLeMh'
+];
+
+function exportProjectJson() {
+  const fields = {};
+  PROJECT_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) fields[id] = el.value;
+  });
+  const sel = document.getElementById('driverPreset');
+  const driverLabel = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : 'Projeto';
+  const payload = {
+    schema: 'bassforge-project/v1',
+    savedAt: new Date().toISOString(),
+    name: driverLabel,
+    isAutoTune,
+    chartOpts: { ...chartOpts },
+    fields
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  const safe = driverLabel.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 32);
+  a.download = `BassForge_Projeto_${safe}.json`;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+}
+
+function applyProjectData(proj) {
+  if (!proj || !proj.fields) return false;
+  PROJECT_FIELD_IDS.forEach(id => {
+    const el = document.getElementById(id);
+    if (el && proj.fields[id] !== undefined) el.value = proj.fields[id];
+  });
+  const vb = parseFloat(proj.fields.vbInput);
+  const fb = parseFloat(proj.fields.fbInput);
+  const vbR = document.getElementById('vbRange');
+  if (vbR && !isNaN(vb)) {
+    if (vb > parseFloat(vbR.max)) vbR.max = Math.ceil(vb * 1.3);
+    if (vb < parseFloat(vbR.min)) vbR.min = Math.max(5, Math.floor(vb * 0.7));
+    vbR.value = vb;
+  }
+  const fbR = document.getElementById('fbRange');
+  if (fbR && !isNaN(fb)) {
+    if (fb > parseFloat(fbR.max)) fbR.max = Math.ceil(fb * 1.3);
+    if (fb < parseFloat(fbR.min)) fbR.min = Math.max(10, Math.floor(fb * 0.7));
+    fbR.value = fb;
+  }
+  setTuningMode(proj.isAutoTune !== false);
+  return true;
+}
+
+function importProjectJsonFile(input) {
+  const file = input.files?.[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const parsed = JSON.parse(e.target.result);
+      if (parsed && parsed.schema === 'bassforge-project/v1' && parsed.fields) {
+        applyProjectData(parsed);
+        alert(`Projeto "${parsed.name || file.name}" restaurado com sucesso!`);
+      } else {
+        alert('Este arquivo não é um Projeto BassForge (bassforge-project/v1).');
+      }
+    } catch (err) {
+      alert('Erro ao abrir projeto JSON: ' + err.message);
+    } finally {
+      input.value = '';
+    }
+  };
+  reader.readAsText(file);
+}
 
 function setFreqRange(fMin, fMax, btnEl) {
   chartOpts.fMin = fMin;
@@ -1332,6 +1523,11 @@ function importDriversJsonFile(input) {
   reader.onload = e => {
     try {
       const parsed = JSON.parse(e.target.result);
+      if (parsed && parsed.schema === 'bassforge-project/v1' && parsed.fields) {
+        applyProjectData(parsed);
+        alert(`Projeto "${parsed.name || file.name}" restaurado com sucesso!`);
+        return;
+      }
       const arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.drivers) ? parsed.drivers : [parsed]);
       const keys = upsertDbDrivers(arr);
       if (!keys.length) {
@@ -1572,21 +1768,106 @@ function switchTab(tabId) {
 }
 
 // ============================================================================
-// MOTOR MATEMÁTICO COMPLETO EM ES6
+// MOTOR MATEMÁTICO COMPLETO EM ES6 (COM SLOT PORT, GROUP DELAY, MULTI-DRIVER & TÉRMICA)
 // ============================================================================
+function computePortGeometry(opts) {
+  const portType = opts.portType || 'round';
+  const isSlot = (portType === 'slot' || portType === 'slot_wall');
+  const numD = Math.max(1, parseInt(opts.numDucts) || 1);
+  const Fb = Math.max(1.0, parseFloat(opts.Fb) || 40.0);
+  const Vb = Math.max(0.5, parseFloat(opts.Vb) || 50.0);
+  const cVal = opts.c || 343.37;
+
+  let Sp = 0;
+  let DeqM = 0;
+  let DeqIn = 0;
+  let DhCm = 0;
+  let aspectRatio = 1.0;
+  let kEnd = 0.732;
+  let velLimit = 17.0;
+
+  if (isSlot) {
+    const wCm = Math.max(0.5, parseFloat(opts.slotW) || 35.0);
+    const hCm = Math.max(0.5, parseFloat(opts.slotH) || 6.0);
+    Sp = (wCm / 100.0) * (hCm / 100.0);
+    DeqM = 2.0 * Math.sqrt(Sp / Math.PI);
+    DeqIn = DeqM / 0.0254;
+    DhCm = (2.0 * wCm * hCm) / (wCm + hCm);
+    aspectRatio = Math.max(wCm, hCm) / Math.min(wCm, hCm);
+    kEnd = (portType === 'slot_wall') ? 1.343 : 0.732;
+    velLimit = 17.0;
+  } else {
+    const dDia = Math.max(0.5, parseFloat(opts.ductDia) || 4.0);
+    Sp = numD * Math.PI * Math.pow((dDia * 0.0254) / 2.0, 2);
+    DeqIn = dDia * Math.sqrt(numD);
+    DeqM = DeqIn * 0.0254;
+    DhCm = dDia * 2.54;
+    aspectRatio = 1.0;
+    kEnd = (portType === 'flared') ? 0.850 : 0.732;
+    velLimit = (portType === 'flared') ? 24.0 : 17.0;
+  }
+
+  const omega_b = 2.0 * Math.PI * Fb;
+  const LeffM = (Math.pow(339.8, 2) * Sp) / (Math.pow(omega_b, 2) * (Vb / 1000.0));
+  const deltaL = kEnd * DeqM;
+  const LvM = LeffM - deltaL;
+  const LvCm = LvM * 100.0;
+  const fPipe1 = LeffM > 1e-4 ? (cVal / (2.0 * LeffM)) : 0;
+
+  let vDuto = 0;
+  if (isSlot) {
+    const wCm = Math.max(0.5, parseFloat(opts.slotW) || 35.0);
+    const hCm = Math.max(0.5, parseFloat(opts.slotH) || 6.0);
+    const tCm = (Math.max(1.0, parseFloat(opts.slotWallThick) || 18.0)) / 10.0;
+    const extAreaCm2 = (portType === 'slot_wall')
+      ? ((wCm + tCm) * (hCm + tCm))
+      : ((wCm + 2 * tCm) * (hCm + 2 * tCm));
+    vDuto = (extAreaCm2 * Math.max(1.0, LvCm)) / 1000.0;
+  } else {
+    const dDia = Math.max(0.5, parseFloat(opts.ductDia) || 4.0);
+    const dThick = Math.max(0.0, parseFloat(opts.ductThick) || 1.5);
+    const dExtM = (dDia * 0.0254) + 2.0 * (dThick / 1000.0);
+    vDuto = (numD * Math.PI * Math.pow(dExtM / 2.0, 2) * Math.max(0.01, LvM) * 1000.0) + 0.08;
+  }
+
+  return { portType, isSlot, Sp, DeqM, DeqIn, DhCm, aspectRatio, kEnd, LeffM, LvM, LvCm, vDuto, fPipe1, velLimit };
+}
+
 function recalculate() {
   const boxType = document.getElementById('boxType').value;
   document.getElementById('portControls').style.display = (boxType === 'bass-reflex' ? 'block' : 'none');
 
+  const portType = document.getElementById('portType')?.value || 'round';
+  const isSlot = (portType === 'slot' || portType === 'slot_wall');
+  const roundFields = document.getElementById('portRoundFields');
+  const slotFields = document.getElementById('portSlotFields');
+  if (roundFields) roundFields.style.display = isSlot ? 'none' : 'grid';
+  if (slotFields) slotFields.style.display = isSlot ? 'grid' : 'none';
+
+  const nDrivers = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
+  const deltaT = Math.max(0, parseFloat(document.getElementById('thermalDeltaT')?.value) || 0);
+
   const Fs = parseFloat(document.getElementById('tsFs').value);
-  const Qes = parseFloat(document.getElementById('tsQes').value);
+  const Qes_nom = parseFloat(document.getElementById('tsQes').value);
   const Qms = parseFloat(document.getElementById('tsQms').value);
-  const Re = parseFloat(document.getElementById('tsRe').value);
-  const Vas = parseFloat(document.getElementById('tsVas').value);
-  const Pe = parseFloat(document.getElementById('tsPe').value);
-  const Sd_m2 = parseFloat(document.getElementById('tsSd').value) / 10000.0;
+  const Re_nom = parseFloat(document.getElementById('tsRe').value);
+  const Vas_single = parseFloat(document.getElementById('tsVas').value);
+  const Pe_single = parseFloat(document.getElementById('tsPe').value);
+  const Sd_single_m2 = parseFloat(document.getElementById('tsSd').value) / 10000.0;
   const Xmax_mm = parseFloat(document.getElementById('tsXmax').value);
-  const Vsub = parseFloat(document.getElementById('tsVsub').value);
+  const Vsub_single = parseFloat(document.getElementById('tsVsub').value);
+
+  // Compressão térmica da bobina (Re(T) = Re * (1 + alpha_cu * deltaT))
+  const thermalFactor = 1.0 + 0.00393 * deltaT;
+  const Re = Re_nom * thermalFactor;
+  const Qes = Qes_nom * thermalFactor;
+  const powerCompDb = deltaT > 0 ? (-10.0 * Math.log10(thermalFactor)) : 0.0;
+
+  // Acoplamento acústico de N drivers idênticos em câmara comum
+  const Vas = Vas_single * nDrivers;
+  const Sd_m2 = Sd_single_m2 * nDrivers;
+  const Pe = Pe_single * nDrivers;
+  const Vsub = Vsub_single * nDrivers;
 
   const Vb = parseFloat(document.getElementById('vbInput').value);
   const QL = parseFloat(document.getElementById('qlInput').value);
@@ -1594,9 +1875,12 @@ function recalculate() {
   const cabinM = parseFloat(document.getElementById('cabinLen').value);
   const hpfHz = parseFloat(document.getElementById('hpfCutoff').value);
 
-  const numD = parseInt(document.getElementById('numDucts').value);
-  const dDia = parseFloat(document.getElementById('ductDia').value);
-  const dThick = parseFloat(document.getElementById('ductThick').value);
+  const numD = parseInt(document.getElementById('numDucts').value) || 1;
+  const dDia = parseFloat(document.getElementById('ductDia').value) || 4.0;
+  const dThick = parseFloat(document.getElementById('ductThick').value) || 1.5;
+  const slotW = parseFloat(document.getElementById('slotW')?.value) || 35.0;
+  const slotH = parseFloat(document.getElementById('slotH')?.value) || 6.0;
+  const slotWallThick = parseFloat(document.getElementById('slotWallThick')?.value) || 18.0;
 
   const Qts = (Qms * Qes) / (Qms + Qes);
   const c = 20.0547605 * Math.sqrt(273.15 + tempC);
@@ -1605,12 +1889,23 @@ function recalculate() {
   const Vd = Sd_m2 * (Xmax_mm / 1000.0) * 1000.0;
   const F100 = c / cabinM;
 
+  const thBadge = document.getElementById('thermalCompBadge');
+  if (thBadge) {
+    if (deltaT > 0) {
+      thBadge.style.display = 'block';
+      thBadge.innerHTML = `🔥 Bobina +${deltaT}°C: Re=${Re.toFixed(2)}Ω | Qts=${Qts.toFixed(3)} | <b>Perda: ${powerCompDb.toFixed(2)} dB</b>`;
+    } else {
+      thBadge.style.display = 'none';
+    }
+  }
+
   const no_frac = (4.0 * (Math.PI**2) / (c**3)) * ((Fs**3) * (Vas / 1000.0) / Qes);
   const spl_1w = 112.4 + 10.0 * Math.log10(no_frac);
   const spl_rated = spl_1w + 10.0 * Math.log10(Pe);
 
   let alpha = Vas / Vb;
   let Fb, F3, Vtot, LvCm, DeqIn, airVel, machPct, qtc, fc, fgmax, fxmax, ripple, alignName;
+  let fPipe1 = 0, velLimit = 17.0, portGeom = null;
 
   const optimalFb = Fs * Math.pow(alpha, 0.31);
   const optimalF3 = Fs * Math.pow(alpha, 0.44);
@@ -1648,28 +1943,37 @@ function recalculate() {
     const fbBadge = document.getElementById('fbValBadge');
     if (fbBadge) fbBadge.textContent = Fb.toFixed(2) + ' Hz';
 
-    const Sp = numD * Math.PI * Math.pow((dDia * 0.0254)/2.0, 2);
-    DeqIn = dDia * Math.sqrt(numD);
-    const DeqM = DeqIn * 0.0254;
+    portGeom = computePortGeometry({
+      portType, numDucts: numD, ductDia: dDia, ductThick: dThick,
+      slotW, slotH, slotWallThick, Fb, Vb, c
+    });
+    DeqIn = portGeom.DeqIn;
+    LvCm = portGeom.LvCm;
+    fPipe1 = portGeom.fPipe1;
+    velLimit = portGeom.velLimit;
+    Vtot = Vb + Vsub + portGeom.vDuto;
 
-    const omega_b = 2.0 * Math.PI * Fb;
-    const LeffM = (Math.pow(339.8, 2) * Sp) / (Math.pow(omega_b, 2) * (Vb / 1000.0));
-    const deltaL = 0.732 * DeqM;
-    const LvM = LeffM - deltaL;
-    LvCm = LvM * 100.0;
-
-    const dExtM = (dDia * 0.0254) + 2.0 * (dThick / 1000.0);
-    const vDuto = (numD * Math.PI * Math.pow(dExtM/2.0, 2) * Math.max(0.01, LvM) * 1000.0) + 0.08;
-    Vtot = Vb + Vsub + vDuto;
-
-    // Velocidade de pico analítica do ar no duto (Small 1973 / Helmholtz, 14 casas decimais)
-    airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, Sp) * Math.max(1.0, Fb));
+    airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb));
     machPct = (airVel / c) * 100.0;
 
-    // Atualiza KPIs
+    const ptBox = document.getElementById('portTelemetryBox');
+    if (ptBox) {
+      const spCm2 = portGeom.Sp * 10000.0;
+      const warns = [];
+      if (LvCm < 1.0) warns.push('<span style="color:#f87171;">⚠️ Lv curto/negativo (reduza área ou Fb)</span>');
+      if (portGeom.isSlot && portGeom.aspectRatio > 8.0) warns.push(`<span style="color:#facc15;">⚠️ Razão ${portGeom.aspectRatio.toFixed(1)}:1 (&gt;8:1 atrito alto)</span>`);
+      if (fPipe1 > 0 && fPipe1 < 400) warns.push(`<span style="color:#facc15;">⚠️ Tubo órgão baixo (${fPipe1.toFixed(0)} Hz)</span>`);
+      if (airVel > velLimit) warns.push(`<span style="color:#f87171;">⚠️ Sopro/Chuffing (&gt;${velLimit} m/s)</span>`);
+      ptBox.innerHTML =
+        `<div><b>Área Sp:</b> ${spCm2.toFixed(1)} cm² | <b>Lv:</b> <span style="color:var(--accent);font-weight:700;">${LvCm.toFixed(2)} cm</span> (k=${portGeom.kEnd})</div>` +
+        `<div><b>Tubo de Órgão (f₁):</b> <span style="color:#38bdf8;">${fPipe1.toFixed(0)} Hz</span>` +
+        (portGeom.isSlot ? ` | <b>AR:</b> ${portGeom.aspectRatio.toFixed(1)}:1 | <b>Dh:</b> ${portGeom.DhCm.toFixed(1)} cm` : ` | <b>Deq:</b> ${DeqIn.toFixed(2)}"`) + `</div>` +
+        (warns.length ? `<div style="margin-top:2px;">${warns.join('<br>')}</div>` : `<div style="color:#4ade80;">✓ Escoamento limpo (&lt;${velLimit} m/s)</div>`);
+    }
+
     document.getElementById('kpi1Label').textContent = 'Sintonia Fb';
     document.getElementById('kpi1Val').textContent = Fb.toFixed(2) + ' Hz';
-    document.getElementById('kpi1Sub').textContent = 'h = ' + (Fb/Fs).toFixed(3);
+    document.getElementById('kpi1Sub').textContent = 'h = ' + (Fb/Fs).toFixed(3) + (nDrivers > 1 ? ` · ${nDrivers}x` : '');
     document.getElementById('kpi2Label').textContent = 'Corte F3 (-3dB)';
     document.getElementById('kpi2Val').textContent = F3.toFixed(2) + ' Hz';
 
@@ -1683,11 +1987,12 @@ function recalculate() {
     const portCard = document.getElementById('kpiPortCard');
     if (portCard) {
       portCard.style.display = 'flex';
+      portCard.classList.remove('good', 'warn', 'danger');
+      portCard.classList.add(airVel <= velLimit * 0.85 ? 'good' : (airVel <= velLimit ? 'warn' : 'danger'));
       document.getElementById('kpiVelVal').textContent = LvCm.toFixed(1) + ' cm (Lv)';
-      document.getElementById('kpiVelSub').textContent = 'Ar: ' + airVel.toFixed(1) + ' m/s (' + machPct.toFixed(1) + '% Mach)';
+      document.getElementById('kpiVelSub').textContent = `Ar: ${airVel.toFixed(1)} m/s (${machPct.toFixed(1)}% Mach · f₁=${fPipe1.toFixed(0)}Hz)`;
     }
   } else {
-    // Caixa Selada
     const tuningModeCont = document.getElementById('tuningModeContainer');
     if (tuningModeCont) tuningModeCont.style.display = 'none';
     const fbGroup = document.getElementById('fbControlGroup');
@@ -1713,28 +2018,29 @@ function recalculate() {
 
     document.getElementById('kpi1Label').textContent = 'Fator Q (Qtc)';
     document.getElementById('kpi1Val').textContent = qtc.toFixed(3);
-    document.getElementById('kpi1Sub').textContent = 'Fc = ' + fc.toFixed(2) + ' Hz';
+    document.getElementById('kpi1Sub').textContent = 'Fc = ' + fc.toFixed(2) + ' Hz' + (nDrivers > 1 ? ` · ${nDrivers}x` : '');
     document.getElementById('kpi2Label').textContent = 'Corte F3 (-3dB)';
     document.getElementById('kpi2Val').textContent = F3.toFixed(2) + ' Hz';
     document.getElementById('kpiPortCard').style.display = 'none';
   }
 
   document.getElementById('kpiAlfaVal').textContent = alpha.toFixed(2);
-  document.getElementById('kpiAlfaSub').textContent = 'Vb = ' + Vb.toFixed(1) + ' L';
+  document.getElementById('kpiAlfaSub').textContent = 'Vb = ' + Vb.toFixed(1) + ' L' + (nDrivers > 1 ? ` (${(Vb/nDrivers).toFixed(1)}L/un)` : '');
   document.getElementById('kpiVtotVal').textContent = Vtot.toFixed(2) + ' L';
   document.getElementById('kpiF100Val').textContent = F100.toFixed(2) + ' Hz';
 
-    // Síntese dos 12 Gráficos
+  // Síntese dos 13 Gráficos
   generateSimulationData({
     boxType, Fs, Qes, Qms, Re, Sd_m2, Vas, Xmax_mm, Pe, Qts,
-    Vb, QL, tempC, cabinM, hpfHz, c, rho, F100, spl_rated, alpha, Fb, F3, qtc, fc, airVel
+    Vb, QL, tempC, cabinM, hpfHz, c, rho, F100, spl_rated, alpha, Fb, F3, qtc, fc, airVel,
+    fPipe1, velLimit, nDrivers, deltaT, powerCompDb
   });
 
   drawAllCharts();
   renderExpanded();
   updateWoodlock();
   updateElectrical();
-  updateSimAdvancedTelemetry({ Fs, Qes, Qms, Qts, Vas, Re, Pe, Sd_m2, Xmax_mm, c, rho, spl_1w, spl_rated, Vd, EBP, no_frac });
+  updateSimAdvancedTelemetry({ Fs, Qes: Qes_nom, Qms, Qts: (Qms * Qes_nom) / (Qms + Qes_nom), Vas: Vas_single, Re: Re_nom, Pe: Pe_single, Sd_m2: Sd_single_m2, Xmax_mm, c, rho, spl_1w, spl_rated, Vd, EBP: Fs / Qes_nom, no_frac });
 }
 
 function generateSimulationData(p) {
@@ -1747,7 +2053,8 @@ function generateSimulationData(p) {
   }
 
   const G1 = [], G2 = [], G3 = [], G4 = [], G5 = [], G6 = [];
-  const G7 = [], G8 = [], G9 = [], G10 = [], G11 = [], G12 = [];
+  const G7 = [], G8 = [], G9 = [], G10 = [], G11 = [], G12 = [], G13 = [];
+  const phaseRadRaw = [];
 
   const h = (p.boxType === 'bass-reflex' ? p.Fb / p.Fs : 1.0);
   const sh = Math.sqrt(h);
@@ -1883,8 +2190,9 @@ function generateSimulationData(p) {
       }
 
       // G12: Fase Acústica do Gabinete #12 (Graus): arg(sn^4 / D(sn)) = -arg(D(sn))
-      const phase = (-Math.atan2(den_im, den_re) * 180.0 / Math.PI);
-      G12.push(phase);
+      const phiRad = -Math.atan2(den_im, den_re);
+      phaseRadRaw.push(phiRad);
+      G12.push(phiRad * 180.0 / Math.PI);
     } else {
       // Sealed (Small 1972)
       const rel_fc = f / p.fc;
@@ -1929,9 +2237,29 @@ function generateSimulationData(p) {
       // Fase Acústica de 2ª Ordem: arg(-rel_fc^2 / (1 - rel_fc^2 + j*rel_fc/Qtc))
       const h_re = (Math.pow(rel_fc, 4) - Math.pow(rel_fc, 2)) / den_mag2;
       const h_im = (Math.pow(rel_fc, 3) / p.qtc) / den_mag2;
-      G12.push(Math.atan2(h_im, h_re) * 180.0 / Math.PI);
+      const phiRad = Math.atan2(h_im, h_re);
+      phaseRadRaw.push(phiRad);
+      G12.push(phiRad * 180.0 / Math.PI);
     }
   });
+
+  // G13: Group Delay (ms) = -d(phi_unwrapped)/d(omega) * 1000
+  const unwrapped = new Array(N);
+  unwrapped[0] = phaseRadRaw[0];
+  for (let i = 1; i < N; i++) {
+    let diff = phaseRadRaw[i] - phaseRadRaw[i - 1];
+    while (diff > Math.PI) diff -= 2.0 * Math.PI;
+    while (diff < -Math.PI) diff += 2.0 * Math.PI;
+    unwrapped[i] = unwrapped[i - 1] + diff;
+  }
+  for (let i = 0; i < N; i++) {
+    const i0 = Math.max(0, i - 1);
+    const i1 = Math.min(N - 1, i + 1);
+    const dPhi = unwrapped[i1] - unwrapped[i0];
+    const dW = 2.0 * Math.PI * (freqs[i1] - freqs[i0]);
+    const gdMs = dW > 0 ? Math.max(0, (-dPhi / dW) * 1000.0) : 0;
+    G13.push(gdMs);
+  }
 
   const epdrEl = document.getElementById('kpiEpdrVal');
   const epdrSub = document.getElementById('kpiEpdrSub');
@@ -1954,6 +2282,7 @@ function generateSimulationData(p) {
     G10_ConeSPL: G10,
     G11_InBoxZ: G11,
     G12_Phase: G12,
+    G13_GroupDelay: G13,
     meta: {
       boxType: p.boxType,
       Fs: p.Fs,
@@ -1967,6 +2296,11 @@ function generateSimulationData(p) {
       Re: p.Re,
       c: c_val,
       airVel: p.airVel,
+      fPipe1: p.fPipe1,
+      velLimit: p.velLimit,
+      nDrivers: p.nDrivers,
+      deltaT: p.deltaT,
+      powerCompDb: p.powerCompDb,
       minEpdrVal: minEpdrVal,
       minEpdrFreq: minEpdrFreq,
       Vb: p.Vb
@@ -2301,6 +2635,8 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
       hLimits.push({ val: meta.Pe, label: `Pe ${meta.Pe}W`, color: '#f59e0b', dash: [4, 3] });
     } else if ((cfg.id === 'G3' || cfg.id === 'G11') && meta.Re > 0) {
       hLimits.push({ val: meta.Re, label: `Re ${meta.Re.toFixed(1)}Ω`, color: '#38bdf8', dash: [3, 4] });
+    } else if (cfg.id === 'G13') {
+      hLimits.push({ val: 20, label: '20 ms (Limiar Audível)', color: '#f59e0b', dash: [4, 3], dangerAbove: true });
     }
   }
 
@@ -2335,6 +2671,9 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
       { f: meta.F3, tag: 'F3', color: '#22c55e' }
     ];
     if (meta.hpfHz && meta.hpfHz > 10) rawMarkers.push({ f: meta.hpfHz, tag: 'HPF', color: '#f59e0b' });
+    if (meta.boxType === 'bass-reflex' && meta.fPipe1 && meta.fPipe1 > 0) {
+      rawMarkers.push({ f: meta.fPipe1, tag: 'f_pipe', color: '#f43f5e' });
+    }
 
     const visMarkers = rawMarkers
       .filter(m => m.f && m.f >= fMin && m.f <= fMax)
@@ -2401,8 +2740,9 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
   // Traçado das curvas (sem achatamento falso no topo/fundo graças ao ctx.clip!)
   seriesList.forEach(s => {
     ctx.strokeStyle = s.color;
-    ctx.lineWidth = isExpanded ? (s.primary ? 2.5 : 2.0) : 2.0;
+    ctx.lineWidth = isExpanded ? (s.primary ? 2.5 : 2.0) : (s.primary ? 2.0 : 1.5);
     ctx.lineJoin = 'round';
+    if (s.dash) ctx.setLineDash(s.dash); else ctx.setLineDash([]);
     ctx.beginPath();
     let started = false;
     freqs.forEach((f, i) => {
@@ -2413,6 +2753,7 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
       else ctx.lineTo(x, y);
     });
     ctx.stroke();
+    ctx.setLineDash([]);
   });
 
   // Legenda para múltiplas curvas no modo expandido
@@ -2467,6 +2808,12 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
         const prefix = seriesList.length > 1 ? s.shortLabel + ': ' : '';
         lines.push(`${prefix}${sv.toFixed(2)} ${cfg.unit}`);
       });
+      if (seriesList.length === 2 && seriesList[1].isRefA) {
+        const vB = interpolateSeriesAtFreq(freqs, seriesList[0].values, fCur);
+        const vA = interpolateSeriesAtFreq(freqs, seriesList[1].values, fCur);
+        const dv = vB - vA;
+        lines.push(`Δ (B−A): ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} ${cfg.unit}`);
+      }
       ctx.font = `700 11px ${CHART_FONT_MONO}`;
       const maxTw = Math.max(...lines.map(l => ctx.measureText(l).width));
       const boxW = maxTw + 16;
@@ -2552,6 +2899,15 @@ function getExpandedOverlayConfig(baseCfg) {
       ]
     };
   }
+  if (referenceSnapshot && referenceSnapshot.curves[baseCfg.key]) {
+    return {
+      cfg: baseCfg,
+      series: [
+        { shortLabel: 'Atual (B)', label: 'Atual (B): ' + baseCfg.title, unit: baseCfg.unit, color: baseCfg.color, values: currentCurves[baseCfg.key], primary: true },
+        { shortLabel: 'Ref (A)', label: referenceSnapshot.label, unit: baseCfg.unit, color: '#fbbf24', dash: [6, 4], values: referenceSnapshot.curves[baseCfg.key], primary: false, isRefA: true }
+      ]
+    };
+  }
   return { cfg: baseCfg, series: null };
 }
 
@@ -2572,12 +2928,18 @@ function drawAllCharts() {
     const cv = document.getElementById('cv_' + c.id);
     const infoEl = document.getElementById('info_' + c.id);
     if (!cv) return;
+    const abSeries = (referenceSnapshot && referenceSnapshot.curves[c.key])
+      ? [
+          { shortLabel: 'B', label: c.title, unit: c.unit, color: c.color, values: currentCurves[c.key], primary: true },
+          { shortLabel: 'A', label: referenceSnapshot.label, unit: c.unit, color: '#fbbf24', dash: [5, 3], values: referenceSnapshot.curves[c.key], primary: false, isRefA: true }
+        ]
+      : null;
     const setSummary = () => {
       if (!infoEl) return;
       const pk = computeVisiblePeak(currentCurves.frequencies, currentCurves[c.key], chartOpts.fMin, chartOpts.fMax);
-      infoEl.innerHTML = `<span>Pico: <b style="color:${c.color}">${pk.maxV.toFixed(1)} ${c.unit}</b> @ ${pk.maxF.toFixed(0)} Hz</span><span>Duplo-clique ⤢</span>`;
+      infoEl.innerHTML = `<span>Pico: <b style="color:${c.color}">${pk.maxV.toFixed(1)} ${c.unit}</b> @ ${pk.maxF.toFixed(0)} Hz</span><span>${abSeries ? 'A/B Ativo · ⤢' : 'Duplo-clique ⤢'}</span>`;
     };
-    const drawFn = crossX => drawLogChart(cv, currentCurves.frequencies, currentCurves[c.key], c, { isExpanded: false, crosshairX: crossX });
+    const drawFn = crossX => drawLogChart(cv, currentCurves.frequencies, currentCurves[c.key], c, { isExpanded: false, crosshairX: crossX, overlaySeries: abSeries });
     setSummary();
     drawFn(null);
     bindInteractiveChart(
@@ -2585,7 +2947,13 @@ function drawAllCharts() {
       drawFn,
       f => {
         const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[c.key], f);
-        if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${f.toFixed(1)} Hz</b> ➔ ${val.toFixed(2)} ${c.unit}</span><span>Clique ⤢ p/ zoom</span>`;
+        if (abSeries) {
+          const valA = interpolateSeriesAtFreq(currentCurves.frequencies, abSeries[1].values, f);
+          const dv = val - valA;
+          if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${f.toFixed(1)}Hz</b> B:${val.toFixed(1)} | <span style="color:#fbbf24">A:${valA.toFixed(1)}</span> (Δ${dv >= 0 ? '+' : ''}${dv.toFixed(1)})</span>`;
+        } else {
+          if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${f.toFixed(1)} Hz</b> ➔ ${val.toFixed(2)} ${c.unit}</span><span>Clique ⤢ p/ zoom</span>`;
+        }
       },
       setSummary
     );
@@ -2614,7 +2982,11 @@ function renderExpanded() {
     drawFn,
     f => {
       if (series && series.length > 1) {
-        const txt = series.map(s => `${s.shortLabel}: ${interpolateSeriesAtFreq(currentCurves.frequencies, s.values, f).toFixed(2)} ${cfg.unit}`).join(' | ');
+        let txt = series.map(s => `${s.shortLabel}: ${interpolateSeriesAtFreq(currentCurves.frequencies, s.values, f).toFixed(2)} ${cfg.unit}`).join(' | ');
+        if (series.length === 2 && series[1].isRefA) {
+          const dv = interpolateSeriesAtFreq(currentCurves.frequencies, series[0].values, f) - interpolateSeriesAtFreq(currentCurves.frequencies, series[1].values, f);
+          txt += ` | Δ: ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} ${cfg.unit}`;
+        }
         if (cursorInfo) cursorInfo.textContent = `${f.toFixed(1)} Hz ➔ ${txt}`;
       } else {
         const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[cfg.key], f);
@@ -2701,22 +3073,27 @@ function updateWoodlock() {
   const battens = parseInt(document.getElementById('wlBattens').value) || 0;
 
   const boxType = document.getElementById('boxType').value;
+  const nDrivers = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
   const Vb = parseFloat(document.getElementById('vbInput').value) || 130.0;
-  const Vsub = parseFloat(document.getElementById('tsVsub').value) || 9.0;
+  const Vsub = (parseFloat(document.getElementById('tsVsub').value) || 9.0) * nDrivers;
+  const tempC = parseFloat(document.getElementById('tempInput').value) || 20.0;
+  const cVal = 20.0547605 * Math.sqrt(273.15 + tempC);
 
   let Vduto = 0.0;
   if (boxType === 'bass-reflex') {
-    const numD = parseInt(document.getElementById('numDucts').value) || 2;
-    const dDia = parseFloat(document.getElementById('ductDia').value) || 6.0;
-    const dThick = parseFloat(document.getElementById('ductThick').value) || 1.5;
-    const Fb = parseFloat(document.getElementById('fbInput').value) || 44.62;
-    const Sp = numD * Math.PI * Math.pow((dDia * 0.0254)/2.0, 2);
-    const DeqM = (dDia * Math.sqrt(numD)) * 0.0254;
-    const omega_b = 2.0 * Math.PI * Fb;
-    const LeffM = (Math.pow(339.8, 2) * Sp) / (Math.pow(omega_b, 2) * (Vb / 1000.0));
-    const LvM = Math.max(0.01, LeffM - 0.732 * DeqM);
-    const dExtM = (dDia * 0.0254) + 2.0 * (dThick / 1000.0);
-    Vduto = (numD * Math.PI * Math.pow(dExtM/2.0, 2) * LvM * 1000.0) + 0.08;
+    const pg = computePortGeometry({
+      portType: document.getElementById('portType')?.value || 'round',
+      numDucts: parseInt(document.getElementById('numDucts').value) || 2,
+      ductDia: parseFloat(document.getElementById('ductDia').value) || 6.0,
+      ductThick: parseFloat(document.getElementById('ductThick').value) || 1.5,
+      slotW: parseFloat(document.getElementById('slotW')?.value) || 35.0,
+      slotH: parseFloat(document.getElementById('slotH')?.value) || 6.0,
+      slotWallThick: parseFloat(document.getElementById('slotWallThick')?.value) || 18.0,
+      Fb: parseFloat(document.getElementById('fbInput').value) || 44.62,
+      Vb,
+      c: cVal
+    });
+    Vduto = pg.vDuto;
   }
 
   // Volume dos sarrafos (50mm x t x B)
@@ -2867,13 +3244,24 @@ function drawWoodlockBlueprint(g) {
   ctx.strokeRect(frontX0 + tPx, sideY0 + tPx, fPx - 2*tPx, ePx - 2*tPx);
   ctx.setLineDash([]);
 
-  // Desenho ilustrativo do cone + dutos no baffle
-  const subRadius = Math.min(fPx, ePx) * 0.30;
+  // Desenho ilustrativo dos cones (1 a N drivers) no baffle
+  const nDrv = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
+  const cols = nDrv <= 2 ? nDrv : Math.ceil(nDrv / 2);
+  const rows = nDrv <= 2 ? 1 : 2;
+  const cellW = (fPx - 2 * tPx) / cols;
+  const cellH = (ePx - 2 * tPx) / rows;
+  const subRadius = Math.min(cellW, cellH) * 0.34;
   ctx.strokeStyle = '#f87171';
   ctx.lineWidth = 1.6;
-  ctx.beginPath();
-  ctx.arc(frontX0 + fPx * 0.42, sideY0 + ePx * 0.5, subRadius, 0, 2 * Math.PI);
-  ctx.stroke();
+  for (let i = 0; i < nDrv; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const cx = frontX0 + tPx + (col + 0.5) * cellW;
+    const cy = sideY0 + tPx + (row + 0.5) * cellH;
+    ctx.beginPath();
+    ctx.arc(cx, cy, subRadius, 0, 2 * Math.PI);
+    ctx.stroke();
+  }
 
   ctx.fillStyle = '#fca5a5';
   ctx.font = '10px var(--font)';
@@ -2883,11 +3271,19 @@ function drawWoodlockBlueprint(g) {
 // ============================================================================
 // MOTOR ELÉTRICO, CABEAMENTO, ESTRUTURA DE GANHO RMS & LIMITER DSP
 // ============================================================================
-function updateElectrical() {
+function updateElectrical(fromUser) {
   const numSpkEl = document.getElementById('elNumSpk');
   if (!numSpkEl) return;
 
-  const nSpk = Math.max(1, parseInt(numSpkEl.value) || 2);
+  const nSpk = Math.max(1, parseInt(numSpkEl.value) || 1);
+  if (fromUser) {
+    const simN = document.getElementById('simNumDrivers');
+    if (simN && ['1','2','3','4','6','8'].includes(String(nSpk)) && parseInt(simN.value) !== nSpk) {
+      simN.value = String(nSpk);
+      recalculate();
+      return;
+    }
+  }
   const coils = parseInt(document.getElementById('elCoils').value) || 1;
   const zCoil = parseFloat(document.getElementById('elZCoil').value) || 8.0;
   const reDriver = parseFloat(document.getElementById('tsRe').value) || 5.1;
