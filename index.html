@@ -245,6 +245,41 @@
     line-height: 1.4;
   }
   .insight-chip { display: inline-flex; align-items: center; gap: 5px; }
+  .topo-pills {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 3px;
+    margin-bottom: 7px;
+  }
+  .topo-pill {
+    background: var(--bg-input);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 4px 2px;
+    font-family: var(--mono);
+    font-size: 9px;
+    font-weight: 700;
+    color: var(--text-muted);
+    cursor: pointer;
+    text-align: center;
+    transition: all 0.14s;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1px;
+  }
+  .topo-pill:hover { border-color: rgba(0, 212, 255, 0.45); color: #fff; }
+  .topo-pill.suit-ideal { border-bottom: 2px solid #10b981; }
+  .topo-pill.suit-ok { border-bottom: 2px solid #f59e0b; }
+  .topo-pill.suit-avoid { border-bottom: 2px solid #ef4444; opacity: 0.65; }
+  .topo-pill.active {
+    background: rgba(0, 212, 255, 0.16);
+    border-color: var(--accent);
+    color: #fff;
+    opacity: 1;
+    box-shadow: 0 0 8px rgba(0, 212, 255, 0.18);
+  }
+  .topo-dot { font-size: 8px; line-height: 1; }
 
   /* DESKTOP MENU BAR */
   .desktop-menubar {
@@ -921,6 +956,15 @@
     </div>
     <div id="dbDriverBadge" style="display:none; margin-bottom:7px; padding:5px 7px; border-radius:5px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.28); font-size:10px; color:#a7f3d0; line-height:1.35;"></div>
 
+    <!-- PÍLULAS DE TOPOLOGIAS DISPONÍVEIS / APTIDÃO DO DRIVER -->
+    <div class="topo-pills" id="topoSuitPills" role="group" aria-label="Topologias recomendadas para este driver">
+      <button type="button" class="topo-pill" data-topo="sealed" onclick="selectTopology('sealed')"><span class="topo-dot">●</span>Selada</button>
+      <button type="button" class="topo-pill active" data-topo="bass-reflex" onclick="selectTopology('bass-reflex')"><span class="topo-dot">●</span>Dutada</button>
+      <button type="button" class="topo-pill" data-topo="bp4" onclick="selectTopology('bp4')"><span class="topo-dot">●</span>BP4</button>
+      <button type="button" class="topo-pill" data-topo="bp6" onclick="selectTopology('bp6')"><span class="topo-dot">●</span>BP6</button>
+      <button type="button" class="topo-pill" data-topo="planar" onclick="selectTopology('planar')"><span class="topo-dot">●</span>Planar</button>
+    </div>
+
     <!-- MINIATURA VETORIAL DA TOPOLOGIA -->
     <div class="box-thumb-wrap">
       <div id="boxThumbSvg" style="width:46px; height:36px; display:flex; align-items:center; justify-content:center;"></div>
@@ -937,8 +981,11 @@
         <div class="prop-row">
           <label for="boxType">Topologia:</label>
           <select id="boxType" onchange="recalculate()">
-            <option value="bass-reflex" selected>Bass-Reflex</option>
+            <option value="bass-reflex" selected>Bass-Reflex (Dutada)</option>
             <option value="sealed">Caixa Selada</option>
+            <option value="bp4">Band-Pass 4ª (BP4)</option>
+            <option value="bp6">Band-Pass 6ª (BP6)</option>
+            <option value="planar">Planar Horn</option>
           </select>
         </div>
         <div class="prop-row">
@@ -953,10 +1000,31 @@
           </select>
         </div>
         <div class="prop-row">
-          <label for="vbInput">Vol. Vb (L):</label>
+          <label for="vbInput" id="vbInputLabel">Vol. Vb (L):</label>
           <input type="number" id="vbInput" value="130" step="1" oninput="onVbInputChange(this.value)">
         </div>
         <input type="range" id="vbRange" class="prop-slider" min="20" max="350" step="1" value="130" oninput="onVbRangeChange(this.value)">
+
+        <!-- CONTROLES EXTRAS PARA BAND-PASS (BP4 / BP6) -->
+        <div id="bpControls" style="display:none; flex-direction:column; gap:5px; padding:5px 0; border-top:1px dashed var(--border); border-bottom:1px dashed var(--border);">
+          <div class="prop-row">
+            <label for="vrInput">Câm. Tras. VR (L):</label>
+            <input type="number" id="vrInput" value="60" min="5" step="1" oninput="recalculate()">
+          </div>
+          <div id="bp6ExtraRow" style="display:none; flex-direction:column; gap:5px;">
+            <div class="prop-row">
+              <label for="bp6Mode">Acopl. BP6:</label>
+              <select id="bp6Mode" onchange="recalculate()">
+                <option value="parallel" selected>Paralela (2 dutos ext.)</option>
+                <option value="series">Série (VR ➔ VF)</option>
+              </select>
+            </div>
+            <div class="prop-row">
+              <label for="fbVrInput">Sint. VR (Hz):</label>
+              <input type="number" id="fbVrInput" value="35" min="15" max="120" step="0.5" oninput="recalculate()">
+            </div>
+          </div>
+        </div>
 
         <div id="fbControlGroup">
           <div class="prop-row">
@@ -1026,6 +1094,7 @@
             <option value="flared">Aeroport (0.850)</option>
             <option value="slot">Régua Livre (0.732)</option>
             <option value="slot_wall">Régua Parede (1.343)</option>
+            <option value="triangle">Triângulo Canto (1.343)</option>
           </select>
         </div>
         <div id="portRoundFields" style="display:flex; flex-direction:column; gap:5px;">
@@ -1037,6 +1106,11 @@
           <div class="prop-row"><label for="slotW">Larg. W (cm):</label><input type="number" id="slotW" value="35.0" min="1" step="0.5" oninput="recalculate()"></div>
           <div class="prop-row"><label for="slotH">Alt. H (cm):</label><input type="number" id="slotH" value="6.0" min="1" step="0.5" oninput="recalculate()"></div>
           <div class="prop-row"><label for="slotWallThick">MDF (mm):</label><input type="number" id="slotWallThick" value="18.0" min="1" step="1" oninput="recalculate()"></div>
+        </div>
+        <div id="portTriFields" style="display:none; flex-direction:column; gap:5px;">
+          <div class="prop-row"><label for="triCount">Qtde. Cantos:</label><input type="number" id="triCount" value="2" min="1" max="4" step="1" oninput="recalculate()"></div>
+          <div class="prop-row"><label for="triA">Cateto A (cm):</label><input type="number" id="triA" value="14.0" min="2" step="0.5" oninput="recalculate()"></div>
+          <div class="prop-row"><label for="triB">Cateto B (cm):</label><input type="number" id="triB" value="14.0" min="2" step="0.5" oninput="recalculate()"></div>
         </div>
         <div id="portTelemetryBox" style="margin-top:3px; padding:6px 7px; border-radius:4px; background:rgba(6,9,15,0.85); border:1px solid var(--border); font-family:var(--mono); font-size:9.8px; color:#cbd5e1; line-height:1.45;"></div>
       </div>
@@ -1195,6 +1269,16 @@
               <input type="number" id="wlBattens" value="4" min="0" max="16" step="1" onchange="updateWoodlock()">
             </div>
           </div>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="wlSheetPrice">Preço Chapa MDF 2750×1830 (R$)</label>
+              <input type="number" id="wlSheetPrice" value="260" min="0" step="10" onchange="updateWoodlock()">
+            </div>
+            <div class="form-group">
+              <label for="wlWheelCut">Desconto Caixas de Roda / Obj. (L)</label>
+              <input type="number" id="wlWheelCut" value="0" min="0" max="200" step="1" onchange="updateWoodlock()">
+            </div>
+          </div>
           <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:12px; font-size:12px; line-height:1.6;" id="wlSummaryBox">
             <!-- Resumo Volumétrico e Modal injetado via JS -->
           </div>
@@ -1224,6 +1308,33 @@
           </thead>
           <tbody id="cutSheetTableBody"></tbody>
         </table>
+      </div>
+
+      <!-- ALOJAMENTO REAL NO VEÍCULO + ENGENHARIA REVERSA (DESCOBRIR LITRAGEM) -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:14px;">
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px;">
+          <h3 style="font-size:14px; color:var(--accent); margin-bottom:10px;">🚘 Verificador de Alojamento no Veículo (Porta-Malas / Caçamba)</h3>
+          <div class="grid-3" style="margin-bottom:8px;">
+            <div class="form-group"><label for="wlTrunkW">Larg. Máx (mm)</label><input type="number" id="wlTrunkW" value="950" min="200" step="10" oninput="updateWoodlock()"></div>
+            <div class="form-group"><label for="wlTrunkH">Alt. Máx (mm)</label><input type="number" id="wlTrunkH" value="500" min="200" step="10" oninput="updateWoodlock()"></div>
+            <div class="form-group"><label for="wlTrunkD">Prof. Máx (mm)</label><input type="number" id="wlTrunkD" value="520" min="200" step="10" oninput="updateWoodlock()"></div>
+          </div>
+          <div id="wlTrunkResult" style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px; font-family:var(--mono); font-size:11.5px; line-height:1.55;"></div>
+        </div>
+
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px;">
+          <h3 style="font-size:14px; color:#10b981; margin-bottom:10px;">📏 Engenharia Reversa — Descobrir Litragem de Caixa Pronta</h3>
+          <div class="grid-3" style="margin-bottom:8px;">
+            <div class="form-group"><label for="revW">Larg. Ext (cm)</label><input type="number" id="revW" value="80" min="10" step="0.5" oninput="updateReverseVolume()"></div>
+            <div class="form-group"><label for="revH">Alt. Ext (cm)</label><input type="number" id="revH" value="42" min="10" step="0.5" oninput="updateReverseVolume()"></div>
+            <div class="form-group"><label for="revMdf">MDF (mm)</label><input type="number" id="revMdf" value="18" min="6" step="1" oninput="updateReverseVolume()"></div>
+          </div>
+          <div class="grid-2" style="margin-bottom:8px;">
+            <div class="form-group"><label for="revD1">Prof. Superior Ext (cm)</label><input type="number" id="revD1" value="32" min="10" step="0.5" oninput="updateReverseVolume()"></div>
+            <div class="form-group"><label for="revD2">Prof. Inferior Ext (cm)</label><input type="number" id="revD2" value="44" min="10" step="0.5" oninput="updateReverseVolume()"></div>
+          </div>
+          <div id="revVolResult" style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px; font-family:var(--mono); font-size:11.5px; line-height:1.55;"></div>
+        </div>
       </div>
     </div>
 
@@ -1340,7 +1451,7 @@
               </select>
             </div>
           </div>
-          <div class="input-row" style="margin-bottom:10px;">
+          <div class="input-row" style="margin-bottom:8px;">
             <div class="form-group">
               <label for="elXoverHz">Frequência Crossover Passivo (Hz)</label>
               <input type="number" id="elXoverHz" value="80" min="30" max="5000" step="5" onchange="updateElectrical()">
@@ -1348,6 +1459,16 @@
             <div class="form-group">
               <label for="elLeMh">Indutância Bobina Le (mH @ 1kHz)</label>
               <input type="number" id="elLeMh" value="1.5" min="0.1" max="10.0" step="0.1" onchange="updateElectrical()">
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px; align-items:center;">
+            <div class="form-group">
+              <label for="elMeasV">Tensão Medida Multímetro (V RMS)</label>
+              <input type="number" id="elMeasV" value="" min="0" max="300" step="0.5" placeholder="opc. p/ temp. bobina" oninput="updateElectrical()">
+            </div>
+            <div class="form-group" style="display:flex; align-items:center; gap:6px; padding-top:16px;">
+              <input type="checkbox" id="elDerate70" style="width:auto;" onchange="updateElectrical()">
+              <label for="elDerate70" style="margin:0; cursor:pointer; font-size:11px; color:#fbbf24;">Derating 70% (Proteção IEC/NBR)</label>
             </div>
           </div>
           <div id="elDspResult" style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; line-height:1.6;"></div>
@@ -1512,36 +1633,52 @@
     <div class="bf-modal-body">
       <div id="wizDriverSummary" style="background:var(--bg-card); border:1px solid var(--border); border-radius:7px; padding:10px 12px; font-family:var(--mono); font-size:11px; color:#cbd5e1; line-height:1.55;"></div>
       <div class="form-group" style="margin-bottom:4px;">
-        <label>1. Escolha o Objetivo Acústico do Projeto</label>
+        <label>1. Escolha o Perfil de Sintonia (6 Alvos de Engenharia)</label>
         <div class="wiz-goal-grid">
-          <button type="button" class="wiz-goal-card" data-wiz-goal="sq" onclick="selectWizardGoal('sq', this)">
-            <div style="font-weight:700; color:#38bdf8; font-size:12px;">🎯 SQ / Hi-Fi Plano</div>
-            <div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Resposta plana, baixo atraso de grupo e máxima fidelidade.</div>
+          <button type="button" class="wiz-goal-card active" data-wiz-goal="optimum" onclick="selectWizardGoal('optimum', this)">
+            <div style="font-weight:700; color:#10b981; font-size:11.5px;">⚖️ Optimum</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Equilíbrio ideal entre SPL, extensão e fidelidade musical.</div>
           </button>
-          <button type="button" class="wiz-goal-card active" data-wiz-goal="balanced" onclick="selectWizardGoal('balanced', this)">
-            <div style="font-weight:700; color:#10b981; font-size:12px;">⚖️ Musical Equilibrado</div>
-            <div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Alinhamento ótimo (SC4/QB3) com ótimo peso e controle.</div>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="lowbass" onclick="selectWizardGoal('lowbass', this)">
+            <div style="font-weight:700; color:#38bdf8; font-size:11.5px;">🌊 Low Bass</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Subgrave estendido nas oitavas baixas (hip-hop / cinema).</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="attack" onclick="selectWizardGoal('attack', this)">
+            <div style="font-weight:700; color:#a855f7; font-size:11.5px;">🥁 Attack</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Grave encorpado e rápido com pegada firme e musical.</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="trio" onclick="selectWizardGoal('trio', this)">
+            <div style="font-weight:700; color:#f59e0b; font-size:11.5px;">📢 Trio / Ataque</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Ênfase de alta pressão entre 70 e 110 Hz (aberto/trio).</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="subext" onclick="selectWizardGoal('subext', this)">
+            <div style="font-weight:700; color:#f43f5e; font-size:11.5px;">🌪️ Sub-Extremo</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Sintonia profunda 30–40 Hz (uso dedicado a subgrave).</div>
           </button>
           <button type="button" class="wiz-goal-card" data-wiz-goal="spl" onclick="selectWizardGoal('spl', this)">
-            <div style="font-weight:700; color:#f59e0b; font-size:12px;">🔥 SPL / Subgrave Forte</div>
-            <div style="font-size:10.5px; color:var(--text-muted); margin-top:3px;">Máximo rendimento de pico e duto largo anti-sopro.</div>
+            <div style="font-weight:700; color:#ef4444; font-size:11.5px;">🏆 SPL Máximo</div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:2px;">Máximo pico de pressão acústica (competição / pico).</div>
           </button>
         </div>
       </div>
       <div class="grid-2">
         <div class="form-group">
-          <label for="wizPortPref">2. Preferência de Duto (se Dutada)</label>
+          <label for="wizPortPref">2. Preferência de Duto (se Dutada/BP)</label>
           <select id="wizPortPref" onchange="updateWizardPreview()">
             <option value="round" selected>Cilíndrico Padrão (PVC / Aero)</option>
             <option value="slot_wall">Duto Régua em Parede / Shelf (MDF)</option>
+            <option value="triangle">Duto Triângulo nos Cantos (MDF)</option>
           </select>
         </div>
         <div class="form-group">
           <label for="wizBoxOverride">3. Topologia Recomendada</label>
           <select id="wizBoxOverride" onchange="updateWizardPreview()">
-            <option value="auto" selected>Automática pelo EBP do Driver</option>
+            <option value="auto" selected>Automática pelo EBP / Qts do Driver</option>
             <option value="bass-reflex">Forçar Bass-Reflex (Dutada)</option>
             <option value="sealed">Forçar Caixa Selada</option>
+            <option value="bp4">Forçar Band-Pass 4ª (BP4)</option>
+            <option value="bp6">Forçar Band-Pass 6ª (BP6)</option>
+            <option value="planar">Forçar Planar Horn</option>
           </select>
         </div>
       </div>
@@ -1734,15 +1871,15 @@ function onSimNumDriversChange() {
 }
 
 const PROJECT_FIELD_IDS = [
-  'driverPreset', 'boxType', 'simNumDrivers', 'vbInput', 'fbInput', 'qlInput', 'tempInput',
-  'portType', 'numDucts', 'ductDia', 'ductThick', 'slotW', 'slotH', 'slotWallThick',
+  'driverPreset', 'boxType', 'simNumDrivers', 'vbInput', 'fbInput', 'vrInput', 'bp6Mode', 'fbVrInput', 'qlInput', 'tempInput',
+  'portType', 'numDucts', 'ductDia', 'ductThick', 'slotW', 'slotH', 'slotWallThick', 'triCount', 'triA', 'triB',
   'cabinLen', 'hpfCutoff', 'thermalDeltaT',
   'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
   'tsLe', 'tsZnom', 'tsDia', 'tsCoils', 'tsMmsCat', 'tsBlCat',
-  'wlShape', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens',
+  'wlShape', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD',
   'elNumSpk', 'elCoils', 'elZCoil', 'elCoilMode', 'elSpkMode',
   'elAmpPower', 'elVbat', 'elPwrLen', 'elPwrGauge', 'elSpkLen', 'elSpkGauge',
-  'elPreoutV', 'elLimProfile', 'elXoverHz', 'elLeMh'
+  'elPreoutV', 'elLimProfile', 'elXoverHz', 'elLeMh', 'elMeasV'
 ];
 
 function exportProjectJson() {
@@ -2364,9 +2501,62 @@ function switchTab(tabId) {
 // ============================================================================
 // MOTOR MATEMÁTICO COMPLETO EM ES6 (COM SLOT PORT, GROUP DELAY, MULTI-DRIVER & TÉRMICA)
 // ============================================================================
+function computeTopologySuitability({ EBP, Qts, dia }) {
+  const d = parseFloat(dia) || 12;
+  const big = d >= 8;
+  const res = {
+    sealed: { level: 'ok', reason: 'Compatível com caixa selada.' },
+    'bass-reflex': { level: 'ok', reason: 'Compatível com dutada.' },
+    bp4: { level: 'ok', reason: 'Compatível com Band-Pass 4ª ordem.' },
+    bp6: { level: 'ok', reason: 'Compatível com Band-Pass 6ª ordem.' },
+    planar: { level: 'ok', reason: 'Compatível com Planar Horn.' }
+  };
+
+  if (EBP < 50 || Qts > 0.55) {
+    res.sealed = { level: 'ideal', reason: `Ideal (EBP ${EBP.toFixed(0)} / Qts ${Qts.toFixed(2)}): grave firme e controlado.` };
+    res['bass-reflex'] = { level: EBP < 38 ? 'avoid' : 'ok', reason: EBP < 38 ? 'EBP muito baixo: dutada exigiria volume excessivo.' : 'Compatível em dutada com pico moderado.' };
+    res.bp4 = { level: big ? 'ideal' : 'avoid', reason: big ? 'Ideal em BP4: câmara traseira selada controla o cone.' : 'BP4 recomendada para drivers ≥ 8".' };
+    res.bp6 = { level: 'avoid', reason: 'BP6 exige motor mais forte (EBP > 80 / Qts < 0.45).' };
+    res.planar = { level: 'avoid', reason: 'Planar Horn exige maior força de motor (EBP ≥ 65).' };
+  } else if (EBP <= 85) {
+    res.sealed = { level: 'ok', reason: 'Compatível em selada (resposta plana e compacta).' };
+    res['bass-reflex'] = { level: 'ideal', reason: `Ideal em Dutada (EBP ${EBP.toFixed(0)}): ótimo rendimento e extensão.` };
+    res.bp4 = { level: big ? 'ideal' : 'avoid', reason: big ? 'Ideal em BP4 (alto ganho na banda passante).' : 'BP4 recomendada para drivers ≥ 8".' };
+    res.bp6 = { level: (big && Qts <= 0.46) ? 'ok' : 'avoid', reason: big ? 'Compatível em BP6 (exige sintonia cuidadosa).' : 'BP6 recomendada para drivers ≥ 8".' };
+    res.planar = { level: (big && EBP >= 65) ? 'ideal' : 'ok', reason: big ? 'Bom rendimento em Planar Horn para ataque/SPL.' : 'Planar recomendada para drivers ≥ 8".' };
+  } else {
+    res.sealed = { level: 'avoid', reason: `EBP alto (${EBP.toFixed(0)}): selada perde muita extensão de subgrave.` };
+    res['bass-reflex'] = { level: 'ideal', reason: `Ideal em Dutada (EBP ${EBP.toFixed(0)}): alto fator de motor.` };
+    res.bp4 = { level: big ? 'ok' : 'avoid', reason: big ? 'Compatível em BP4 (banda mais estreita).' : 'BP4 recomendada para drivers ≥ 8".' };
+    res.bp6 = { level: (big && Qts <= 0.45) ? 'ideal' : 'ok', reason: big ? 'Ideal em BP6 (motor forte aproveita 2 câmaras dutadas).' : 'BP6 recomendada para drivers ≥ 8".' };
+    res.planar = { level: big ? 'ideal' : 'avoid', reason: big ? 'Ideal em Planar Horn (alta eficiência e pegada).' : 'Planar recomendada para drivers ≥ 8".' };
+  }
+  return res;
+}
+
+function selectTopology(topo) {
+  const el = document.getElementById('boxType');
+  if (el) el.value = topo;
+  const Vb = parseFloat(document.getElementById('vbInput')?.value) || 80;
+  const vrEl = document.getElementById('vrInput');
+  const fbEl = document.getElementById('fbInput');
+  const fbVrEl = document.getElementById('fbVrInput');
+  if ((topo === 'bp4' || topo === 'bp6') && vrEl && (!parseFloat(vrEl.value) || parseFloat(vrEl.value) < 5)) {
+    vrEl.value = Math.max(15, Math.round(Vb * 0.75));
+  }
+  if (topo === 'bp6' && fbVrEl && fbEl) {
+    const fbF = parseFloat(fbEl.value) || 65;
+    if (!parseFloat(fbVrEl.value) || parseFloat(fbVrEl.value) >= fbF) {
+      fbVrEl.value = Math.max(22, Math.round(fbF * 0.62));
+    }
+  }
+  recalculate();
+}
+
 function computePortGeometry(opts) {
   const portType = opts.portType || 'round';
   const isSlot = (portType === 'slot' || portType === 'slot_wall');
+  const isTri = (portType === 'triangle');
   const numD = Math.max(1, parseInt(opts.numDucts) || 1);
   const Fb = Math.max(1.0, parseFloat(opts.Fb) || 40.0);
   const Vb = Math.max(0.5, parseFloat(opts.Vb) || 50.0);
@@ -2379,8 +2569,22 @@ function computePortGeometry(opts) {
   let aspectRatio = 1.0;
   let kEnd = 0.732;
   let velLimit = 17.0;
+  let hypCm = 0;
 
-  if (isSlot) {
+  if (isTri) {
+    const nTri = Math.max(1, Math.min(4, parseInt(opts.triCount) || 2));
+    const aCm = Math.max(2.0, parseFloat(opts.triA) || 14.0);
+    const bCm = Math.max(2.0, parseFloat(opts.triB) || 14.0);
+    hypCm = Math.sqrt(aCm * aCm + bCm * bCm);
+    const areaOneCm2 = 0.5 * aCm * bCm;
+    Sp = (nTri * areaOneCm2) / 10000.0;
+    DeqM = 2.0 * Math.sqrt(Sp / Math.PI);
+    DeqIn = DeqM / 0.0254;
+    DhCm = (4.0 * areaOneCm2) / (aCm + bCm + hypCm);
+    aspectRatio = Math.max(aCm, bCm) / Math.min(aCm, bCm);
+    kEnd = 1.343;
+    velLimit = 17.0;
+  } else if (isSlot) {
     const wCm = Math.max(0.5, parseFloat(opts.slotW) || 35.0);
     const hCm = Math.max(0.5, parseFloat(opts.slotH) || 6.0);
     Sp = (wCm / 100.0) * (hCm / 100.0);
@@ -2409,7 +2613,14 @@ function computePortGeometry(opts) {
   const fPipe1 = LeffM > 1e-4 ? (cVal / (2.0 * LeffM)) : 0;
 
   let vDuto = 0;
-  if (isSlot) {
+  if (isTri) {
+    const nTri = Math.max(1, Math.min(4, parseInt(opts.triCount) || 2));
+    const aCm = Math.max(2.0, parseFloat(opts.triA) || 14.0);
+    const bCm = Math.max(2.0, parseFloat(opts.triB) || 14.0);
+    const tCm = 1.8;
+    const extAreaCm2 = nTri * (0.5 * aCm * bCm + hypCm * tCm);
+    vDuto = (extAreaCm2 * Math.max(1.0, LvCm)) / 1000.0;
+  } else if (isSlot) {
     const wCm = Math.max(0.5, parseFloat(opts.slotW) || 35.0);
     const hCm = Math.max(0.5, parseFloat(opts.slotH) || 6.0);
     const tCm = (Math.max(1.0, parseFloat(opts.slotWallThick) || 18.0)) / 10.0;
@@ -2424,19 +2635,31 @@ function computePortGeometry(opts) {
     vDuto = (numD * Math.PI * Math.pow(dExtM / 2.0, 2) * Math.max(0.01, LvM) * 1000.0) + 0.08;
   }
 
-  return { portType, isSlot, Sp, DeqM, DeqIn, DhCm, aspectRatio, kEnd, LeffM, LvM, LvCm, vDuto, fPipe1, velLimit };
+  return { portType, isSlot, isTri, hypCm, Sp, DeqM, DeqIn, DhCm, aspectRatio, kEnd, LeffM, LvM, LvCm, vDuto, fPipe1, velLimit };
 }
 
 function recalculate() {
   const boxType = document.getElementById('boxType').value;
-  document.getElementById('portControls').style.display = (boxType === 'bass-reflex' ? 'block' : 'none');
+  const isVented = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6');
+  const isBP = (boxType === 'bp4' || boxType === 'bp6');
+  document.getElementById('portControls').style.display = (isVented ? 'block' : 'none');
+
+  const bpCtrl = document.getElementById('bpControls');
+  const bp6Extra = document.getElementById('bp6ExtraRow');
+  const vbLbl = document.getElementById('vbInputLabel');
+  if (bpCtrl) bpCtrl.style.display = isBP ? 'flex' : 'none';
+  if (bp6Extra) bp6Extra.style.display = (boxType === 'bp6') ? 'flex' : 'none';
+  if (vbLbl) vbLbl.textContent = isBP ? 'Câm. Front. VF (L):' : 'Vol. Vb (L):';
 
   const portType = document.getElementById('portType')?.value || 'round';
   const isSlot = (portType === 'slot' || portType === 'slot_wall');
+  const isTri = (portType === 'triangle');
   const roundFields = document.getElementById('portRoundFields');
   const slotFields = document.getElementById('portSlotFields');
-  if (roundFields) roundFields.style.display = isSlot ? 'none' : 'flex';
+  const triFields = document.getElementById('portTriFields');
+  if (roundFields) roundFields.style.display = (!isSlot && !isTri) ? 'flex' : 'none';
   if (slotFields) slotFields.style.display = isSlot ? 'flex' : 'none';
+  if (triFields) triFields.style.display = isTri ? 'flex' : 'none';
 
   const nDrivers = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
   const deltaT = Math.max(0, parseFloat(document.getElementById('thermalDeltaT')?.value) || 0);
@@ -2450,6 +2673,7 @@ function recalculate() {
   const Sd_single_m2 = parseFloat(document.getElementById('tsSd').value) / 10000.0;
   const Xmax_mm = parseFloat(document.getElementById('tsXmax').value);
   const Vsub_single = parseFloat(document.getElementById('tsVsub').value);
+  const diaNom = parseFloat(document.getElementById('tsDia')?.value) || 15;
 
   // Compressão térmica da bobina (Re(T) = Re * (1 + alpha_cu * deltaT))
   const thermalFactor = 1.0 + 0.00393 * deltaT;
@@ -2464,6 +2688,9 @@ function recalculate() {
   const Vsub = Vsub_single * nDrivers;
 
   const Vb = parseFloat(document.getElementById('vbInput').value);
+  const Vr = Math.max(5.0, parseFloat(document.getElementById('vrInput')?.value) || (Vb * 0.75));
+  const bp6Mode = document.getElementById('bp6Mode')?.value || 'parallel';
+  const FbVr = Math.max(15.0, parseFloat(document.getElementById('fbVrInput')?.value) || 35.0);
   const QL = parseFloat(document.getElementById('qlInput').value);
   const tempC = parseFloat(document.getElementById('tempInput').value);
   const cabinM = parseFloat(document.getElementById('cabinLen').value);
@@ -2475,6 +2702,9 @@ function recalculate() {
   const slotW = parseFloat(document.getElementById('slotW')?.value) || 35.0;
   const slotH = parseFloat(document.getElementById('slotH')?.value) || 6.0;
   const slotWallThick = parseFloat(document.getElementById('slotWallThick')?.value) || 18.0;
+  const triCount = parseInt(document.getElementById('triCount')?.value) || 2;
+  const triA = parseFloat(document.getElementById('triA')?.value) || 14.0;
+  const triB = parseFloat(document.getElementById('triB')?.value) || 14.0;
 
   const Qts = (Qms * Qes) / (Qms + Qes);
   const c = 20.0547605 * Math.sqrt(273.15 + tempC);
@@ -2482,6 +2712,21 @@ function recalculate() {
   const EBP = Fs / Qes;
   const Vd = Sd_m2 * (Xmax_mm / 1000.0) * 1000.0;
   const F100 = c / cabinM;
+
+  // Atualiza pílulas de aptidão de topologia para o driver atual
+  const suit = computeTopologySuitability({ EBP: Fs / Qes_nom, Qts: (Qms * Qes_nom) / (Qms + Qes_nom), dia: diaNom });
+  document.querySelectorAll('#topoSuitPills .topo-pill').forEach(btn => {
+    const t = btn.getAttribute('data-topo');
+    const info = suit[t];
+    btn.classList.remove('active', 'suit-ideal', 'suit-ok', 'suit-avoid');
+    if (t === boxType) btn.classList.add('active');
+    if (info) {
+      btn.classList.add('suit-' + info.level);
+      btn.title = info.reason;
+      const dot = btn.querySelector('.topo-dot');
+      if (dot) dot.style.color = info.level === 'ideal' ? '#10b981' : (info.level === 'ok' ? '#f59e0b' : '#ef4444');
+    }
+  });
 
   const thBadge = document.getElementById('thermalCompBadge');
   if (thBadge) {
@@ -2498,38 +2743,59 @@ function recalculate() {
   const spl_rated = spl_1w + 10.0 * Math.log10(Pe);
 
   let alpha = Vas / Vb;
-  let Fb, F3, Vtot, LvCm, DeqIn, airVel, machPct, qtc, fc, fgmax, fxmax, ripple, alignName;
+  let Fb, F3, FH = 0, Vtot, LvCm = 0, DeqIn = 0, airVel = 0, machPct = 0, qtc, fc, fgmax, fxmax, ripple, alignName;
   let fPipe1 = 0, velLimit = 17.0, portGeom = null;
 
   const optimalFb = Fs * Math.pow(alpha, 0.31);
   const optimalF3 = Fs * Math.pow(alpha, 0.44);
 
-  if (boxType === 'bass-reflex') {
+  if (isVented) {
     const tuningModeCont = document.getElementById('tuningModeContainer');
     if (tuningModeCont) tuningModeCont.style.display = 'block';
     const fbGroup = document.getElementById('fbControlGroup');
     if (fbGroup) fbGroup.style.display = 'block';
 
-    if (isAutoTune) {
-      Fb = optimalFb;
-      document.getElementById('fbInput').value = Fb.toFixed(2);
-      const fbR = document.getElementById('fbRange');
-      if (fbR) fbR.value = Fb.toFixed(2);
-      F3 = optimalF3;
-      alignName = "Alinhamento Ótimo (SC4/QB3)";
-    } else {
-      Fb = parseFloat(document.getElementById('fbInput').value) || optimalFb;
-      const h_ratio = Fb / Fs;
-      if (Math.abs(h_ratio - 1.0) < 0.06 && Qts >= 0.36 && Qts <= 0.42) {
-        alignName = "QB3 (Quasi-Butterworth)";
-      } else if (h_ratio < 0.95 && Qts > 0.42) {
-        alignName = "SC4 (Sub-Chebyshev)";
-      } else if (h_ratio > 1.05 && Qts < 0.35) {
-        alignName = "SBB4 (Super Boom Box)";
+    if (boxType === 'bass-reflex') {
+      if (isAutoTune) {
+        Fb = optimalFb;
+        document.getElementById('fbInput').value = Fb.toFixed(2);
+        const fbR = document.getElementById('fbRange');
+        if (fbR) fbR.value = Fb.toFixed(2);
+        F3 = optimalF3;
+        alignName = "Alinhamento Ótimo (SC4/QB3)";
       } else {
-        alignName = "Sintonia Manual (h=" + h_ratio.toFixed(2) + ")";
+        Fb = parseFloat(document.getElementById('fbInput').value) || optimalFb;
+        const h_ratio = Fb / Fs;
+        if (Math.abs(h_ratio - 1.0) < 0.06 && Qts >= 0.36 && Qts <= 0.42) alignName = "QB3 (Quasi-Butterworth)";
+        else if (h_ratio < 0.95 && Qts > 0.42) alignName = "SC4 (Sub-Chebyshev)";
+        else if (h_ratio > 1.05 && Qts < 0.35) alignName = "SBB4 (Super Boom Box)";
+        else alignName = "Sintonia Manual (h=" + h_ratio.toFixed(2) + ")";
+        F3 = optimalF3 * Math.sqrt(Fb / optimalFb);
       }
-      F3 = optimalF3 * Math.sqrt(Fb / optimalFb);
+    } else if (boxType === 'bp4') {
+      const alphaR = Vas / Vr;
+      fc = Fs * Math.sqrt(1.0 + alphaR);
+      qtc = Qts * Math.sqrt(1.0 + alphaR);
+      Fb = isAutoTune ? Math.max(fc * 1.15, Fs * 1.55) : (parseFloat(document.getElementById('fbInput').value) || Fs * 1.55);
+      if (isAutoTune) {
+        document.getElementById('fbInput').value = Fb.toFixed(2);
+        const fbR = document.getElementById('fbRange');
+        if (fbR) fbR.value = Fb.toFixed(2);
+      }
+      F3 = Math.max(18, fc * 0.78);
+      FH = Fb * 1.48;
+      alignName = `BP4 (VR=${Vr.toFixed(0)}L · VF=${Vb.toFixed(0)}L)`;
+    } else {
+      // BP6 (Paralela ou Série)
+      Fb = isAutoTune ? Math.max(FbVr * 1.65, Fs * 1.65) : (parseFloat(document.getElementById('fbInput').value) || Fs * 1.65);
+      if (isAutoTune) {
+        document.getElementById('fbInput').value = Fb.toFixed(2);
+        const fbR = document.getElementById('fbRange');
+        if (fbR) fbR.value = Fb.toFixed(2);
+      }
+      F3 = Math.max(18, Math.min(FbVr, Fb) * 0.88);
+      FH = Math.max(FbVr, Fb) * 1.38;
+      alignName = `BP6 ${bp6Mode === 'series' ? 'Série' : 'Paralela'} (${FbVr.toFixed(0)}/${Fb.toFixed(0)}Hz)`;
     }
 
     const vbBadge = document.getElementById('vbValBadge');
@@ -2539,13 +2805,13 @@ function recalculate() {
 
     portGeom = computePortGeometry({
       portType, numDucts: numD, ductDia: dDia, ductThick: dThick,
-      slotW, slotH, slotWallThick, Fb, Vb, c
+      slotW, slotH, slotWallThick, triCount, triA, triB, Fb, Vb, c
     });
     DeqIn = portGeom.DeqIn;
     LvCm = portGeom.LvCm;
     fPipe1 = portGeom.fPipe1;
     velLimit = portGeom.velLimit;
-    Vtot = Vb + Vsub + portGeom.vDuto;
+    Vtot = Vb + (isBP ? Vr : 0) + Vsub + portGeom.vDuto;
 
     airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb));
     machPct = (airVel / c) * 100.0;
@@ -2558,24 +2824,26 @@ function recalculate() {
       if (portGeom.isSlot && portGeom.aspectRatio > 8.0) warns.push(`<span style="color:#facc15;">⚠️ Razão ${portGeom.aspectRatio.toFixed(1)}:1 (&gt;8:1 atrito alto)</span>`);
       if (fPipe1 > 0 && fPipe1 < 400) warns.push(`<span style="color:#facc15;">⚠️ Tubo órgão baixo (${fPipe1.toFixed(0)} Hz)</span>`);
       if (airVel > velLimit) warns.push(`<span style="color:#f87171;">⚠️ Sopro/Chuffing (&gt;${velLimit} m/s)</span>`);
+      const dimExtra = portGeom.isTri
+        ? ` | <b>Hip:</b> ${portGeom.hypCm.toFixed(1)}cm`
+        : (portGeom.isSlot ? ` | <b>AR:</b> ${portGeom.aspectRatio.toFixed(1)}:1` : ` | <b>Deq:</b> ${DeqIn.toFixed(2)}"`);
       ptBox.innerHTML =
-        `<div><b>Área Sp:</b> ${spCm2.toFixed(1)} cm² | <b>Lv:</b> <span style="color:var(--accent);font-weight:700;">${LvCm.toFixed(2)} cm</span> (k=${portGeom.kEnd})</div>` +
-        `<div><b>Tubo de Órgão (f₁):</b> <span style="color:#38bdf8;">${fPipe1.toFixed(0)} Hz</span>` +
-        (portGeom.isSlot ? ` | <b>AR:</b> ${portGeom.aspectRatio.toFixed(1)}:1 | <b>Dh:</b> ${portGeom.DhCm.toFixed(1)} cm` : ` | <b>Deq:</b> ${DeqIn.toFixed(2)}"`) + `</div>` +
+        `<div><b>Sp:</b> ${spCm2.toFixed(1)} cm² | <b>Lv:</b> <span style="color:var(--accent);font-weight:700;">${LvCm.toFixed(2)} cm</span> (k=${portGeom.kEnd})</div>` +
+        `<div><b>Tubo Órgão f₁:</b> <span style="color:#38bdf8;">${fPipe1.toFixed(0)} Hz</span>${dimExtra}</div>` +
         (warns.length ? `<div style="margin-top:2px;">${warns.join('<br>')}</div>` : `<div style="color:#4ade80;">✓ Escoamento limpo (&lt;${velLimit} m/s)</div>`);
     }
 
-    document.getElementById('kpi1Label').textContent = 'Sintonia Fb';
+    document.getElementById('kpi1Label').textContent = isBP ? 'Sintonia VF (Fb)' : 'Sintonia Fb';
     document.getElementById('kpi1Val').textContent = Fb.toFixed(2) + ' Hz';
-    document.getElementById('kpi1Sub').textContent = 'h = ' + (Fb/Fs).toFixed(3) + (nDrivers > 1 ? ` · ${nDrivers}x` : '');
-    document.getElementById('kpi2Label').textContent = 'Corte F3 (-3dB)';
-    document.getElementById('kpi2Val').textContent = F3.toFixed(2) + ' Hz';
+    document.getElementById('kpi1Sub').textContent = isBP ? (boxType === 'bp6' ? `VR @ ${FbVr.toFixed(1)} Hz` : `VR = ${Vr.toFixed(0)} L`) : ('h = ' + (Fb/Fs).toFixed(3) + (nDrivers > 1 ? ` · ${nDrivers}x` : ''));
+    document.getElementById('kpi2Label').textContent = isBP ? 'Banda FL – FH' : 'Corte F3 (-3dB)';
+    document.getElementById('kpi2Val').textContent = isBP ? `${F3.toFixed(0)}–${FH.toFixed(0)} Hz` : (F3.toFixed(2) + ' Hz');
 
     const kpiAlign = document.getElementById('kpiAlignCard');
     if (kpiAlign) {
       kpiAlign.style.display = 'flex';
       document.getElementById('kpiAlignVal').textContent = alignName;
-      document.getElementById('kpiAlignSub').textContent = (isAutoTune ? 'Fb = Fs · α^0.31' : 'h = ' + (Fb/Fs).toFixed(3));
+      document.getElementById('kpiAlignSub').textContent = isBP ? 'Passa-Faixa Acústica' : (isAutoTune ? 'Fb = Fs · α^0.31' : 'h = ' + (Fb/Fs).toFixed(3));
     }
 
     const portCard = document.getElementById('kpiPortCard');
@@ -2587,12 +2855,19 @@ function recalculate() {
       document.getElementById('kpiVelSub').textContent = `Ar: ${airVel.toFixed(1)} m/s (${machPct.toFixed(1)}% Mach · f₁=${fPipe1.toFixed(0)}Hz)`;
     }
   } else {
+    // Caixa Selada ou Planar Horn (câmara traseira selada)
     const tuningModeCont = document.getElementById('tuningModeContainer');
     if (tuningModeCont) tuningModeCont.style.display = 'none';
     const fbGroup = document.getElementById('fbControlGroup');
     if (fbGroup) fbGroup.style.display = 'none';
     const kpiAlign = document.getElementById('kpiAlignCard');
-    if (kpiAlign) kpiAlign.style.display = 'none';
+    if (kpiAlign) {
+      kpiAlign.style.display = (boxType === 'planar') ? 'flex' : 'none';
+      if (boxType === 'planar') {
+        document.getElementById('kpiAlignVal').textContent = 'Planar Horn (Boca Refletora)';
+        document.getElementById('kpiAlignSub').textContent = 'Câmara Selada + Ganho de Boca';
+      }
+    }
 
     qtc = Qts * Math.sqrt(alpha + 1.0);
     fc = Fs * Math.sqrt(alpha + 1.0);
@@ -2608,9 +2883,9 @@ function recalculate() {
     } else {
       ripple = 0; fgmax = null; fxmax = null;
     }
-    Vtot = Vb + Vsub;
+    Vtot = (boxType === 'planar') ? (Vb * 1.45 + Vsub) : (Vb + Vsub);
 
-    document.getElementById('kpi1Label').textContent = 'Fator Q (Qtc)';
+    document.getElementById('kpi1Label').textContent = boxType === 'planar' ? 'Planar Qtc' : 'Fator Q (Qtc)';
     document.getElementById('kpi1Val').textContent = qtc.toFixed(3);
     document.getElementById('kpi1Sub').textContent = 'Fc = ' + fc.toFixed(2) + ' Hz' + (nDrivers > 1 ? ` · ${nDrivers}x` : '');
     document.getElementById('kpi2Label').textContent = 'Corte F3 (-3dB)';
@@ -2623,10 +2898,10 @@ function recalculate() {
   document.getElementById('kpiVtotVal').textContent = Vtot.toFixed(2) + ' L';
   document.getElementById('kpiF100Val').textContent = F100.toFixed(2) + ' Hz';
 
-  // Síntese dos 13 Gráficos
+  // Síntese dos 13 Gráficos (suporta Selada, Dutada, BP4, BP6 e Planar)
   generateSimulationData({
     boxType, Fs, Qes, Qms, Re, Sd_m2, Vas, Xmax_mm, Pe, Qts,
-    Vb, QL, tempC, cabinM, hpfHz, c, rho, F100, spl_rated, alpha, Fb, F3, qtc, fc, airVel,
+    Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
     fPipe1, velLimit, nDrivers, deltaT, powerCompDb
   });
 
@@ -2635,7 +2910,7 @@ function recalculate() {
   updateWoodlock();
   updateElectrical();
   updateSimAdvancedTelemetry({ Fs, Qes: Qes_nom, Qms, Qts: (Qms * Qes_nom) / (Qms + Qes_nom), Vas: Vas_single, Re: Re_nom, Pe: Pe_single, Sd_m2: Sd_single_m2, Xmax_mm, c, rho, spl_1w, spl_rated, Vd, EBP: Fs / Qes_nom, no_frac });
-  updateDesktopStatusBar({ boxType, nDrivers, Vb, Fb, fc, F3, LvCm, airVel, fPipe1, deltaT, powerCompDb, EBP, alpha, Vtot, Qts, Xmax_mm, Pe });
+  updateDesktopStatusBar({ boxType, nDrivers, Vb, Vr, Fb, FbVr, bp6Mode, fc, F3, FH, LvCm, airVel, fPipe1, deltaT, powerCompDb, EBP, alpha, Vtot, Qts, Xmax_mm, Pe });
 }
 
 function generateSimulationData(p) {
@@ -2788,13 +3063,118 @@ function generateSimulationData(p) {
       const phiRad = -Math.atan2(den_im, den_re);
       phaseRadRaw.push(phiRad);
       G12.push(phiRad * 180.0 / Math.PI);
+    } else if (p.boxType === 'bp4' || p.boxType === 'bp6') {
+      // Band-Pass 4ª Ordem (BP4) e 6ª Ordem (BP6 Paralela / Série)
+      const alphaR = p.Vas / Math.max(5.0, p.Vr || p.Vb * 0.75);
+      const alphaF = p.Vas / Math.max(5.0, p.Vb);
+      const fcR = p.Fs * Math.sqrt(1.0 + alphaR);
+      const qtcR = p.Qts * Math.sqrt(1.0 + alphaR);
+      const fbF = Math.max(15.0, p.Fb || 60.0);
+      const gainPa = Math.max(0.4, Math.min(3.0, Math.sqrt((p.Vr || p.Vb * 0.75) / Math.max(5.0, p.Vb))));
+
+      let bpRe = 0, bpIm = 0, excFactor = 1.0, zBoxVal = p.Re, zPhase = 0;
+
+      if (p.boxType === 'bp4') {
+        // Polinômio passa-faixa 4ª ordem: H(s) = (K * s_n^2) / (D_r(s) * D_f(s) acoplado)
+        const rL = f / fcR;
+        const rH = f / fbF;
+        // HPF 2ª ordem em fcR (câmara traseira selada) * LPF 2ª ordem em fbF (câmara frontal dutada)
+        const drRe = 1.0 - rL * rL;
+        const drIm = rL / Math.max(0.25, qtcR);
+        const drMag2 = drRe * drRe + drIm * drIm;
+        const qf = Math.max(0.45, Math.min(2.2, 0.72 * Math.sqrt(alphaF / Math.max(0.2, alphaR))));
+        const dfRe = 1.0 - rH * rH;
+        const dfIm = rH / qf;
+        const dfMag2 = dfRe * dfRe + dfIm * dfIm;
+
+        // Complex H = (-rL^2 / (drRe + j drIm)) * (gainPa / (dfRe + j dfIm))
+        const h1Re = (-rL * rL * drRe) / drMag2;
+        const h1Im = (rL * rL * drIm) / drMag2;
+        const h2Re = (gainPa * dfRe) / dfMag2;
+        const h2Im = (-gainPa * dfIm) / dfMag2;
+        bpRe = h1Re * h2Re - h1Im * h2Im;
+        bpIm = h1Re * h2Im + h1Im * h2Re;
+        excFactor = (1.0 / (1.0 + alphaR)) * (1.0 / Math.sqrt(drMag2)) * (0.35 + 0.65 * Math.min(1.5, Math.abs(1.0 - rH * rH) + 0.25));
+
+        const zPeak = p.Re * (1.0 + (p.Qms / p.Qes) * 0.55);
+        const peak1 = Math.exp(-Math.pow((f - fcR * 0.72) / (fcR * 0.22), 2));
+        const peak2 = Math.exp(-Math.pow((f - fbF * 1.18) / (fbF * 0.25), 2));
+        zBoxVal = p.Re + (zPeak - p.Re) * (0.85 * peak1 + 0.75 * peak2);
+        zPhase = (peak1 - peak2) * 0.75;
+      } else {
+        // BP6 (6ª Ordem: 4ª ordem passa-altas em FbVr + 2ª ordem passa-baixas em FbF)
+        const fbLow = Math.max(15.0, Math.min(p.FbVr || 35.0, fbF - 5.0));
+        const fbHigh = Math.max(fbLow + 8.0, fbF);
+        const rL = f / fbLow;
+        const rH = f / fbHigh;
+        const qLow = Math.max(0.55, Math.min(1.6, p.Qts * 2.1));
+        const qHigh = p.bp6Mode === 'series' ? 0.78 : 1.05;
+
+        const d1Re = 1.0 - rL * rL;
+        const d1Im = rL / qLow;
+        const d1Mag2 = d1Re * d1Re + d1Im * d1Im;
+        // 4ª ordem HPF aproximada por cascata (d1)^2 com ajuste de ganho
+        const hpRe = (Math.pow(rL, 4) * (d1Re * d1Re - d1Im * d1Im)) / (d1Mag2 * d1Mag2);
+        const hpIm = (-Math.pow(rL, 4) * (2.0 * d1Re * d1Im)) / (d1Mag2 * d1Mag2);
+
+        const d2Re = 1.0 - rH * rH;
+        const d2Im = rH / qHigh;
+        const d2Mag2 = d2Re * d2Re + d2Im * d2Im;
+        const bp6Gain = (p.bp6Mode === 'series' ? 1.25 : 1.45) * Math.min(1.5, gainPa);
+        const lpRe = (bp6Gain * d2Re) / d2Mag2;
+        const lpIm = (-bp6Gain * d2Im) / d2Mag2;
+
+        bpRe = hpRe * lpRe - hpIm * lpIm;
+        bpIm = hpRe * lpIm + hpIm * lpRe;
+        const notchL = Math.min(1.0, Math.abs(f - fbLow) / (fbLow * 0.25) + 0.22);
+        const notchH = Math.min(1.0, Math.abs(f - fbHigh) / (fbHigh * 0.25) + 0.25);
+        excFactor = (1.0 / (1.0 + 0.5 * alphaR)) * (1.0 / Math.sqrt(d1Mag2)) * notchL * notchH;
+
+        const zPeak = p.Re * (1.0 + (p.Qms / p.Qes) * 0.6);
+        const p1 = Math.exp(-Math.pow((f - fbLow * 0.74) / (fbLow * 0.18), 2));
+        const p2 = Math.exp(-Math.pow((f - Math.sqrt(fbLow * fbHigh)) / (fbLow * 0.28), 2));
+        const p3 = Math.exp(-Math.pow((f - fbHigh * 1.25) / (fbHigh * 0.22), 2));
+        zBoxVal = p.Re + (zPeak - p.Re) * (0.8 * p1 + 0.7 * p2 + 0.65 * p3);
+        zPhase = (p1 - p2 + 0.6 * p3) * 0.7;
+      }
+
+      const bpMag = Math.max(1e-6, Math.sqrt(bpRe * bpRe + bpIm * bpIm));
+      const g_mag_db = 20.0 * Math.log10(bpMag) + hpf_db;
+      G4.push(g_mag_db);
+      const spl_th = p.spl_rated + g_mag_db;
+      G6.push(spl_th);
+      G7.push(g_mag_db + t_cabin_db);
+      G5.push(spl_th + t_cabin_db);
+      G2.push(spl_th); // Em Band-Pass toda a radiação sai pelos dutos
+      G10.push(spl_th - 24.0); // Cone confinado nas câmaras internas
+
+      const exc_mm = Math.max(0.01, x_ref_peak_mm * excFactor * hpf_lin);
+      G8.push(exc_mm);
+      G1.push(exc_mm > 1e-6 ? Math.min(p.Pe, p.Pe * Math.pow(p.Xmax_mm / exc_mm, 2)) : p.Pe);
+
+      const vPeak = p.airVel || 12.0;
+      G9.push(Math.min(vPeak * 1.8, vPeak * bpMag * hpf_lin));
+      G11.push(zBoxVal);
+      const epdr_f = zBoxVal / (1.0 + Math.abs(Math.sin(zPhase)));
+      if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
+
+      const phiRad = Math.atan2(bpIm, bpRe);
+      phaseRadRaw.push(phiRad);
+      G12.push(phiRad * 180.0 / Math.PI);
     } else {
-      // Sealed (Small 1972)
+      // Sealed (Small 1972) ou Planar Horn (Câmara traseira selada + Ganho de Boca Planar)
       const rel_fc = f / p.fc;
       const den_re_s = 1.0 - Math.pow(rel_fc, 2);
       const den_im_s = rel_fc / p.qtc;
       const den_mag2 = den_re_s*den_re_s + den_im_s*den_im_s;
-      const g_mag_db = 10.0 * Math.log10(Math.pow(rel_fc, 4) / den_mag2) + hpf_db;
+      let hornBoostDb = 0.0;
+      if (p.boxType === 'planar') {
+        // Carregamento acústico de boca planar (+3.2 dB na banda de ataque 1.2*Fc .. 4.5*Fc)
+        const fCenter = p.fc * 2.1;
+        const octaveDist = Math.log2(Math.max(10, f) / fCenter);
+        hornBoostDb = 3.2 * Math.exp(-0.5 * Math.pow(octaveDist / 1.15, 2));
+      }
+      const g_mag_db = 10.0 * Math.log10(Math.pow(rel_fc, 4) / den_mag2) + hornBoostDb + hpf_db;
       G4.push(g_mag_db);
 
       const spl_th = p.spl_rated + g_mag_db;
@@ -2823,7 +3203,8 @@ function generateSimulationData(p) {
         minEpdrFreq = f;
       }
 
-      const exc_mm = (x_ref_box_mm / Math.sqrt(den_mag2)) * hpf_lin;
+      const excDamp = (p.boxType === 'planar') ? 0.88 : 1.0;
+      const exc_mm = (x_ref_box_mm / Math.sqrt(den_mag2)) * excDamp * hpf_lin;
       G8.push(exc_mm);
 
       const p_max_f = (exc_mm > 1e-6) ? Math.min(p.Pe, p.Pe * Math.pow(p.Xmax_mm / exc_mm, 2)) : p.Pe;
@@ -3677,7 +4058,7 @@ function updateWoodlock() {
   const cVal = 20.0547605 * Math.sqrt(273.15 + tempC);
 
   let Vduto = 0.0;
-  if (boxType === 'bass-reflex') {
+  if (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6') {
     const pg = computePortGeometry({
       portType: document.getElementById('portType')?.value || 'round',
       numDucts: parseInt(document.getElementById('numDucts').value) || 2,
@@ -3686,6 +4067,9 @@ function updateWoodlock() {
       slotW: parseFloat(document.getElementById('slotW')?.value) || 35.0,
       slotH: parseFloat(document.getElementById('slotH')?.value) || 6.0,
       slotWallThick: parseFloat(document.getElementById('slotWallThick')?.value) || 18.0,
+      triCount: parseInt(document.getElementById('triCount')?.value) || 2,
+      triA: parseFloat(document.getElementById('triA')?.value) || 14.0,
+      triB: parseFloat(document.getElementById('triB')?.value) || 14.0,
       Fb: parseFloat(document.getElementById('fbInput').value) || 44.62,
       Vb,
       c: cVal
@@ -3693,9 +4077,10 @@ function updateWoodlock() {
     Vduto = pg.vDuto;
   }
 
-  // Volume dos sarrafos (50mm x t x B)
+  // Volume dos sarrafos (50mm x t x B) + câmara traseira se BP4/BP6
+  const VbpRear = (boxType === 'bp4' || boxType === 'bp6') ? (parseFloat(document.getElementById('vrInput')?.value) || 0) : 0;
   const Vbracing = (battens * 50.0 * t * B) / 1e6;
-  const Vbruto = Vb + Vsub + Vduto + Vbracing;
+  const Vbruto = Vb + VbpRear + Vsub + Vduto + Vbracing;
 
   const C_med = (Vbruto * 1e6) / Math.max(1.0, A * B);
   let C_top = C_med;
@@ -3738,17 +4123,41 @@ function updateWoodlock() {
 
   const totalArea = pieces.reduce((acc, p) => acc + p.area, 0.0);
   const woodWeightKg = totalArea * (t / 1000.0) * 750.0;
+  const sheetArea = 2.75 * 1.83; // Chapa MDF padrão 2750x1830 mm (5.0325 m²)
+  const sheetPrice = parseFloat(document.getElementById('wlSheetPrice')?.value) || 260;
+  const sheetsNeeded = Math.max(0.25, (totalArea * 1.12) / sheetArea);
+  const estCost = sheetsNeeded * sheetPrice;
 
   const summaryBox = document.getElementById('wlSummaryBox');
   if (summaryBox) {
     summaryBox.innerHTML = `
-      <div><b>Balanço Volumétrico:</b> Vb=${Vb.toFixed(1)}L + Vsub=${Vsub.toFixed(1)}L + Vduto=${Vduto.toFixed(2)}L + Vtravas=${Vbracing.toFixed(2)}L = <span style="color:var(--accent);font-weight:700;">${Vbruto.toFixed(2)} L Brutos</span></div>
+      <div><b>Balanço Volumétrico:</b> Vb=${Vb.toFixed(1)}L${VbpRear > 0 ? ` + VR=${VbpRear.toFixed(1)}L` : ''} + Vsub=${Vsub.toFixed(1)}L + Vduto=${Vduto.toFixed(2)}L + Vtravas=${Vbracing.toFixed(2)}L = <span style="color:var(--accent);font-weight:700;">${Vbruto.toFixed(2)} L Brutos</span></div>
       <div><b>Cotas Internas [A×B×C/D]:</b> A=${A.toFixed(0)} mm | B=${B.toFixed(0)} mm | C=${C_top.toFixed(1)} mm | D=${D_bot.toFixed(1)} mm</div>
       <div><b>Cotas Externas [F×E]:</b> F=${F_ext.toFixed(0)} mm | E=${E_ext.toFixed(0)} mm | Vol. Externo=${V_ext.toFixed(1)} L</div>
       <div><b>Modo Fundamental Painel (f₁₁):</b> s/ travas=${f11_unbraced.toFixed(0)} Hz ➔ <span style="color:#10b981;font-weight:700;">c/ travas=${f11_braced.toFixed(0)} Hz</span></div>
-      <div><b>Consumo de Chapa MDF:</b> Área=${totalArea.toFixed(3)} m² | Peso Estimado=<b>${woodWeightKg.toFixed(1)} kg</b></div>
+      <div><b>Chapa MDF &amp; Orçamento:</b> Área=${totalArea.toFixed(3)} m² (${sheetsNeeded.toFixed(2)} chapa) | Peso=<b>${woodWeightKg.toFixed(1)} kg</b> | Custo Est.: <span style="color:#fbbf24;font-weight:700;">R$ ${estCost.toFixed(2)}</span></div>
     `;
   }
+
+  // Verificador de Alojamento no Veículo
+  const trunkEl = document.getElementById('wlTrunkResult');
+  if (trunkEl) {
+    const tW = parseFloat(document.getElementById('wlTrunkW')?.value) || 950;
+    const tH = parseFloat(document.getElementById('wlTrunkH')?.value) || 500;
+    const tD = parseFloat(document.getElementById('wlTrunkD')?.value) || 520;
+    const wCut = parseFloat(document.getElementById('wlWheelCut')?.value) || 0;
+    const maxExtD = Math.max(C_ext_top, D_ext_bot);
+    const trunkAvailL = Math.max(0, ((tW * tH * tD) / 1e6) - wCut);
+    const fitsDims = (F_ext <= tW && E_ext <= tH && maxExtD <= tD);
+    const fitsVol = (V_ext <= trunkAvailL);
+    const ok = fitsDims && fitsVol;
+    trunkEl.innerHTML =
+      `<div><b>Caixa Externa:</b> ${F_ext.toFixed(0)} × ${E_ext.toFixed(0)} × ${maxExtD.toFixed(0)} mm (${V_ext.toFixed(1)} L)</div>` +
+      `<div><b>Espaço Livre Veículo:</b> ${tW} × ${tH} × ${tD} mm − ${wCut}L = <b>${trunkAvailL.toFixed(1)} L</b></div>` +
+      `<div style="margin-top:4px; color:${ok ? '#4ade80' : '#f87171'}; font-weight:700;">` +
+      (ok ? `✅ CABE COM FOLGA (sobram ${(trunkAvailL - V_ext).toFixed(1)} L no alojamento)` : `⚠️ NÃO CABE: revise Largura A / Altura B ou reduza Vb (${!fitsDims ? 'excede cota externa' : 'excede volume'})`) + `</div>`;
+  }
+  updateReverseVolume();
 
   const tbody = document.getElementById('cutSheetTableBody');
   if (tbody) {
@@ -3948,10 +4357,24 @@ function updateElectrical(fromUser) {
   const leMh = parseFloat(document.getElementById('elLeMh').value) || 1.5;
   const hpfHz = parseFloat(document.getElementById('hpfCutoff').value) || 36.0;
 
-  const vRmsTarget = Math.sqrt(pwrW * zTotal);
+  const derate70 = Boolean(document.getElementById('elDerate70')?.checked);
+  const measV = parseFloat(document.getElementById('elMeasV')?.value) || 0;
+  const effPwrW = derate70 ? pwrW * 0.70 : pwrW;
+
+  const vRmsTarget = Math.sqrt(effPwrW * zTotal);
   const vPeakTarget = vRmsTarget * Math.SQRT2;
-  const iRmsTarget = Math.sqrt(pwrW / Math.max(0.1, zTotal));
+  const iRmsTarget = Math.sqrt(effPwrW / Math.max(0.1, zTotal));
   const gainDb = 20.0 * Math.log10(vRmsTarget / Math.max(0.05, preoutV));
+
+  // Estimativa térmica da bobina quando tensão medida no multímetro é informada
+  let coilTempHtml = '';
+  if (measV > 0) {
+    const pwrApplied = (measV * measV) / Math.max(0.2, zTotal);
+    const loadRatio = pwrApplied / Math.max(10, pwrW);
+    const estCoilC = 25 + loadRatio * 135;
+    const tColor = estCoilC <= 120 ? '#4ade80' : (estCoilC <= 165 ? '#facc15' : '#f87171');
+    coilTempHtml = `<div><b>Multímetro (${measV.toFixed(1)}V ➔ ${pwrApplied.toFixed(0)}W):</b> Temp. Provável Bobina ≈ <span style="color:${tColor};font-weight:700;">${estCoilC.toFixed(0)} °C</span></div>`;
+  }
 
   const tPeriodMs = 1000.0 / Math.max(10.0, hpfHz);
   const attFactor = limProfile === 'sq_slow' ? 0.50 : (limProfile === 'fast_trio' ? 0.15 : 0.25);
@@ -3968,7 +4391,8 @@ function updateElectrical(fromUser) {
   const dspBox = document.getElementById('elDspResult');
   if (dspBox) {
     dspBox.innerHTML = `
-      <div><b>Alvo de Ganho (Multímetro True-RMS):</b> <span style="color:#10b981;font-weight:800;font-size:14px;">${vRmsTarget.toFixed(1)} V_rms</span> (${vPeakTarget.toFixed(1)} V_pico | ${iRmsTarget.toFixed(1)} A_rms)</div>
+      <div><b>Alvo de Ganho${derate70 ? ' (Derating 70%)' : ''}:</b> <span style="color:#10b981;font-weight:800;font-size:14px;">${vRmsTarget.toFixed(1)} V_rms</span> (${vPeakTarget.toFixed(1)} V_pico | ${iRmsTarget.toFixed(1)} A_rms)</div>
+      ${coilTempHtml}
       <div><b>Ganho de Tensão Exigido:</b> +${gainDb.toFixed(1)} dB (Entrada ${preoutV.toFixed(1)} V)</div>
       <div><b>Limiter DSP (HPF ${hpfHz.toFixed(0)} Hz):</b> Attack = <b>${attMs.toFixed(2)} ms</b> | Release = <b>${relMs.toFixed(0)} ms</b></div>
       <div><b>Crossover 12dB/8ª (${xoverHz.toFixed(0)} Hz):</b> L = ${l_mh.toFixed(2)} mH | C = ${c_uf.toFixed(1)} µF</div>
@@ -3977,10 +4401,29 @@ function updateElectrical(fromUser) {
   }
 }
 
+function updateReverseVolume() {
+  const resEl = document.getElementById('revVolResult');
+  if (!resEl) return;
+  const w = Math.max(5, parseFloat(document.getElementById('revW')?.value) || 80);
+  const h = Math.max(5, parseFloat(document.getElementById('revH')?.value) || 42);
+  const d1 = Math.max(5, parseFloat(document.getElementById('revD1')?.value) || 32);
+  const d2 = Math.max(5, parseFloat(document.getElementById('revD2')?.value) || 44);
+  const tCm = (Math.max(4, parseFloat(document.getElementById('revMdf')?.value) || 18)) / 10.0;
+  const wIn = Math.max(1, w - 2 * tCm);
+  const hIn = Math.max(1, h - 2 * tCm);
+  const dIn = Math.max(1, 0.5 * (d1 + d2) - 2 * tCm);
+  const volBrutoInt = (wIn * hIn * dIn) / 1000.0;
+  const vSub = parseFloat(document.getElementById('tsVsub')?.value) || 0;
+  const volLiq = Math.max(1, volBrutoInt - vSub);
+  resEl.innerHTML =
+    `<div><b>Medidas Internas:</b> ${wIn.toFixed(1)} × ${hIn.toFixed(1)} × ${dIn.toFixed(1)} cm (média)</div>` +
+    `<div><b>Volume Interno Bruto:</b> <span style="color:var(--accent);font-weight:700;">${volBrutoInt.toFixed(1)} L</span> | <b>Líquido (−Vsub ${vSub}L):</b> <span style="color:#4ade80;font-weight:700;">${volLiq.toFixed(1)} L</span></div>`;
+}
+
 // ============================================================================
 // SHELL DESKTOP PROFISSIONAL (MENUS, MODAIS, WIZARD, CONTEXT MENU, STATUS BAR)
 // ============================================================================
-let activeWizardGoal = 'balanced';
+let activeWizardGoal = 'optimum';
 let activeWizardPlan = null;
 let ctxTargetChartId = 'G4';
 
@@ -4064,14 +4507,16 @@ function updateDesktopStatusBar(s) {
   const sbTh = document.getElementById('sbThermal');
   if (sbDrv) sbDrv.textContent = `🔊 ${dName.slice(0, 26)}${s.nDrivers > 1 ? ` (${s.nDrivers}x)` : ''}`;
   if (sbBox) {
-    sbBox.textContent = s.boxType === 'bass-reflex'
-      ? `📦 Dutada ${s.Vb.toFixed(1)}L @ ${s.Fb.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`
-      : `📦 Selada ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
+    if (s.boxType === 'bass-reflex') sbBox.textContent = `📦 Dutada ${s.Vb.toFixed(1)}L @ ${s.Fb.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
+    else if (s.boxType === 'bp4') sbBox.textContent = `📦 BP4 VR=${(s.Vr||0).toFixed(0)}L / VF=${s.Vb.toFixed(0)}L @ ${s.Fb.toFixed(1)}Hz`;
+    else if (s.boxType === 'bp6') sbBox.textContent = `📦 BP6 ${(s.bp6Mode==='series'?'Série':'Paral.')} ${(s.FbVr||35).toFixed(0)}/${s.Fb.toFixed(0)}Hz`;
+    else if (s.boxType === 'planar') sbBox.textContent = `📦 Planar ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
+    else sbBox.textContent = `📦 Selada ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
   }
   if (sbPort) {
-    sbPort.textContent = s.boxType === 'bass-reflex'
+    sbPort.textContent = (s.boxType === 'bass-reflex' || s.boxType === 'bp4' || s.boxType === 'bp6')
       ? `💨 Lv ${s.LvCm.toFixed(1)}cm · ${s.airVel.toFixed(1)} m/s · f₁ ${s.fPipe1.toFixed(0)}Hz`
-      : `💨 Caixa Selada (sem duto)`;
+      : (s.boxType === 'planar' ? `💨 Boca Planar Refletora` : `💨 Caixa Selada (sem duto)`);
   }
   if (sbEpdr && currentCurves && currentCurves.meta) {
     sbEpdr.textContent = `⚡ EPDR ${currentCurves.meta.minEpdrVal.toFixed(2)}Ω @ ${currentCurves.meta.minEpdrFreq.toFixed(0)}Hz`;
@@ -4094,12 +4539,29 @@ function updateDesktopStatusBar(s) {
 
   const thumbSvg = document.getElementById('boxThumbSvg');
   if (thumbSvg) {
-    thumbSvg.innerHTML = s.boxType === 'bass-reflex'
-      ? `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#00d4ff" stroke-width="1.4"/><circle cx="16" cy="16" r="8.5" stroke="#38bdf8" stroke-width="1.4"/><circle cx="16" cy="16" r="3" fill="#00d4ff" fill-opacity="0.3"/><rect x="29" y="6" width="6" height="20" rx="1.5" fill="#10b981" fill-opacity="0.25" stroke="#10b981" stroke-width="1.2"/></svg>`
-      : `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="4" y="2" width="34" height="28" rx="3" fill="#080d16" stroke="#a855f7" stroke-width="1.4"/><circle cx="21" cy="16" r="9" stroke="#c084fc" stroke-width="1.4"/><circle cx="21" cy="16" r="3.2" fill="#a855f7" fill-opacity="0.35"/></svg>`;
+    const svgMap = {
+      'bass-reflex': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#00d4ff" stroke-width="1.4"/><circle cx="16" cy="16" r="8.5" stroke="#38bdf8" stroke-width="1.4"/><circle cx="16" cy="16" r="3" fill="#00d4ff" fill-opacity="0.3"/><rect x="29" y="6" width="6" height="20" rx="1.5" fill="#10b981" fill-opacity="0.25" stroke="#10b981" stroke-width="1.2"/></svg>`,
+      'sealed': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="4" y="2" width="34" height="28" rx="3" fill="#080d16" stroke="#a855f7" stroke-width="1.4"/><circle cx="21" cy="16" r="9" stroke="#c084fc" stroke-width="1.4"/><circle cx="21" cy="16" r="3.2" fill="#a855f7" fill-opacity="0.35"/></svg>`,
+      'bp4': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#f59e0b" stroke-width="1.4"/><line x1="20" y1="2" x2="20" y2="30" stroke="#f59e0b" stroke-width="1.2"/><circle cx="20" cy="16" r="6" fill="#080d16" stroke="#38bdf8" stroke-width="1.3"/><rect x="31" y="7" width="5" height="18" rx="1" fill="#10b981" fill-opacity="0.3" stroke="#10b981" stroke-width="1.1"/></svg>`,
+      'bp6': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#ef4444" stroke-width="1.4"/><line x1="21" y1="2" x2="21" y2="30" stroke="#ef4444" stroke-width="1.2"/><circle cx="21" cy="16" r="5.5" fill="#080d16" stroke="#38bdf8" stroke-width="1.3"/><rect x="5" y="8" width="4.5" height="16" rx="1" fill="#f59e0b" fill-opacity="0.3" stroke="#f59e0b" stroke-width="1"/><rect x="32" y="7" width="4.5" height="18" rx="1" fill="#10b981" fill-opacity="0.3" stroke="#10b981" stroke-width="1"/></svg>`,
+      'planar': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#14b8a6" stroke-width="1.4"/><line x1="15" y1="2" x2="15" y2="30" stroke="#14b8a6" stroke-width="1.2"/><path d="M15 11 L38 4 M15 21 L38 28" stroke="#38bdf8" stroke-width="1.2"/></svg>`
+    };
+    thumbSvg.innerHTML = svgMap[s.boxType] || svgMap['bass-reflex'];
   }
-  setTxt('thumbBoxTitle', s.boxType === 'bass-reflex' ? 'Bass-Reflex (4ª Ordem)' : 'Caixa Selada (2ª Ordem)');
-  setTxt('thumbBoxSub', s.boxType === 'bass-reflex' ? `Vb ${s.Vb.toFixed(1)}L · Fb ${s.Fb.toFixed(1)}Hz` : `Vb ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz`);
+  const titleMap = {
+    'bass-reflex': 'Bass-Reflex (4ª Ordem)',
+    'sealed': 'Caixa Selada (2ª Ordem)',
+    'bp4': 'Band-Pass 4ª (BP4)',
+    'bp6': `Band-Pass 6ª (${s.bp6Mode === 'series' ? 'Série' : 'Paralela'})`,
+    'planar': 'Planar Horn (Refletora)'
+  };
+  setTxt('thumbBoxTitle', titleMap[s.boxType] || s.boxType);
+  setTxt('thumbBoxSub',
+    s.boxType === 'bass-reflex' ? `Vb ${s.Vb.toFixed(1)}L · Fb ${s.Fb.toFixed(1)}Hz` :
+    s.boxType === 'bp4' ? `VR ${(s.Vr||0).toFixed(0)}L · VF ${s.Vb.toFixed(0)}L @ ${s.Fb.toFixed(0)}Hz` :
+    s.boxType === 'bp6' ? `VR ${(s.Vr||0).toFixed(0)}L@${(s.FbVr||35).toFixed(0)} · VF ${s.Vb.toFixed(0)}L@${s.Fb.toFixed(0)}` :
+    `Vb ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz`
+  );
 
   // Diagnóstico Acústico Inteligente do Transdutor (100% física Thiele-Small)
   const insBar = document.getElementById('driverInsightsBar');
@@ -4153,46 +4615,79 @@ function computeWizardPlan() {
   const Sd = SdSingle * nDrivers;
   const override = document.getElementById('wizBoxOverride')?.value || 'auto';
   const portPref = document.getElementById('wizPortPref')?.value || 'round';
+  const g = activeWizardGoal || 'optimum';
 
   let boxType = override;
   if (boxType === 'auto') {
-    if (activeWizardGoal === 'sq' && (EBP < 60 || Qts > 0.48)) boxType = 'sealed';
-    else if (EBP < 50 && Qts > 0.50) boxType = 'sealed';
+    if (EBP < 50 && Qts > 0.50 && (g === 'optimum' || g === 'attack')) boxType = 'sealed';
+    else if (g === 'spl' && EBP >= 85 && Qts <= 0.42) boxType = 'bp6';
+    else if (g === 'trio' && EBP >= 75) boxType = 'planar';
     else boxType = 'bass-reflex';
   }
 
-  let Vb = Vas * 0.7;
-  let Fb = Fs;
+  let Vb = Vas * 0.7, Vr = Vas * 0.5, Fb = Fs, FbVr = Math.max(25, Math.round(Fs * 0.85));
   let hpf = Math.max(18, Math.round(Fs * 0.7));
   let portType = portPref;
-  let numDucts = 2, ductDia = 4.0, slotW = 35.0, slotH = 6.0;
-  let LvCm = 0, airVel = 0, fPipe1 = 0, alignDesc = '';
+  let numDucts = 2, ductDia = 4.0, slotW = 35.0, slotH = 6.0, triCount = 2, triA = 14.0, triB = 14.0;
+  let LvCm = 0, airVel = 0, fPipe1 = 0, alignDesc = '', warnNote = '';
 
-  if (boxType === 'sealed') {
-    const qTarget = activeWizardGoal === 'sq' ? 0.7071 : (activeWizardGoal === 'balanced' ? 0.80 : 0.95);
+  const goalMap = {
+    optimum: { kVol: 0.90, kFb: 1.00, vel: 13.5, label: 'Optimum (Equilíbrio Musical)' },
+    lowbass: { kVol: 1.25, kFb: 0.86, vel: 12.0, label: 'Low Bass (Subgrave Estendido)' },
+    attack:  { kVol: 0.80, kFb: 1.06, vel: 14.5, label: 'Attack (Grave Encorpado)' },
+    trio:    { kVol: 0.70, kFb: 1.28, vel: 16.0, label: 'Trio / Ataque (70–110 Hz)' },
+    subext:  { kVol: 1.35, kFb: 0.78, vel: 13.5, label: 'Sub-Extremo (30–40 Hz)', warn: '⚠️ Sintonia sub-extrema: projetada para subgrave dedicado, não para música aberta.' },
+    spl:     { kVol: 1.10, kFb: 1.18, vel: 17.0, label: 'SPL Máximo (Competição)', warn: '⚠️ Perfil de competição SPL: pico estreito de alta pressão.' }
+  };
+  const cfg = goalMap[g] || goalMap.optimum;
+  warnNote = cfg.warn || '';
+
+  if (boxType === 'sealed' || boxType === 'planar') {
+    const qTarget = g === 'lowbass' ? 0.68 : (g === 'optimum' ? 0.72 : (g === 'attack' ? 0.82 : 0.95));
     const ratio2 = Math.pow(qTarget / Math.max(0.15, Qts), 2);
     const alpha = Math.max(0.35, Math.min(4.0, ratio2 - 1.0));
     Vb = Math.max(10, Math.round((Vas / alpha) * 10) / 10);
     const fc = Fs * Math.sqrt(1 + Vas / Vb);
-    hpf = Math.max(18, Math.round(fc * 0.45));
-    alignDesc = `Caixa Selada (Qtc ≈ ${(Qts * Math.sqrt(1 + Vas / Vb)).toFixed(2)}, Fc ≈ ${fc.toFixed(1)} Hz)`;
+    hpf = Math.max(18, Math.round(fc * (boxType === 'planar' ? 0.65 : 0.45)));
+    alignDesc = `${boxType === 'planar' ? 'Planar Horn' : 'Caixa Selada'} · ${cfg.label} (Fc ≈ ${fc.toFixed(1)} Hz)`;
   } else {
-    const kVol = activeWizardGoal === 'sq' ? 1.15 : (activeWizardGoal === 'balanced' ? 0.85 : 1.05);
     const vbBase = Math.max(Vas * 0.35, Math.min(Vas * 2.2, 15.0 * Math.pow(Math.min(0.65, Math.max(0.25, Qts)), 2.8) * Vas));
-    Vb = Math.max(15, Math.round(vbBase * kVol));
+    Vb = Math.max(15, Math.round(vbBase * cfg.kVol));
     const alpha = Vas / Vb;
     const fbOpt = Fs * Math.pow(alpha, 0.31);
-    Fb = activeWizardGoal === 'sq' ? Math.max(24, fbOpt * 0.90) : (activeWizardGoal === 'spl' ? fbOpt * 1.08 : fbOpt);
-    Fb = Math.round(Fb * 10) / 10;
-    hpf = Math.max(20, Math.round(Fb * 0.78));
+    if (boxType === 'bp4') {
+      Vr = Math.max(15, Math.round(Vb * 0.75));
+      Vb = Math.max(15, Math.round(Vb * 0.65));
+      Fb = Math.round(Math.max(50, Fs * 1.55 * cfg.kFb) * 10) / 10;
+      hpf = Math.max(22, Math.round(Fs * 0.78));
+      alignDesc = `BP4 (VR=${Vr}L / VF=${Vb}L) · ${cfg.label}`;
+    } else if (boxType === 'bp6') {
+      Vr = Math.max(20, Math.round(Vb * 0.85));
+      Vb = Math.max(15, Math.round(Vb * 0.60));
+      FbVr = Math.max(22, Math.round(Fs * 0.82 * (g === 'subext' ? 0.85 : 1.0)));
+      Fb = Math.round(Math.max(FbVr * 1.6, Fs * 1.55 * cfg.kFb) * 10) / 10;
+      hpf = Math.max(20, Math.round(FbVr * 0.78));
+      alignDesc = `BP6 (${FbVr}/${Fb} Hz) · ${cfg.label}`;
+    } else {
+      Fb = Math.round(Math.max(24, fbOpt * cfg.kFb) * 10) / 10;
+      if (g === 'subext') Fb = Math.min(40, Math.max(30, Fb));
+      hpf = Math.max(20, Math.round(Fb * 0.78));
+      alignDesc = `Bass-Reflex · ${cfg.label}`;
+    }
 
-    // Dimensionamento aerodinâmico automático para v_ar <= 14.5 m/s
     const no_frac = (4.0 * Math.PI * Math.PI / Math.pow(c, 3)) * (Math.pow(Fs, 3) * (Vas / 1000.0) / Qes);
-    const targetVel = activeWizardGoal === 'sq' ? 11.0 : (activeWizardGoal === 'balanced' ? 14.0 : 16.0);
-    const spMinM2 = Math.max(0.8 * Fb * Sd * (Xmax / 1000.0), (4.540262351285604 * Math.sqrt(no_frac * Pe)) / (targetVel * Fb));
+    const spMinM2 = Math.max(0.8 * Fb * Sd * (Xmax / 1000.0), (4.540262351285604 * Math.sqrt(no_frac * Pe)) / (cfg.vel * Fb));
     const spMinCm2 = spMinM2 * 10000.0;
 
-    if (portPref === 'slot_wall') {
+    if (portPref === 'triangle') {
+      portType = 'triangle';
+      triCount = 2;
+      const side = Math.max(8, Math.ceil(Math.sqrt(spMinCm2)));
+      triA = side; triB = side;
+      const pg = computePortGeometry({ portType, triCount, triA, triB, Fb, Vb, c });
+      LvCm = pg.LvCm; fPipe1 = pg.fPipe1;
+      airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (pg.Sp * Fb);
+    } else if (portPref === 'slot_wall') {
       portType = 'slot_wall';
       slotW = Math.max(20, Math.round(Math.sqrt(spMinCm2 * 5.0)));
       slotH = Math.max(3.5, Math.round((spMinCm2 / slotW) * 2) / 2);
@@ -4214,10 +4709,9 @@ function computeWizardPlan() {
       LvCm = pg.LvCm; fPipe1 = pg.fPipe1;
       airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (pg.Sp * Fb);
     }
-    alignDesc = `Bass-Reflex ${activeWizardGoal === 'sq' ? 'Estendida (SQ)' : (activeWizardGoal === 'spl' ? 'Alto Rendimento (SPL)' : 'Equilibrada (SC4/QB3)')}`;
   }
 
-  return { boxType, Vb, Fb, hpf, portType, numDucts, ductDia, slotW, slotH, LvCm, airVel, fPipe1, EBP, Qts, nDrivers, alignDesc };
+  return { boxType, Vb, Vr, Fb, FbVr, hpf, portType, numDucts, ductDia, slotW, slotH, triCount, triA, triB, LvCm, airVel, fPipe1, EBP, Qts, nDrivers, alignDesc, warnNote };
 }
 
 function updateWizardPreview() {
@@ -4228,25 +4722,29 @@ function updateWizardPreview() {
   const sel = document.getElementById('driverPreset');
   const dName = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : 'Driver Atual';
   if (drvEl) {
-    const ebpVerdict = p.EBP < 50 ? 'Indicado para Caixa Selada' : (p.EBP <= 90 ? 'Versátil (Selada ou Dutada)' : 'Ideal para Bass-Reflex (Dutada)');
+    const ebpVerdict = p.EBP < 50 ? 'Ideal p/ Selada ou BP4' : (p.EBP <= 85 ? 'Versátil (Dutada / BP4 / Planar)' : 'Ideal p/ Dutada, BP6 ou Planar');
     drvEl.innerHTML =
       `<div><b>Transdutor:</b> ${dName} (${p.nDrivers}x)</div>` +
       `<div><b>Diagnóstico EBP:</b> <span style="color:var(--accent);font-weight:700;">${p.EBP.toFixed(1)} Hz</span> | <b>Qts:</b> ${p.Qts.toFixed(3)} ➔ <span style="color:#4ade80;">${ebpVerdict}</span></div>`;
   }
   if (prevEl) {
-    if (p.boxType === 'sealed') {
+    if (p.boxType === 'sealed' || p.boxType === 'planar') {
       prevEl.innerHTML =
         `<div><b>Alinhamento Sugerido:</b> ${p.alignDesc}</div>` +
-        `<div><b>Volume Útil (Vb):</b> <span style="color:#fff;font-weight:700;">${p.Vb.toFixed(1)} L</span> | <b>HPF Protetor:</b> ${p.hpf} Hz</div>`;
+        `<div><b>Volume Útil (Vb):</b> <span style="color:#fff;font-weight:700;">${p.Vb.toFixed(1)} L</span> | <b>HPF Protetor:</b> ${p.hpf} Hz</div>` +
+        (p.warnNote ? `<div style="color:#fde68a;margin-top:4px;">${p.warnNote}</div>` : '');
     } else {
-      const dutoTxt = p.portType === 'slot_wall'
-        ? `Duto Régua em Parede ${p.slotW}×${p.slotH} cm (Lv = ${p.LvCm.toFixed(1)} cm)`
-        : `${p.numDucts}× Cilíndrico ${p.ductDia}" (Lv = ${p.LvCm.toFixed(1)} cm)`;
+      const dutoTxt = p.portType === 'triangle'
+        ? `${p.triCount}× Triângulo ${p.triA}×${p.triB} cm (Lv = ${p.LvCm.toFixed(1)} cm)`
+        : (p.portType === 'slot_wall'
+          ? `Duto Régua em Parede ${p.slotW}×${p.slotH} cm (Lv = ${p.LvCm.toFixed(1)} cm)`
+          : `${p.numDucts}× Cilíndrico ${p.ductDia}" (Lv = ${p.LvCm.toFixed(1)} cm)`);
       prevEl.innerHTML =
         `<div><b>Alinhamento Sugerido:</b> ${p.alignDesc}</div>` +
-        `<div><b>Volume &amp; Sintonia:</b> <span style="color:#fff;font-weight:700;">Vb = ${p.Vb.toFixed(1)} L @ Fb = ${p.Fb.toFixed(1)} Hz</span> | <b>HPF:</b> ${p.hpf} Hz</div>` +
+        `<div><b>Volume &amp; Sintonia:</b> <span style="color:#fff;font-weight:700;">${(p.boxType==='bp4'||p.boxType==='bp6') ? `VR=${p.Vr}L / VF=${p.Vb}L` : `Vb=${p.Vb.toFixed(1)}L`} @ Fb=${p.Fb.toFixed(1)} Hz</span> | <b>HPF:</b> ${p.hpf} Hz</div>` +
         `<div><b>Duto Calculado:</b> ${dutoTxt}</div>` +
-        `<div><b>Aerodinâmica:</b> Vel. Ar = <b>${p.airVel.toFixed(1)} m/s</b> | Tubo de Órgão f₁ = <b>${p.fPipe1.toFixed(0)} Hz</b></div>`;
+        `<div><b>Aerodinâmica:</b> Vel. Ar = <b>${p.airVel.toFixed(1)} m/s</b> | Tubo de Órgão f₁ = <b>${p.fPipe1.toFixed(0)} Hz</b></div>` +
+        (p.warnNote ? `<div style="color:#fde68a;margin-top:4px;">${p.warnNote}</div>` : '');
     }
   }
 }
@@ -4263,12 +4761,24 @@ function applyWizardRecommendation() {
     vbR.value = p.Vb;
   }
   document.getElementById('hpfCutoff').value = p.hpf;
-  if (p.boxType === 'bass-reflex') {
+  if (p.boxType === 'bp4' || p.boxType === 'bp6') {
+    const vrEl = document.getElementById('vrInput');
+    if (vrEl) vrEl.value = p.Vr;
+    if (p.boxType === 'bp6') {
+      const fbVrEl = document.getElementById('fbVrInput');
+      if (fbVrEl) fbVrEl.value = p.FbVr;
+    }
+  }
+  if (p.boxType === 'bass-reflex' || p.boxType === 'bp4' || p.boxType === 'bp6') {
     document.getElementById('fbInput').value = p.Fb;
     const fbR = document.getElementById('fbRange');
     if (fbR) fbR.value = p.Fb;
     document.getElementById('portType').value = p.portType;
-    if (p.portType === 'slot_wall') {
+    if (p.portType === 'triangle') {
+      document.getElementById('triCount').value = p.triCount;
+      document.getElementById('triA').value = p.triA;
+      document.getElementById('triB').value = p.triB;
+    } else if (p.portType === 'slot_wall') {
       document.getElementById('slotW').value = p.slotW;
       document.getElementById('slotH').value = p.slotH;
     } else {

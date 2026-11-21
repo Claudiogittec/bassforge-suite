@@ -698,6 +698,32 @@
           </div>
         </div>
 
+        <!-- FILTROS PARAMÉTRICOS COMBINADOS + APTIDÃO DE CAIXA -->
+        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 12px; background:var(--bg0); border-bottom:1px solid var(--bdr); font-family:var(--mono); font-size:10px; color:var(--txt3);">
+          <span>FILTROS:</span>
+          <select id="flt-topo" class="field-input" style="width:142px; padding:3px 6px;" onchange="renderTable()">
+            <option value="all">Caixa: Todas</option>
+            <option value="sealed">Ideal p/ Selada</option>
+            <option value="bass-reflex">Ideal p/ Dutada</option>
+            <option value="bp4">Ideal p/ BP4</option>
+            <option value="bp6">Ideal p/ BP6</option>
+            <option value="planar">Ideal p/ Planar</option>
+          </select>
+          <select id="flt-dia" class="field-input" style="width:108px; padding:3px 6px;" onchange="renderTable()">
+            <option value="0">Diâm: Todos</option>
+            <option value="8">8″</option>
+            <option value="10">10″</option>
+            <option value="12">12″</option>
+            <option value="15">15″</option>
+            <option value="18">18″</option>
+            <option value="21">21″</option>
+          </select>
+          <input type="number" id="flt-pe-min" class="field-input" placeholder="Pe ≥ (W)" style="width:82px; padding:3px 6px;" oninput="renderTable()">
+          <input type="number" id="flt-fs-max" class="field-input" placeholder="Fs ≤ (Hz)" style="width:82px; padding:3px 6px;" oninput="renderTable()">
+          <input type="number" id="flt-qts-max" class="field-input" placeholder="Qts ≤" step="0.05" style="width:74px; padding:3px 6px;" oninput="renderTable()">
+          <button type="button" class="btn" style="padding:3px 7px; font-size:9.5px;" onclick="resetDbFilters()">✕ Limpar</button>
+        </div>
+
         <div class="table-scroll">
           <table class="db-table">
             <thead>
@@ -2838,14 +2864,47 @@
       alert(`Driver ${d.brand} ${d.model} salvo no banco oficial (localStorage)!`);
     }
 
+    function resetDbFilters() {
+      ['db-search', 'flt-pe-min', 'flt-fs-max', 'flt-qts-max'].forEach(id => { const e = document.getElementById(id); if (e) e.value = ''; });
+      const t = document.getElementById('flt-topo'); if (t) t.value = 'all';
+      const d = document.getElementById('flt-dia'); if (d) d.value = '0';
+      renderTable();
+    }
+
+    function driverMatchesTopo(d, topo) {
+      if (topo === 'all') return true;
+      const ebp = (d.fs > 0 && d.qes > 0) ? (d.fs / d.qes) : 0;
+      const qts = (d.qes > 0 && d.qms > 0) ? (d.qes * d.qms) / (d.qes + d.qms) : 0.45;
+      const big = (parseFloat(d.diameter_in) || 12) >= 8;
+      if (topo === 'sealed') return ebp < 55 || qts > 0.52;
+      if (topo === 'bass-reflex') return ebp >= 50;
+      if (topo === 'bp4') return big && ebp >= 42 && ebp <= 90;
+      if (topo === 'bp6') return big && ebp > 80 && qts <= 0.46;
+      if (topo === 'planar') return big && ebp >= 65;
+      return true;
+    }
+
     function renderTable() {
       const tbody = document.getElementById('db-table-body');
       const search = (document.getElementById('db-search')?.value || '').toLowerCase();
+      const fltTopo = document.getElementById('flt-topo')?.value || 'all';
+      const fltDia = parseFloat(document.getElementById('flt-dia')?.value) || 0;
+      const fltPeMin = parseFloat(document.getElementById('flt-pe-min')?.value) || 0;
+      const fltFsMax = parseFloat(document.getElementById('flt-fs-max')?.value) || 0;
+      const fltQtsMax = parseFloat(document.getElementById('flt-qts-max')?.value) || 0;
       if (!tbody) return;
 
-      const filtered = DRIVER_CATALOG.filter(d => 
-        (d.brand + ' ' + d.model + ' ' + (d.series || '')).toLowerCase().includes(search)
-      );
+      const filtered = DRIVER_CATALOG.filter(d => {
+        if (search && !(d.brand + ' ' + d.model + ' ' + (d.series || '')).toLowerCase().includes(search)) return false;
+        if (fltDia > 0 && Math.abs((parseFloat(d.diameter_in) || 0) - fltDia) > 0.6) return false;
+        if (fltPeMin > 0 && (parseFloat(d.pe) || 0) < fltPeMin) return false;
+        if (fltFsMax > 0 && (parseFloat(d.fs) || 0) > fltFsMax) return false;
+        if (fltQtsMax > 0) {
+          const qts = (d.qes > 0 && d.qms > 0) ? (d.qes * d.qms) / (d.qes + d.qms) : 99;
+          if (qts > fltQtsMax) return false;
+        }
+        return driverMatchesTopo(d, fltTopo);
+      });
 
       document.getElementById('db-total-count').textContent = filtered.length;
 
