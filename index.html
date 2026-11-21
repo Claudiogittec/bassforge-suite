@@ -49,8 +49,8 @@
   header {
     background: linear-gradient(180deg, #0d1524 0%, var(--bg-surface) 100%);
     border-bottom: 1px solid var(--border);
-    height: 52px;
-    padding: 0 18px;
+    height: 44px;
+    padding: 0 14px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -116,7 +116,7 @@
     padding: 12px 14px;
     overflow-y: auto;
     flex-shrink: 0;
-    max-height: calc(100vh - 144px);
+    max-height: calc(100vh - 134px);
     transition: width 0.18s ease, padding 0.18s ease, opacity 0.15s ease;
   }
   .sidebar.collapsed {
@@ -453,7 +453,7 @@
     display: flex;
     flex-direction: column;
     gap: 12px;
-    max-height: calc(100vh - 144px);
+    max-height: calc(100vh - 134px);
   }
 
   
@@ -727,8 +727,8 @@
       <a href="./index.html" class="suite-pill active">📊 Simulador 4ª Ordem</a>
     </nav>
   </div>
-  <div style="display:flex; align-items:center; gap:10px;">
-    <span class="badge-tag">PRO X · MOTOR 4ª ORDEM</span>
+  <div style="display:flex; align-items:center; gap:8px;">
+    <button type="button" class="tb-btn active" id="tbToggleSidebar" onclick="toggleQuickSidebar()" title="Mostrar / Ocultar Painel Rápido (F9)">◧ Painel</button>
   </div>
 </header>
 
@@ -795,24 +795,17 @@
   </div>
 </div>
 
-<!-- BARRA DE FERRAMENTAS RÁPIDA (DESKTOP TOOLBAR) -->
+<!-- BARRA DE FERRAMENTAS RÁPIDA (ESSENCIAIS) -->
 <div class="desktop-toolbar" role="toolbar" aria-label="Barra de ferramentas rápida">
-  <button type="button" class="tb-btn" onclick="resetCurrentProject()" title="Novo Projeto (Ctrl+N)">📄 Novo</button>
   <button type="button" class="tb-btn" onclick="document.getElementById('projJsonInput').click()" title="Abrir Projeto .json (Ctrl+O)">📂 Abrir</button>
   <button type="button" class="tb-btn" onclick="exportProjectJson()" title="Salvar Projeto .json (Ctrl+S)">💾 Salvar</button>
   <span class="tb-sep"></span>
   <button type="button" class="tb-btn accent-wiz" onclick="openWizardModal()" title="Assistente Guiado de Projeto (F6)">🧭 Assistente</button>
   <span class="tb-sep"></span>
-  <button type="button" class="tb-btn" onclick="window.open('./drivers-db.html', '_blank')" title="Abrir Banco Oficial de Drivers">🗄️ Banco DB</button>
-  <button type="button" class="tb-btn" onclick="openConfigModal('modalDriver')" title="Propriedades do Driver e T/S (F2)">🔊 Driver (F2)</button>
-  <button type="button" class="tb-btn" onclick="openConfigModal('modalBox')" title="Propriedades da Caixa e Dutos (F3)">📦 Caixa &amp; Duto (F3)</button>
-  <button type="button" class="tb-btn" onclick="openConfigModal('modalEnv')" title="Ambiente, Cabine, DSP e Térmica (F4)">🚗 Ambiente/DSP (F4)</button>
-  <button type="button" class="tb-btn" onclick="openConfigModal('modalGraphPrefs')" title="Preferências dos Gráficos (F5)">⚙️ Gráficos (F5)</button>
+  <button type="button" class="tb-btn" onclick="openConfigModal('modalDriver')" title="Propriedades do Driver e T/S (F2)">🔊 Driver</button>
+  <button type="button" class="tb-btn" onclick="openConfigModal('modalBox')" title="Propriedades da Caixa e Dutos (F3)">📦 Caixa &amp; Duto</button>
   <span class="tb-sep"></span>
   <button type="button" class="tb-btn" id="tbFreezeA" onclick="captureSnapshotA()" title="Congelar Curva A para comparação A/B (F8)">📌 Curva A</button>
-  <button type="button" class="tb-btn" onclick="exportExpandedPNG()" title="Exportar Gráfico PNG 1280×720">📷 PNG</button>
-  <span class="tb-sep"></span>
-  <button type="button" class="tb-btn active" id="tbToggleSidebar" onclick="toggleQuickSidebar()" title="Mostrar / Ocultar Painel Rápido (F9)">◧ Painel (F9)</button>
 </div>
 
 <div class="app-container">
@@ -898,22 +891,9 @@
       </div>
     </div>
 
-    <div class="section-title">🪟 Janelas de Configuração</div>
-    <button type="button" class="sidebar-shortcut-btn" onclick="openWizardModal()" style="border-color:rgba(16,185,129,0.4); color:#6ee7b7;">
-      <span>🧭 Assistente de Projeto (Wizard)</span><kbd>F6</kbd>
-    </button>
-    <button type="button" class="sidebar-shortcut-btn" onclick="openConfigModal('modalDriver')">
-      <span>🔊 Propriedades do Driver (T/S)</span><kbd>F2</kbd>
-    </button>
-    <button type="button" class="sidebar-shortcut-btn" onclick="openConfigModal('modalBox')">
-      <span>📦 Caixa, Perdas QL &amp; Dutos</span><kbd>F3</kbd>
-    </button>
-    <button type="button" class="sidebar-shortcut-btn" onclick="openConfigModal('modalEnv')">
-      <span>🚗 Cabine, HPF &amp; Térmica (ΔT)</span><kbd>F4</kbd>
-    </button>
-    <button type="button" class="sidebar-shortcut-btn" onclick="openConfigModal('modalGraphPrefs')">
-      <span>⚙️ Preferências dos Gráficos</span><kbd>F5</kbd>
-    </button>
+    <div style="margin-top:12px; padding-top:10px; border-top:1px solid var(--border); font-family:var(--mono); font-size:10px; color:var(--text-dim); line-height:1.6;">
+      Mais opções em <b style="color:var(--text-muted);">Projeto</b> (F2–F6) ou clique com o botão direito nos gráficos.
+    </div>
   </aside>
 
   <!-- PAINEL PRINCIPAL DE RESULTADOS -->
@@ -963,34 +943,24 @@
     </div>
 
     <!-- TABS BAR -->
-    <div class="tabs-bar" style="flex-wrap:wrap;">
-      <button type="button" class="tab-btn active" onclick="switchTab('grid')">📊 Grade dos 13 Gráficos Eletroacústicos</button>
-      <button type="button" class="tab-btn" onclick="switchTab('expanded')">🔍 Gráfico Expandido com Cursor</button>
-      <button type="button" class="tab-btn" onclick="switchTab('woodlock')">🪵 Marcenaria CAD & Plano de Corte (WoodLock)</button>
-      <button type="button" class="tab-btn" onclick="switchTab('electrical')">⚡ Elétrica, Cabos, Ganho & DSP</button>
-      <button type="button" class="tab-btn" onclick="switchTab('audit')">📋 Tabela de Auditoria com Golden Master</button>
-    </div>
-
-    <!-- TOOLBAR GLOBAL DOS GRÁFICOS (EIXOS X/Y, MARCADORES & COMPARADOR A/B) -->
-    <div id="chartToolbar" class="chart-toolbar">
-      <div class="chart-toolbar-group">
-        <span class="chart-toolbar-label">Eixo X (Banda):</span>
-        <button type="button" class="chart-pill-btn" data-freq-btn="15-200" onclick="setFreqRange(15, 200, this)">15–200 Hz</button>
-        <button type="button" class="chart-pill-btn" data-freq-btn="15-500" onclick="setFreqRange(15, 500, this)">15–500 Hz</button>
-        <button type="button" class="chart-pill-btn active" data-freq-btn="10-1000" onclick="setFreqRange(10, 1000, this)">10–1k Hz</button>
-        <button type="button" class="chart-pill-btn" data-freq-btn="10-2000" onclick="setFreqRange(10, 2000, this)">10–2k Hz</button>
+    <div class="tabs-bar" style="flex-wrap:wrap; align-items:center; justify-content:space-between;">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button type="button" class="tab-btn active" onclick="switchTab('grid')">📊 Grade (13)</button>
+        <button type="button" class="tab-btn" onclick="switchTab('expanded')">🔍 Expandido</button>
+        <button type="button" class="tab-btn" onclick="switchTab('woodlock')">🪵 Marcenaria CAD</button>
+        <button type="button" class="tab-btn" onclick="switchTab('electrical')">⚡ Elétrica &amp; DSP</button>
+        <button type="button" class="tab-btn" onclick="switchTab('audit')">📋 Auditoria</button>
       </div>
-      <div class="chart-toolbar-group">
-        <span class="chart-toolbar-label">Eixo Y &amp; Diagnóstico:</span>
-        <button type="button" id="btnAutoScaleY" class="chart-pill-btn active" onclick="toggleChartOpt('autoScaleY')">📐 Auto-Scale Y</button>
-        <button type="button" id="btnShowMarkers" class="chart-pill-btn active" onclick="toggleChartOpt('showMarkers')">📍 Fb / F3 / Fs / HPF</button>
-        <button type="button" id="btnShowLimits" class="chart-pill-btn active" onclick="toggleChartOpt('showLimits')">⚠️ Limites (Xmax / Mach / 20ms)</button>
-      </div>
-      <div class="chart-toolbar-group">
-        <span class="chart-toolbar-label">Comparador A/B:</span>
-        <button type="button" id="btnFreezeA" class="chart-pill-btn" onclick="captureSnapshotA()" title="Congela a simulação atual como Curva A (tracejada âmbar) para comparar com novos ajustes">📌 Congelar Curva A</button>
-        <button type="button" id="btnClearA" class="chart-pill-btn" style="display:none; border-color:rgba(245,158,11,0.5); color:#fbbf24;" onclick="clearSnapshotA()">❌ Limpar A</button>
-        <span id="snapshotABadge" style="display:none; font-family:var(--mono); font-size:10px; color:#fbbf24; font-weight:700;"></span>
+      <!-- CONTROLE COMPACTO DOS GRÁFICOS NA MESMA LINHA -->
+      <div id="chartToolbar" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        <span class="chart-toolbar-label">Banda:</span>
+        <button type="button" class="chart-pill-btn" data-freq-btn="15-200" onclick="setFreqRange(15, 200, this)">15–200</button>
+        <button type="button" class="chart-pill-btn" data-freq-btn="15-500" onclick="setFreqRange(15, 500, this)">15–500</button>
+        <button type="button" class="chart-pill-btn active" data-freq-btn="10-1000" onclick="setFreqRange(10, 1000, this)">10–1k</button>
+        <button type="button" class="chart-pill-btn" data-freq-btn="10-2000" onclick="setFreqRange(10, 2000, this)">10–2k</button>
+        <span id="snapshotABadge" style="display:none; font-family:var(--mono); font-size:10px; color:#fbbf24; font-weight:700; margin-left:4px;"></span>
+        <button type="button" id="btnClearA" class="chart-pill-btn" style="display:none; border-color:rgba(245,158,11,0.5); color:#fbbf24;" onclick="clearSnapshotA()">✕ Limpar A</button>
+        <button type="button" class="chart-pill-btn" onclick="openConfigModal('modalGraphPrefs')" title="Preferências dos Gráficos (F5)">⚙️</button>
       </div>
     </div>
 
@@ -1444,17 +1414,17 @@
       <div class="form-group">
         <label>Camadas de Diagnóstico (Eixo Y &amp; Engenharia)</label>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
-          <button type="button" class="tb-btn" onclick="toggleChartOpt('autoScaleY')">📐 Alternar Auto-Scale Y</button>
-          <button type="button" class="tb-btn" onclick="toggleChartOpt('showMarkers')">📍 Alternar Marcadores</button>
-          <button type="button" class="tb-btn" onclick="toggleChartOpt('showLimits')">⚠️ Alternar Limites</button>
+          <button type="button" id="btnAutoScaleY" class="chart-pill-btn active" onclick="toggleChartOpt('autoScaleY')">📐 Auto-Scale Y</button>
+          <button type="button" id="btnShowMarkers" class="chart-pill-btn active" onclick="toggleChartOpt('showMarkers')">📍 Marcadores (Fb/F3/Fs/HPF)</button>
+          <button type="button" id="btnShowLimits" class="chart-pill-btn active" onclick="toggleChartOpt('showLimits')">⚠️ Limites (Xmax/Mach/20ms)</button>
         </div>
       </div>
       <div class="form-group">
         <label>Comparador A/B &amp; Exportação</label>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
-          <button type="button" class="tb-btn" onclick="captureSnapshotA()">📌 Congelar Curva A (F8)</button>
-          <button type="button" class="tb-btn" onclick="clearSnapshotA()">❌ Limpar Curva A</button>
-          <button type="button" class="tb-btn" onclick="exportExpandedPNG()">📷 Exportar PNG (1280×720)</button>
+          <button type="button" id="btnFreezeA" class="chart-pill-btn" onclick="captureSnapshotA()">📌 Congelar Curva A (F8)</button>
+          <button type="button" class="chart-pill-btn" onclick="clearSnapshotA()">❌ Limpar Curva A</button>
+          <button type="button" class="chart-pill-btn" onclick="exportExpandedPNG()">📷 Exportar PNG (1280×720)</button>
         </div>
       </div>
     </div>
