@@ -885,8 +885,8 @@ runSuite('19. Expansão CAD 3D P1 (Trapézio, BP6 Série, Duto Triângulo & Rég
   const svPack = vm.runInContext('lastBuildPack', ctx);
   const svFront = svPack.geometry.parts.find(p => p.id === 'P_FRONT_BAFFLE');
   const svPort = svPack.geometry.parts.find(p => p.kind === 'port');
-  approx(svFront.origin[0], svPack.dimensions.t, 0.2, 'Baffle régua vertical deve encostar na lateral esquerda x = t');
-  approx(svFront.origin[0] + svFront.size[0], svPort.origin[0], 0.2, 'Divisória régua vertical deve encostar na borda direita do baffle');
+  approx(svFront.origin[0] + svFront.size[0], svPack.geometry.envelope.F - svPack.dimensions.t, 0.2, 'Baffle régua vertical deve encostar na lateral direita x = F - t');
+  approx(svPort.origin[0] + svPort.size[0], svFront.origin[0], 0.2, 'Divisória régua vertical à esquerda deve encostar na borda esquerda do baffle');
   elements.get('wlSlotOrient').value = 'horizontal';
 
   // 19.3 Duto Triângulo Bass-Reflex

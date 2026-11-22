@@ -368,14 +368,40 @@ def run_live_build():
                     register(sname, "divider", cap, p, DIV_COL)
                 continue
 
+            if pid == "P_TOP":
+                top_panels = [("P_TOP_L", float(p["topSplit"]["xLeft"])), ("P_TOP_R", float(p["topSplit"]["xRight"]))] if p.get("topSplit") else [(pid, ox)]
+                for tname, tx0 in top_panels:
+                    tsh = make_box(tx0, oy, oz, dx, dy, dz)
+                    if tsh:
+                        for c in cutouts:
+                            if c.get("partId") == "P_TOP" and c.get("shape") == "round" and c.get("dia"):
+                                cx = t + float(c["xInt"])
+                                cz = (z_rear_top if is_trap else t) + float(c["yInt"])
+                                if tx0 - 1.0 <= cx <= tx0 + dx + 1.0:
+                                    tsh = tsh.cut(Part.makeCylinder(float(c["dia"]) / 2.0, dy + 4.0, pgs_vec(cx, oy - 2.0, cz), FreeCAD.Vector(0.0, 0.0, 1.0)))
+                        register(tname, "mdf", tsh, p, MDF_MAIN, transp=55)
+                continue
+
+            if pid == "P_PLANAR_DIV" and p.get("splitByCenterDiv"):
+                sp = p["splitByCenterDiv"]
+                register("P_PLANAR_DIV_L", "divider", make_box(float(sp["xLeft"]), oy, oz, dx, dy, dz), p, DIV_COL)
+                register("P_PLANAR_DIV_R", "divider", make_box(float(sp["xRight"]), oy, oz, dx, dy, dz), p, DIV_COL)
+                continue
+
             if pid == "P_PLANAR_CHAMFER":
                 pg = ac.get("planarGeom") or {}
                 zl = float(pg.get("Z_leg") or 0.0)
                 z_len = max(10.0, float(D_ext - oz))
-                walls = make_planar_chamfer_walls(t, t, oz, A, B, z_len, zl, t)
-                for cname, cshape in walls:
-                    register(cname, "divider", cshape, p, DIV_COL)
-                    ui_pause(0.25)
+                if p.get("dualPlanarTri"):
+                    sub_a = (A - t) / 2.0
+                    zl_sub = min(zl, sub_a * 0.28)
+                    for s_idx, sx0 in enumerate([t, t + sub_a + t]):
+                        for cname, cshape in make_planar_chamfer_walls(sx0, t, oz, sub_a, B, z_len, zl_sub, t):
+                            register(f"{cname}_{s_idx + 1}", "divider", cshape, p, DIV_COL)
+                else:
+                    for cname, cshape in make_planar_chamfer_walls(t, t, oz, A, B, z_len, zl, t):
+                        register(cname, "divider", cshape, p, DIV_COL)
+                        ui_pause(0.25)
                 if view:
                     view.fitAll()
                 continue
@@ -460,10 +486,25 @@ def run_live_build():
 
             if kind == "port" and p.get("sharedCenterSlot"):
                 sc = p["sharedCenterSlot"]
-                register("P_PORT_CENTER_L", "port", make_box(float(sc["xLeft"]), oy, oz, dx, dy, dz), p, PORT_COL)
-                register("P_PORT_CENTER_R", "port", make_box(float(sc["xRight"]), oy, oz, dx, dy, dz), p, PORT_COL)
+                register(f"{pid}_L", "port", make_box(float(sc["xLeft"]), oy, oz, dx, dy, dz), p, PORT_COL)
+                register(f"{pid}_R", "port", make_box(float(sc["xRight"]), oy, oz, dx, dy, dz), p, PORT_COL)
                 if view:
                     view.fitAll()
+                continue
+
+            if kind == "port" and p.get("bpTopRound"):
+                r_out = dx / 2.0
+                wall = max(1.5, float(p.get("thickness", 1.5)))
+                is_rear = (pid == "P_PORT_REAR")
+                top_holes = [c for c in cutouts if c.get("kind") == "port" and c.get("shape") == "round" and c.get("partId") == "P_TOP" and (("Traseir" in c.get("label", "")) == is_rear)]
+                if not top_holes and not is_rear:
+                    top_holes = [c for c in cutouts if c.get("kind") == "port" and c.get("shape") == "round" and c.get("partId") == "P_TOP"]
+                for idx, ch in enumerate(top_holes):
+                    cx = t + float(ch["xInt"])
+                    cz = (z_rear_top if is_trap else t) + float(ch["yInt"])
+                    lv = min(B - 20.0, float(ch.get("lvMm") or dy))
+                    y_start = max(t, E - t - lv)
+                    register(f"{pid}_{idx + 1}", "port", make_tube(cx, y_start, cz, r_out, r_out - wall, lv, FreeCAD.Vector(0.0, 0.0, 1.0)), p, PORT_COL)
                 continue
 
             if kind == "port" and p.get("splitByCenterDiv"):
