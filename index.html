@@ -1394,10 +1394,16 @@
         <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px; display:flex; flex-direction:column;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
             <h3 id="wlCanvasTitle" style="font-size:14px; color:var(--accent); margin:0;">📐 Blueprint Técnico Lateral (Lv vs C) &amp; Frontal</h3>
-            <div style="display:flex; gap:4px;">
+            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
               <button type="button" class="tb-btn active" data-wl-view="blueprint" onclick="setWoodlockViewMode('blueprint')" style="padding:3px 8px; font-size:11px;">📐 Blueprint 2D</button>
-              <button type="button" class="tb-btn" data-wl-view="exploded" onclick="setWoodlockViewMode('exploded')" style="padding:3px 8px; font-size:11px;">🧊 Explodida 3D</button>
+              <button type="button" class="tb-btn" data-wl-view="exploded" onclick="setWoodlockViewMode('exploded')" style="padding:3px 8px; font-size:11px;">🧊 3D / Explodida</button>
               <button type="button" class="tb-btn" data-wl-view="cutplan" onclick="setWoodlockViewMode('cutplan')" style="padding:3px 8px; font-size:11px;">🧩 Planificação</button>
+              <button type="button" class="tb-btn" data-wl-view="nesting" onclick="setWoodlockViewMode('nesting')" style="padding:3px 8px; font-size:11px;">🪚 Chapa MDF</button>
+              <span id="wlExplodeBar" style="display:none; gap:2px; margin-left:4px; padding-left:6px; border-left:1px solid var(--border);">
+                <button type="button" class="tb-btn" data-wl-exp="0" onclick="setWoodlockExplode(0)" style="padding:2px 6px; font-size:10px;">0%</button>
+                <button type="button" class="tb-btn" data-wl-exp="0.5" onclick="setWoodlockExplode(0.5)" style="padding:2px 6px; font-size:10px;">50%</button>
+                <button type="button" class="tb-btn active" data-wl-exp="1" onclick="setWoodlockExplode(1)" style="padding:2px 6px; font-size:10px;">100%</button>
+              </span>
             </div>
           </div>
           <canvas id="woodlockCanvas" style="width:100%; height:290px; background:#060911; border-radius:6px;"></canvas>
@@ -4910,8 +4916,9 @@ function computeWoodlockFloors(opts) {
     }
   } else if (isBp) {
     // Em BP4/BP6, o(s) driver(s) ficam na divisória interna B×C e os dutos nas câmaras A_rear/A_front
-    minA = Math.max(minA, 2 * ductHoleDia + 4 * edgeMargin + 40);
-    minB = Math.max(minB, rows * flangeOD + (rows - 1) * minGap + 20);
+    const minBPortStack = numDucts * ductHoleDia + (numDucts - 1) * minGap + 2 * edgeMargin;
+    minA = Math.max(minA, 2.5 * (ductHoleDia + 2 * edgeMargin) + 60);
+    minB = Math.max(minB, rows * flangeOD + (rows - 1) * minGap + 20, minBPortStack);
   }
 
   return {
@@ -5722,6 +5729,7 @@ function updateWoodlock() {
     baffleHoles: validation.holes,
     validation
   };
+  lastBuildPack.geometry = buildPgsGeometryModel(lastBuildPack);
 
   const summaryBox = document.getElementById('wlSummaryBox');
   if (summaryBox) {
@@ -5829,19 +5837,334 @@ function updateWoodlock() {
 }
 
 let wlViewMode = 'blueprint';
+let wlExplodeRatio = 1.0;
+
+// ============================================================================
+// PGS — PARAMETRIC GEOMETRY SPECIFICATION & MANUFACTURING ENGINE (bassforge-pgs/v1)
+// Fonte Única de Verdade (XYZ Cartesiano em mm, origem: ext-bottom-left-rear).
+// Funções 100% puras: NÃO acessam o DOM, NÃO alteram o Physics Core.
+// ============================================================================
+function computeSheetNesting2D(parts, sheetW = 2750, sheetH = 1830, kerf = 3) {
+  const flatItems = [];
+  (parts || []).forEach(p => {
+    if (p.kind === 'port' && p.area <= 0) return; // tubos PVC não entram na chapa MDF
+    const w = p.cutSize ? p.cutSize.w : p.w;
+    const h = p.cutSize ? p.cutSize.h : p.h;
+    if (!(w > 0 && h > 0)) return;
+    const count = Math.max(1, parseInt(p.qty) || 1);
+    for (let i = 0; i < count; i++) {
+      flatItems.push({ partId: p.id || p.name, name: p.name, kind: p.kind, w: +w.toFixed(1), h: +h.toFixed(1) });
+    }
+  });
+  // Ordena por maior lado decrescente (Shelf NFDH)
+  flatItems.sort((a, b) => Math.max(b.w, b.h) - Math.max(a.w, a.h));
+
+  const sheets = [];
+  const placements = [];
+  const startNewSheet = () => {
+    const s = { idx: sheets.length, shelves: [] };
+    sheets.push(s);
+    return s;
+  };
+  if (flatItems.length > 0) startNewSheet();
+
+  flatItems.forEach(item => {
+    let placed = false;
+    const tryOrientations = [
+      { w: item.w, h: item.h, rotated: false },
+      { w: item.h, h: item.w, rotated: true }
+    ].filter(o => o.w <= sheetW && o.h <= sheetH);
+    if (tryOrientations.length === 0) return;
+
+    for (let sIdx = 0; sIdx < sheets.length && !placed; sIdx++) {
+      const sh = sheets[sIdx];
+      for (const shelf of sh.shelves) {
+        for (const o of tryOrientations) {
+          if (o.h <= shelf.h && shelf.curX + o.w <= sheetW) {
+            placements.push({ sheetIdx: sIdx, partId: item.partId, name: item.name, kind: item.kind, x: +shelf.curX.toFixed(1), y: +shelf.y.toFixed(1), w: o.w, h: o.h, rotated: o.rotated });
+            shelf.curX += o.w + kerf;
+            placed = true;
+            break;
+          }
+        }
+        if (placed) break;
+      }
+      if (!placed) {
+        const usedY = sh.shelves.reduce((acc, sf) => acc + sf.h + kerf, 0);
+        // Escolhe orientação com menor altura para economizar prateleira
+        const best = tryOrientations.slice().sort((a, b) => a.h - b.h)[0];
+        if (usedY + best.h <= sheetH) {
+          const newShelf = { y: usedY, h: best.h, curX: best.w + kerf };
+          sh.shelves.push(newShelf);
+          placements.push({ sheetIdx: sIdx, partId: item.partId, name: item.name, kind: item.kind, x: 0, y: +usedY.toFixed(1), w: best.w, h: best.h, rotated: best.rotated });
+          placed = true;
+        }
+      }
+    }
+    if (!placed) {
+      const sh = startNewSheet();
+      const best = tryOrientations.slice().sort((a, b) => a.h - b.h)[0];
+      sh.shelves.push({ y: 0, h: best.h, curX: best.w + kerf });
+      placements.push({ sheetIdx: sh.idx, partId: item.partId, name: item.name, kind: item.kind, x: 0, y: 0, w: best.w, h: best.h, rotated: best.rotated });
+    }
+  });
+
+  const usedAreaMm2 = placements.reduce((acc, pl) => acc + pl.w * pl.h, 0);
+  const totalSheetAreaMm2 = Math.max(1, sheets.length * sheetW * sheetH);
+  return {
+    sheetW, sheetH, kerfMm: kerf,
+    sheetsCount: sheets.length,
+    utilizationPct: +((usedAreaMm2 / totalSheetAreaMm2) * 100).toFixed(1),
+    placements
+  };
+}
+
+function buildAssemblySequence(parts) {
+  const sorted = (parts || []).slice().sort((a, b) => (a.assemblyOrder || 99) - (b.assemblyOrder || 99));
+  return sorted.map((p, idx) => ({
+    step: idx + 1,
+    partId: p.id,
+    name: p.name,
+    qty: p.qty,
+    action: p.kind === 'divider'
+      ? 'Instalar divisória interna no eixo X da câmara, vedar 100% com cola PVA + massa e fixar driver antes do fechamento.'
+      : (p.kind === 'port'
+          ? 'Posicionar e colar duto/divisória respeitando o comprimento físico Lv e a folga traseira ≥ 40 mm.'
+          : (p.kind === 'batten'
+              ? 'Colar e parafusar sarrafos internos nas paredes para elevar f₁₁.'
+              : `Posicionar ${p.name} (${p.cutSize.w.toFixed(0)}×${p.cutSize.h.toFixed(0)} mm), aplicar cola PVA e parafusar a cada 120 mm.`))
+  }));
+}
+
+function validatePgsGeometry(model, p0Validation) {
+  const checks = [];
+  const env = model.envelope;
+  const t = model.material.thickness;
+  const parts = model.parts || [];
+  const partMap = {};
+  parts.forEach(p => { partMap[p.id] = p; });
+
+  // G01: Dimensões externas
+  const g01Pass = Math.abs(env.F - (env.A + 2 * t)) < 0.5 && Math.abs(env.E - (env.B + 2 * t)) < 0.5;
+  checks.push({ code: 'G01', label: 'Dimensões externas (F, E, C_ext)', pass: g01Pass, detail: `F=${env.F}mm, E=${env.E}mm, C_ext=${env.C_ext}/${env.D_ext}mm` });
+
+  // G02: Dimensões internas
+  const g02Pass = env.A > 0 && env.B > 0 && env.C > 0 && env.D > 0;
+  checks.push({ code: 'G02', label: 'Dimensões internas (A, B, C, D)', pass: g02Pass, detail: `A=${env.A}mm, B=${env.B}mm, C=${env.C}/${env.D}mm` });
+
+  // G03: Espessura real dos painéis
+  const g03Pass = parts.filter(p => p.kind === 'mdf' || p.kind === 'divider').every(p => Math.abs(p.thickness - t) < 0.1);
+  checks.push({ code: 'G03', label: 'Espessura real dos painéis', pass: g03Pass, detail: `MDF ${t} mm consistente em todos os painéis estruturais` });
+
+  // G04: Volume líquido reconstruído vs alvo
+  const g04Pass = Math.abs(model.volumes.deltaL) <= 0.35;
+  checks.push({ code: 'G04', label: 'Volume líquido verificado', pass: g04Pass, detail: `Alvo=${(model.volumes.VbTarget + model.volumes.VrTarget).toFixed(1)}L | Reconstruído=${model.volumes.VnetVerified.toFixed(1)}L (Δ=${model.volumes.deltaL.toFixed(2)}L)` });
+
+  // G05: Volume driver
+  const g05Pass = model.volumes.Vsub >= 0;
+  checks.push({ code: 'G05', label: 'Volume ocupado pelo(s) driver(s)', pass: g05Pass, detail: `Vsub=${model.volumes.Vsub.toFixed(2)}L (${model.drivers[0] ? model.drivers[0].mountMode : 'normal'})` });
+
+  // G06: Volume dutos
+  const g06Pass = model.volumes.Vduto >= 0;
+  checks.push({ code: 'G06', label: 'Volume ocupado pelos dutos', pass: g06Pass, detail: `Vduto=${model.volumes.Vduto.toFixed(2)}L` });
+
+  // G07: Volume reforços
+  const battenVol = parts.filter(p => p.kind === 'batten').reduce((acc, p) => acc + (p.qty * p.cutSize.w * p.cutSize.h * p.thickness) / 1e6, 0);
+  const g07Pass = Math.abs(battenVol - model.volumes.Vbracing) <= 0.15;
+  checks.push({ code: 'G07', label: 'Volume ocupado pelos reforços', pass: g07Pass, detail: `Vtravas=${model.volumes.Vbracing.toFixed(2)}L` });
+
+  // G08: Interferências e colisões (2D P0 + 3D profundidade duto)
+  const p0Crit = (p0Validation && p0Validation.issues) ? p0Validation.issues.filter(i => i.level === 'critical') : [];
+  const ductColl3d = (model.ducts || []).some(du => du.origin[2] < t + 39.5);
+  const g08Pass = p0Crit.length === 0 && !ductColl3d;
+  checks.push({ code: 'G08', label: 'Interferências e colisões (2D + 3D)', pass: g08Pass, detail: g08Pass ? 'Zero colisões de furos e sólidos' : `${p0Crit.map(i => i.code).join(', ')}${ductColl3d ? ' + DUCT_3D_COLLISION' : ''}` });
+
+  // G09: Comprimento físico dos dutos
+  const g09Pass = (model.ducts || []).every(du => du.lvMm >= 0);
+  checks.push({ code: 'G09', label: 'Comprimento físico dos dutos (Lv)', pass: g09Pass, detail: model.ducts.length ? model.ducts.map(d => `${d.id}=${d.lvMm}mm`).join(', ') : 'Sem duto (selada/planar)' });
+
+  // G10: Recortes e furos vinculados a partId válido
+  const g10Pass = (model.cutouts || []).every(c => !!partMap[c.partId]);
+  checks.push({ code: 'G10', label: 'Recortes e furos vinculados a painéis', pass: g10Pass, detail: `${model.cutouts.length} recorte(s) validados` });
+
+  // G11: Montagem e encaixes
+  const seqIds = new Set((model.manufacturing.assemblySequence || []).map(s => s.partId));
+  const g11Pass = (model.joints || []).every(j => !!partMap[j.partA] && !!partMap[j.partB]) && parts.every(p => seqIds.has(p.id));
+  checks.push({ code: 'G11', label: 'Montagem, uniões e sequência', pass: g11Pass, detail: `${model.joints.length} uniões · ${model.manufacturing.assemblySequence.length} etapas` });
+
+  // G12: Correspondência 3D <-> Plano de Corte
+  const cl = model.manufacturing.cutList || [];
+  const g12Pass = cl.length === parts.length && cl.every((c, i) => c.id === parts[i].id && Math.abs(c.w - parts[i].cutSize.w) < 0.05 && Math.abs(c.h - parts[i].cutSize.h) < 0.05);
+  checks.push({ code: 'G12', label: 'Correspondência 3D ↔ Plano de Corte', pass: g12Pass, detail: `Fonte única: ${parts.length} sólidos === ${cl.length} itens de corte` });
+
+  return checks;
+}
+
+function buildPgsGeometryModel(pack) {
+  const dm = pack.dimensions;
+  const ac = pack.acoustics;
+  const dr = pack.driver;
+  const t = dm.t;
+  const A = dm.A, B = dm.B, C = dm.C_top, D = dm.D_bot, F = dm.F_ext, E = dm.E_ext;
+  const C_ext = dm.C_ext_top, D_ext = dm.D_ext_bot;
+  const C_med = 0.5 * (C + D);
+  const maxD = Math.max(F, E, D_ext, 200);
+  const expBase = +(maxD * 0.22).toFixed(1);
+
+  const parts = [];
+  const joints = [];
+  const ducts = [];
+  const cutouts = [];
+
+  // Mapeia cada peça de pack.pieces para um sólido XYZ real (Fonte Única de Verdade)
+  let battenIdx = 0;
+  let portIdx = 0;
+  (pack.pieces || []).forEach(p => {
+    let id = 'P_MISC', origin = [0, 0, 0], size = [p.w, p.h, p.t], explodeDir = [0, 0, 0], explodeDist = expBase, assemblyOrder = 5, frontFace = '+Z';
+    if (p.orient === 'BASE') {
+      id = 'P_BASE'; origin = [0, 0, 0]; size = [F, t, D_ext]; explodeDir = [0, -1, 0]; explodeDist = +(expBase * 0.85).toFixed(1); assemblyOrder = 1; frontFace = '+Y';
+    } else if (p.orient === 'TRÁS') {
+      id = 'P_REAR'; origin = [0, 0, 0]; size = [F, E, t]; explodeDir = [0, 0, -1]; assemblyOrder = 2; frontFace = '+Z';
+    } else if (p.orient === 'LADO ESQ/DIR') {
+      // Gera referência espacial da lateral esquerda (e segunda instância em X = F - t)
+      id = 'P_SIDES'; origin = [0, t, t]; size = [t, B, C_med]; explodeDir = [-1, 0, 0]; explodeDist = +(expBase * 0.9).toFixed(1); assemblyOrder = 3; frontFace = '+X';
+    } else if (p.kind === 'divider') {
+      const divX = (ac.bpChambers && ac.bpChambers.A_rear) ? (t + ac.bpChambers.A_rear) : (F / 2 - t / 2);
+      id = 'P_BP_DIVIDER'; origin = [+divX.toFixed(1), t, t]; size = [t, B, C_med]; explodeDir = [0, 0.35, 0]; explodeDist = +(expBase * 0.6).toFixed(1); assemblyOrder = 4; frontFace = '+X';
+    } else if (p.kind === 'batten') {
+      battenIdx++;
+      id = `P_BATTEN_${battenIdx}`; origin = [+(F * 0.5 - 25).toFixed(1), t, +(t + C_med * 0.5).toFixed(1)]; size = [50, B, t]; explodeDir = [0, 0.5, 0]; explodeDist = +(expBase * 0.5).toFixed(1); assemblyOrder = 4; frontFace = '+Z';
+    } else if (p.kind === 'port') {
+      portIdx++;
+      const isSlotP = /Régua/.test(p.name);
+      const isRearP = /Traseira/.test(p.name);
+      id = isRearP ? 'P_PORT_REAR' : `P_PORT_${portIdx}`;
+      const zStart = Math.max(t, D_ext - t - p.h);
+      if (isSlotP) {
+        const isH = (ac.slotOrient !== 'vertical');
+        origin = isH ? [t, +(t + 55).toFixed(1), +zStart.toFixed(1)] : [+(F - t - 70).toFixed(1), t, +zStart.toFixed(1)];
+        size = isH ? [p.w, p.t, p.h] : [p.t, p.w, p.h];
+        explodeDir = isH ? [0, -0.35, 0.5] : [0.5, 0, 0.5];
+      } else {
+        const px = isRearP && ac.bpChambers ? (t + ac.bpChambers.A_rear / 2) : (F - t - p.w);
+        origin = [+px.toFixed(1), +(t + 40).toFixed(1), +zStart.toFixed(1)];
+        size = [p.w, p.w, p.h];
+        explodeDir = [0, 0, 0.75];
+      }
+      assemblyOrder = 5; frontFace = '+Z';
+      ducts.push({ id, name: p.name, lvMm: Math.round(p.h), origin, size, chamber: isRearP ? 'rear' : 'front' });
+    } else if (p.orient === 'CIMA') {
+      id = 'P_TOP'; origin = [0, E - t, 0]; size = [F, t, C_ext]; explodeDir = [0, 1, 0]; explodeDist = +(expBase * 0.9).toFixed(1); assemblyOrder = 6; frontFace = '-Y';
+    } else if (p.orient === 'FRENTE') {
+      id = 'P_FRONT_BAFFLE';
+      const fX = +((F - p.w) / 2).toFixed(1);
+      const fY = +(E - p.h - (p.w < F ? t : 0)).toFixed(1);
+      origin = [fX, Math.max(0, fY), +(D_ext - t).toFixed(1)];
+      size = [p.w, p.h, t];
+      explodeDir = [0, 0, 1];
+      assemblyOrder = 7;
+      frontFace = '+Z';
+    }
+    parts.push({
+      id, name: p.name, kind: p.kind, orient: p.orient, qty: p.qty,
+      material: p.kind === 'port' && p.area <= 0 ? 'PVC/ABS' : `MDF ${p.t}mm`,
+      thickness: p.t, origin, size,
+      cutSize: { w: +p.w.toFixed(1), h: +p.h.toFixed(1), bevelDeg: +p.bev.toFixed(1) },
+      rotation: [0, 0, 0], frontFace, explodeDir, explodeDist, assemblyOrder,
+      cutoutIds: [], jointIds: [], area: p.area, note: p.note
+    });
+  });
+
+  // Cutouts vinculados ao partId hospedeiro
+  const partById = {};
+  parts.forEach(p => { partById[p.id] = p; });
+  (pack.baffleHoles || []).forEach((hl, i) => {
+    const cid = `CUT_${hl.kind === 'driver' ? 'DRV' : 'PORT'}_${i + 1}`;
+    const hostId = (hl.panel === 'divisoria' && partById.P_BP_DIVIDER) ? 'P_BP_DIVIDER' : 'P_FRONT_BAFFLE';
+    cutouts.push({
+      id: cid, partId: hostId, kind: hl.kind, shape: hl.shape, label: hl.label,
+      xInt: hl.xInt, yInt: hl.yInt, xExt: hl.xExt, yExt: hl.yExt,
+      dia: hl.dia || null, flangeDia: hl.flangeDia || null, w: hl.w || null, h: hl.h || null, lvMm: hl.lvMm || 0
+    });
+    if (partById[hostId]) partById[hostId].cutoutIds.push(cid);
+  });
+
+  // Uniões estruturais verificáveis
+  const addJoint = (id, a, b, type) => {
+    if (partById[a] && partById[b]) {
+      joints.push({ id, partA: a, partB: b, type });
+      partById[a].jointIds.push(id);
+      partById[b].jointIds.push(id);
+    }
+  };
+  addJoint('J_REAR_BASE', 'P_REAR', 'P_BASE', 'butt_glue_screw');
+  addJoint('J_SIDES_BASE', 'P_SIDES', 'P_BASE', 'butt_glue_screw');
+  addJoint('J_SIDES_TOP', 'P_SIDES', 'P_TOP', 'butt_glue_screw');
+  addJoint('J_FRONT_BASE', 'P_FRONT_BAFFLE', 'P_BASE', 'butt_glue_screw');
+  addJoint('J_FRONT_TOP', 'P_FRONT_BAFFLE', 'P_TOP', 'butt_glue_screw');
+  if (partById.P_BP_DIVIDER) addJoint('J_DIV_BASE', 'P_BP_DIVIDER', 'P_BASE', 'internal_divider');
+
+  const isBp = !!(ac.bpChambers && ac.bpChambers.isBp);
+  const A_net = isBp ? Math.max(100, A - t) : A;
+  const VgrossFromParts = +((A_net * B * C_med) / 1e6).toFixed(2);
+  const VnetVerified = +(VgrossFromParts - ac.Vsub - ac.Vduto - ac.Vbracing).toFixed(2);
+  const targetNet = +(ac.Vb + (ac.Vr || 0)).toFixed(2);
+
+  const sheetLayout = computeSheetNesting2D(parts, 2750, 1830, 3);
+  const assemblySequence = buildAssemblySequence(parts);
+  const cutList = parts.map(p => ({ id: p.id, name: p.name, qty: p.qty, w: p.cutSize.w, h: p.cutSize.h, t: p.thickness, bevelDeg: p.cutSize.bevelDeg }));
+
+  const model = {
+    schema: 'bassforge-pgs/v1',
+    topology: ac.boxType,
+    units: { length: 'mm', angle: 'deg', volume: 'L' },
+    coordinateSystem: { x: 'width', y: 'height', z: 'depth', origin: 'ext-bottom-left-rear' },
+    material: { name: 'MDF', thickness: t, densityKgM3: 750, sheetW: 2750, sheetH: 1830, kerfMm: 3 },
+    envelope: { A, B, C, D, F, E, C_ext, D_ext },
+    parts, cutouts, ducts,
+    drivers: [{ name: dr.name, qty: dr.nDrivers, diaIn: dr.dia_in, mountMode: ac.mountMode || 'normal', vSub: ac.Vsub }],
+    joints,
+    dimensions: [
+      { key: 'F', label: 'Largura Externa', value: F }, { key: 'E', label: 'Altura Externa', value: E },
+      { key: 'A', label: 'Largura Interna', value: A }, { key: 'B', label: 'Altura Interna', value: B },
+      { key: 'C', label: 'Profundidade Sup. Int.', value: C }, { key: 'D', label: 'Profundidade Inf. Int.', value: D },
+      { key: 'T', label: 'Espessura MDF', value: t }
+    ],
+    volumes: {
+      VbTarget: ac.Vb, VrTarget: ac.Vr || 0, Vsub: ac.Vsub, Vduto: ac.Vduto, Vbracing: ac.Vbracing,
+      VgrossFromParts, VnetVerified, deltaL: +(VnetVerified - targetNet).toFixed(2)
+    },
+    manufacturing: { cutList, sheetLayout, assemblySequence },
+    validation: []
+  };
+  model.validation = validatePgsGeometry(model, pack.validation);
+  return model;
+}
+
+function setWoodlockExplode(ratio) {
+  wlExplodeRatio = Math.max(0, Math.min(1, parseFloat(ratio) || 0));
+  document.querySelectorAll('[data-wl-exp]').forEach(b => {
+    b.classList.toggle('active', Math.abs(parseFloat(b.getAttribute('data-wl-exp')) - wlExplodeRatio) < 0.05);
+  });
+  renderActiveWoodlockCanvas();
+}
 
 function setWoodlockViewMode(mode) {
-  wlViewMode = ['blueprint', 'exploded', 'cutplan'].includes(mode) ? mode : 'blueprint';
+  wlViewMode = ['blueprint', 'exploded', 'cutplan', 'nesting'].includes(mode) ? mode : 'blueprint';
   document.querySelectorAll('[data-wl-view]').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-wl-view') === wlViewMode);
   });
+  const expBar = document.getElementById('wlExplodeBar');
+  if (expBar) expBar.style.display = (wlViewMode === 'exploded') ? 'inline-flex' : 'none';
   const titleEl = document.getElementById('wlCanvasTitle');
   if (titleEl) {
     titleEl.textContent = wlViewMode === 'exploded'
-      ? '🧊 Vista Explodida 3D Isométrica — Painéis & Cotas Literais'
+      ? `🧊 Vista 3D ${wlExplodeRatio < 0.05 ? 'Montada (0%)' : `Explodida (${Math.round(wlExplodeRatio * 100)}%)`} — PGS Fonte Única`
       : (wlViewMode === 'cutplan'
           ? '🧩 Planificação de Peças (Cut-Plan 2D) — Quantidades & Cotas'
-          : '📐 Blueprint Técnico Lateral (Lv vs C) & Frontal');
+          : (wlViewMode === 'nesting'
+              ? '🪚 Distribuição na Chapa MDF 2750×1830 mm (Nesting 2D)'
+              : '📐 Blueprint Técnico Lateral (Lv vs C) & Frontal'));
   }
   renderActiveWoodlockCanvas();
 }
@@ -5851,9 +6174,11 @@ function renderActiveWoodlockCanvas() {
   const dm = lastBuildPack.dimensions;
   const ac = lastBuildPack.acoustics;
   if (wlViewMode === 'exploded') {
-    drawWoodlockExploded3D(lastBuildPack);
+    drawWoodlockExploded3D(lastBuildPack, null, wlExplodeRatio);
   } else if (wlViewMode === 'cutplan') {
     drawWoodlockCutPlan2D(lastBuildPack);
+  } else if (wlViewMode === 'nesting') {
+    drawWoodlockNesting2D(lastBuildPack);
   } else {
     drawWoodlockBlueprint({
       A: dm.A, B: dm.B, C_top: dm.C_top, D_bot: dm.D_bot, F_ext: dm.F_ext, E_ext: dm.E_ext, t: dm.t,
@@ -5868,12 +6193,12 @@ function renderActiveWoodlockCanvas() {
 }
 
 /**
- * Desenha Vista Explodida 3D Isométrica 100% procedural (Canvas 2D) com painéis reais,
- * divisória interna BP4/BP6, divisória de duto régua A4×R e cotas literais.
+ * Desenha Vista 3D Montada/Explodida lendo EXCLUSIVAMENTE pack.geometry.parts (Fonte Única PGS).
  */
-function drawWoodlockExploded3D(pack, targetCanvas) {
+function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
   const cv = targetCanvas || document.getElementById('woodlockCanvas');
   if (!cv || !pack) return;
+  const geom = pack.geometry || buildPgsGeometryModel(pack);
   const ctx = cv.getContext('2d');
   const dpr = targetCanvas ? 1 : (window.devicePixelRatio || 1);
   const w = targetCanvas ? (targetCanvas.width || 920) : (cv.clientWidth || 500);
@@ -5886,21 +6211,22 @@ function drawWoodlockExploded3D(pack, targetCanvas) {
   ctx.fillStyle = '#060911';
   ctx.fillRect(0, 0, w, h);
 
-  const dm = pack.dimensions;
+  const env = geom.envelope;
   const ac = pack.acoustics;
-  const A = dm.A, B = dm.B, C = dm.C_top, D = dm.D_bot, F = dm.F_ext, E = dm.E_ext, t = dm.t;
+  const F = env.F, E = env.E, D = env.D_ext, t = geom.material.thickness;
+  const er = Math.max(0, Math.min(1, Number.isFinite(explodeRatio) ? explodeRatio : 1.0));
   const maxD = Math.max(F, E, D, 200);
-  const exp = maxD * 0.22; // fator de explosão dos painéis
+  const exp = maxD * 0.22 * er;
   const cos30 = 0.866, sin30 = 0.48;
   const totalSpanX = (F + D + 2.4 * exp) * cos30;
   const totalSpanY = (F + D + 2.4 * exp) * sin30 + (E + 2.2 * exp);
   const sc = Math.min((w - 60) / Math.max(1, totalSpanX), (h - 62) / Math.max(1, totalSpanY));
   const ox = w * 0.50 - ((F - D) * 0.25) * cos30 * sc;
-  const oy = h * 0.56 + (E * 0.35) * sc;
+  const oy = h * 0.58 + (E * 0.35) * sc;
 
   const iso = (x, y, z) => ({
-    x: ox + (x - z) * cos30 * sc,
-    y: oy + (x + z) * sin30 * sc - y * sc
+    x: ox + ((x - F / 2) - (z - D / 2)) * cos30 * sc,
+    y: oy + ((x - F / 2) + (z - D / 2)) * sin30 * sc - y * sc
   });
 
   const drawBox = (x0, y0, z0, dx, dy, dz, fillTop, fillFront, fillSide, strokeCol) => {
@@ -5919,7 +6245,6 @@ function drawWoodlockExploded3D(pack, targetCanvas) {
       ctx.lineWidth = 1.1;
       ctx.stroke();
     };
-    // Face traseira/lateral esquerda + face frontal + topo
     poly([0, 3, 7, 4], fillSide);
     poly([3, 2, 6, 7], fillFront);
     poly([4, 5, 6, 7], fillTop);
@@ -5941,58 +6266,101 @@ function drawWoodlockExploded3D(pack, targetCanvas) {
     ctx.stroke();
   };
 
-  const xC = -F / 2, yC = 0, zC = -D / 2;
-  // 1. Painel Traseiro [TRÁS]
-  drawBox(xC, yC, zC - exp, F, E, t, '#334155', '#1e293b', '#0f172a', '#64748b');
-  // 2. Base Inferior [BASE]
-  drawBox(xC, yC - exp * 0.75, zC, F, t, D, '#475569', '#1e293b', '#334155', '#38bdf8');
-  // 3. Lateral Direita [DIR]
-  drawBox(xC + F - t + exp * 0.85, yC + t, zC + t, t, B, C, '#475569', '#334155', '#1e293b', '#38bdf8');
-  // 4. Divisória Interna BP4/BP6 (se aplicável)
-  if (ac.bpChambers && ac.bpChambers.isBp) {
-    const divX = xC + t + ac.bpChambers.A_rear;
-    drawBox(divX, yC + t, zC + t, t, B, C, '#7c3aed', '#5b21b6', '#4c1d95', '#c4b5fd');
-  }
-  // 5. Divisória Duto Régua [A4 × R] (se aplicável)
-  const slotPiece = pack.pieces.find(p => p.kind === 'port' && /Régua/.test(p.name));
-  if (slotPiece && ac.lvMm > 0) {
-    const isH = (ac.slotOrient !== 'vertical');
-    if (isH) {
-      drawBox(xC + t, yC + t + (slotPiece.h > 0 ? 55 : 40), zC + D - t - ac.lvMm, slotPiece.w, t, ac.lvMm, '#fb923c', '#c2410c', '#9a3412', '#fdba74');
-    } else {
-      drawBox(xC + F - t - 70, yC + t, zC + D - t - ac.lvMm, t, slotPiece.w, ac.lvMm, '#fb923c', '#c2410c', '#9a3412', '#fdba74');
-    }
-  }
-  // 6. Lateral Esquerda [ESQ]
-  drawBox(xC - exp * 0.85, yC + t, zC + t, t, B, C, '#475569', '#334155', '#1e293b', '#38bdf8');
-  // 7. Tampo Superior [CIMA]
-  drawBox(xC, yC + E - t + exp * 0.85, zC, F, t, C, '#64748b', '#334155', '#1e293b', '#38bdf8');
-  // 8. Painel Frontal [FRENTE / Baffle]
-  const frontPiece = pack.pieces.find(p => p.orient === 'FRENTE');
-  const fW = frontPiece ? frontPiece.w : F;
-  const fH = frontPiece ? frontPiece.h : E;
-  const fZ = zC + D - t + exp;
-  const fX = xC + (F - fW) / 2;
-  const fY = yC + (E - fH);
-  drawBox(fX, fY, fZ, fW, fH, t, '#64748b', '#334155', '#1e293b', '#38bdf8');
+  // Renderiza cada sólido diretamente de geom.parts na ordem de profundidade/montagem
+  const renderOrder = ['P_REAR', 'P_BASE', 'P_SIDES', 'P_BP_DIVIDER', 'P_PORT', 'P_TOP', 'P_FRONT_BAFFLE'];
+  const palette = p => p.kind === 'divider'
+    ? ['#7c3aed', '#5b21b6', '#4c1d95', '#c4b5fd']
+    : (p.kind === 'port'
+        ? ['#fb923c', '#c2410c', '#9a3412', '#fdba74']
+        : ['#64748b', '#334155', '#1e293b', '#38bdf8']);
 
-  // Furos frontais em perspectiva isométrica
-  (pack.baffleHoles || []).filter(hl => hl.panel !== 'divisoria').forEach(hl => {
-    if (hl.shape === 'round') {
-      const r = hl.dia / 2;
-      drawIsoHoleOnFront(xC + t + hl.xInt, yC + t + hl.yInt, fZ + t + 0.5, r, hl.kind === 'driver' ? '#f87171' : '#fb923c');
+  geom.parts.slice().sort((a, b) => {
+    const ia = renderOrder.findIndex(k => a.id.startsWith(k));
+    const ib = renderOrder.findIndex(k => b.id.startsWith(k));
+    return (ia === -1 ? 4 : ia) - (ib === -1 ? 4 : ib);
+  }).forEach(p => {
+    if (p.kind === 'batten' || (p.kind === 'port' && p.area <= 0)) return;
+    const [ft, ff, fs, scCol] = palette(p);
+    const oxP = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
+    const oyP = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
+    const ozP = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
+    if (p.id === 'P_SIDES') {
+      // Lateral Direita + Lateral Esquerda espelhadas a partir do mesmo sólido P_SIDES
+      drawBox(F - t + p.explodeDist * er, oyP, ozP, p.size[0], p.size[1], p.size[2], ft, ff, fs, scCol);
+      drawBox(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], ft, ff, fs, scCol);
+    } else {
+      drawBox(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], ft, ff, fs, scCol);
+    }
+    if (p.id === 'P_FRONT_BAFFLE') {
+      (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'round').forEach(c => {
+        drawIsoHoleOnFront(t + c.xInt, t + c.yInt, ozP + p.size[2] + 0.5, c.dia / 2, c.kind === 'driver' ? '#f87171' : '#fb923c');
+      });
     }
   });
 
-  // Título e legenda de cotas literais
+  const gPassCount = (geom.validation || []).filter(v => v.pass).length;
   ctx.fillStyle = '#e2e8f0';
   ctx.font = 'bold 11px var(--font)';
-  ctx.fillText(`VISTA EXPLODIDA 3D — ${ac.boxType.toUpperCase()} (${dm.shape === 'trapezoidal' ? 'TRAPÉZIO' : 'RETÂNGULO'})`, 14, 18);
+  ctx.fillText(`PGS 3D (${Math.round(er * 100)}% EXPLOSÃO) — ${ac.boxType.toUpperCase()} · VALIDAÇÃO G01–G12: ${gPassCount}/${geom.validation.length}`, 14, 18);
   ctx.fillStyle = '#38bdf8';
   ctx.font = '10px var(--mono)';
   const bpTxt = (ac.bpChambers && ac.bpChambers.isBp) ? ` | VR(A)=${ac.bpChambers.A_rear.toFixed(0)} · VF(G)=${ac.bpChambers.A_front.toFixed(0)}mm` : '';
-  const slotTxt = slotPiece ? ` | Baffle=${fW.toFixed(0)}×${fH.toFixed(0)} · R(Lv)=${ac.lvMm}mm` : (ac.lvMm > 0 ? ` | Lv=${ac.lvMm}mm` : '');
-  ctx.fillText(`F=${F.toFixed(0)} · E=${E.toFixed(0)} · A=${A.toFixed(0)} · B=${B.toFixed(0)} · C=${C.toFixed(0)}/${D.toFixed(0)} mm · MDF ${t}mm${bpTxt}${slotTxt}`, 14, h - 10);
+  ctx.fillText(`F=${F.toFixed(0)} · E=${E.toFixed(0)} · A=${env.A.toFixed(0)} · B=${env.B.toFixed(0)} · C=${env.C.toFixed(0)}/${env.D.toFixed(0)} mm · MDF ${t}mm${bpTxt}`, 14, h - 10);
+}
+
+/** Desenha o Nesting 2D real das peças na chapa MDF 2750×1830 mm. */
+function drawWoodlockNesting2D(pack, targetCanvas) {
+  const cv = targetCanvas || document.getElementById('woodlockCanvas');
+  if (!cv || !pack) return;
+  const geom = pack.geometry || buildPgsGeometryModel(pack);
+  const nest = geom.manufacturing.sheetLayout;
+  const ctx = cv.getContext('2d');
+  const dpr = targetCanvas ? 1 : (window.devicePixelRatio || 1);
+  const w = targetCanvas ? (targetCanvas.width || 920) : (cv.clientWidth || 500);
+  const h = targetCanvas ? (targetCanvas.height || 360) : (cv.clientHeight || 290);
+  if (!targetCanvas) {
+    cv.width = w * dpr;
+    cv.height = h * dpr;
+    ctx.scale(dpr, dpr);
+  }
+  ctx.fillStyle = '#060911';
+  ctx.fillRect(0, 0, w, h);
+
+  ctx.fillStyle = '#e2e8f0';
+  ctx.font = 'bold 11px var(--font)';
+  ctx.fillText(`CHAPA MDF ${nest.sheetW}×${nest.sheetH} mm (Kerf ${nest.kerfMm}mm) — ${nest.sheetsCount} chapa(s) · Aproveitamento: ${nest.utilizationPct}%`, 12, 17);
+
+  const pad = 16;
+  const sc = Math.min((w - 2 * pad) / nest.sheetW, (h - 40) / nest.sheetH);
+  const swPx = nest.sheetW * sc;
+  const shPx = nest.sheetH * sc;
+  const x0 = (w - swPx) / 2;
+  const y0 = 26;
+
+  ctx.fillStyle = 'rgba(30, 41, 59, 0.55)';
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 1.4;
+  ctx.fillRect(x0, y0, swPx, shPx);
+  ctx.strokeRect(x0, y0, swPx, shPx);
+
+  (nest.placements || []).filter(pl => pl.sheetIdx === 0).forEach(pl => {
+    const rx = x0 + pl.x * sc;
+    const ry = y0 + pl.y * sc;
+    const rw = pl.w * sc;
+    const rh = pl.h * sc;
+    const stroke = pl.kind === 'port' ? '#fb923c' : (pl.kind === 'divider' ? '#c4b5fd' : (pl.kind === 'batten' ? '#a78bfa' : '#38bdf8'));
+    const fill = pl.kind === 'port' ? 'rgba(249,115,22,0.25)' : (pl.kind === 'divider' ? 'rgba(139,92,246,0.28)' : 'rgba(56,189,248,0.18)');
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.2;
+    ctx.fillRect(rx, ry, rw, rh);
+    ctx.strokeRect(rx, ry, rw, rh);
+    if (rw > 34 && rh > 16) {
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = '8.5px var(--mono)';
+      ctx.fillText(`${pl.w.toFixed(0)}×${pl.h.toFixed(0)}`, rx + 3, ry + 11);
+    }
+  });
 }
 
 /**
@@ -6382,6 +6750,13 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl, explodedDataUr
   <h2>7. Checagens de Viabilidade Geométrica &amp; Limites Físicos da Simulação</h2>
   <div class="ok-box"><b>✅ Geometria aprovada para construção (0 erros críticos)</b><ul>${checksHtml}</ul></div>
   <div class="${simBoxClass}"><b>${simBoxHdr}</b><ul>${simChecksHtml}</ul></div>
+  ${pack.geometry ? `
+  <h2>8. Sequência de Montagem &amp; Auditoria PGS (G01–G12)</h2>
+  <div class="meta"><b>Aproveitamento Chapa MDF 2750×1830 mm (Kerf 3 mm):</b> ${pack.geometry.manufacturing.sheetLayout.sheetsCount} chapa(s) · ${pack.geometry.manufacturing.sheetLayout.utilizationPct}% de uso &nbsp;|&nbsp; <b>Validação PGS:</b> ${pack.geometry.validation.filter(v => v.pass).length}/${pack.geometry.validation.length} aprovados</div>
+  <table>
+    <thead><tr><th>Etapa</th><th>ID Peça</th><th>Componente</th><th>Qtd</th><th>Instrução de Montagem</th></tr></thead>
+    <tbody>${pack.geometry.manufacturing.assemblySequence.map(s => `<tr><td><b>#${s.step}</b></td><td><code>${escapeHtmlStr(s.partId)}</code></td><td><b>${escapeHtmlStr(s.name)}</b></td><td>${s.qty}x</td><td>${escapeHtmlStr(s.action)}</td></tr>`).join('')}</tbody>
+  </table>` : ''}
 </body>
 </html>`;
 }

@@ -683,6 +683,61 @@ runSuite('14. WoodLock CAD Fase B (Vista Explodida 3D, Planificação 2D & HTML 
   assert(htmlWithImgs.includes('data:image/png;base64,EXP'), 'Pacote HTML deve embutir imagem da Vista Explodida 3D');
 });
 
+// SUITE 15: PGS Geometry & Manufacturing Engine (Módulo 1 — G01..G12, Nesting 2D, 3D Fonte Única)
+runSuite('15. PGS Geometry Core (G01-G12, Nesting 2D 2750x1830, 3D Explosão 0%-100%)', () => {
+  const cases = [
+    { name: 'Oversound Bass-Reflex Redondo', box: 'bass-reflex', port: 'round', ductDia: '6.0', numDucts: '2' },
+    { name: 'Oversound Bass-Reflex Régua Horiz.', box: 'bass-reflex', port: 'slot_wall', ductDia: '6.0', numDucts: '2' },
+    { name: 'Oversound Selada', box: 'sealed', port: 'round', ductDia: '6.0', numDucts: '2' },
+    { name: 'Oversound BP4', box: 'bp4', port: 'round', ductDia: '4.0', numDucts: '2' },
+    { name: 'Oversound BP6 Paralelo', box: 'bp6', port: 'round', ductDia: '4.0', numDucts: '2' }
+  ];
+
+  for (const tc of cases) {
+    elements.get('driverPreset').value = 'oversound';
+    vm.runInContext('loadPreset()', ctx);
+    vm.runInContext(`selectTopology('${tc.box}');`, ctx);
+    elements.get('portType').value = tc.port;
+    elements.get('ductDia').value = tc.ductDia;
+    elements.get('numDucts').value = tc.numDucts;
+    if (tc.box === 'bp4' || tc.box === 'bp6') {
+      vm.runInContext('setTuningMode(false);', ctx);
+      elements.get('vbInput').value = '60';
+      elements.get('vrInput').value = '80';
+      elements.get('fbInput').value = '55.0';
+    }
+    vm.runInContext("recalculate(); autofixWoodlockGeometry('pgs test'); updateWoodlock();", ctx);
+    const geom = vm.runInContext('lastBuildPack.geometry', ctx);
+    assert(geom && geom.schema === 'bassforge-pgs/v1', `${tc.name}: geometry schema ausente`);
+    assert.strictEqual(geom.validation.length, 12, `${tc.name}: esperado 12 checks G01..G12`);
+    const failedChecks = geom.validation.filter(v => !v.pass);
+    assert.strictEqual(failedChecks.length, 0, `${tc.name}: falhas PGS: ${JSON.stringify(failedChecks)}`);
+
+    // Nesting 2D: nenhuma peça fora da chapa 2750x1830 e zero sobreposição na chapa 0
+    const nest = geom.manufacturing.sheetLayout;
+    assert(nest.sheetsCount >= 1 && nest.utilizationPct > 0, `${tc.name}: nesting inválido`);
+    const s0 = nest.placements.filter(pl => pl.sheetIdx === 0);
+    for (let i = 0; i < s0.length; i++) {
+      assert(s0[i].x + s0[i].w <= nest.sheetW + 0.1 && s0[i].y + s0[i].h <= nest.sheetH + 0.1,
+        `${tc.name}: peça ${s0[i].partId} excede limites da chapa`);
+      for (let j = i + 1; j < s0.length; j++) {
+        const a = s0[i], b = s0[j];
+        const overlap = !(a.x + a.w <= b.x + 0.1 || b.x + b.w <= a.x + 0.1 || a.y + a.h <= b.y + 0.1 || b.y + b.h <= a.y + 0.1);
+        assert.strictEqual(overlap, false, `${tc.name}: sobreposição no nesting entre ${a.partId} e ${b.partId}`);
+      }
+    }
+  }
+
+  // Controle de explosão 0% -> 50% -> 100% e visualização Nesting 2D sem erro
+  vm.runInContext("setWoodlockViewMode('exploded'); setWoodlockExplode(0); setWoodlockExplode(0.5); setWoodlockExplode(1); setWoodlockViewMode('nesting'); setWoodlockViewMode('blueprint');", ctx);
+  const html = vm.runInContext('generateBuildPackHtml().html', ctx);
+  assert(html.includes('Sequência de Montagem') && html.includes('G01–G12'), 'Pacote HTML deve incluir Sequência de Montagem e Auditoria PGS');
+
+  // Restaura Oversound padrão
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');
