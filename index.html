@@ -1724,7 +1724,8 @@
         <b style="color:var(--accent);">F9</b><span>Mostrar / Ocultar Painel Rápido (Tela Cheia de Gráficos)</span>
         <b style="color:var(--accent);">Ctrl + S / O</b><span>Salvar / Abrir Projeto Completo (.json)</span>
         <b style="color:var(--accent);">Botão Direito</b><span>Menu de contexto sobre qualquer gráfico</span>
-        <b style="color:var(--accent);">Esc</b><span>Fechar janelas e menus abertos</span>
+        <b style="color:var(--accent);">← / →</b><span>Mover mira fixada (Shift: rápido · Ctrl: 0.1 Hz)</span>
+        <b style="color:var(--accent);">Esc</b><span>Fechar janelas, menus e soltar mira fixada</span>
       </div>
     </div>
     <div class="bf-modal-ftr">
@@ -5217,6 +5218,30 @@ document.addEventListener('keydown', e => {
   else if (e.key === '3') switchTab('woodlock');
   else if (e.key === '4') switchTab('electrical');
   else if (e.key === '5') switchTab('audit');
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+    e.preventDefault();
+    const fMin = chartOpts.fMin || 10;
+    const fMax = chartOpts.fMax || 1000;
+    const dir = (e.key === 'ArrowRight') ? 1 : -1;
+    if (pinnedCrosshairFreq == null) {
+      const m = (currentCurves && currentCurves.meta) || {};
+      const seed = m.Fb || m.fc || m.Fs || Math.sqrt(fMin * fMax);
+      pinnedCrosshairFreq = Math.min(fMax, Math.max(fMin, seed));
+    } else if (e.ctrlKey || e.altKey) {
+      pinnedCrosshairFreq = Math.min(fMax, Math.max(fMin, +(pinnedCrosshairFreq + dir * 0.1).toFixed(2)));
+    } else {
+      const frac = e.shiftKey ? 0.05 : 0.01;
+      const factor = Math.pow(fMax / fMin, frac);
+      pinnedCrosshairFreq = Math.min(fMax, Math.max(fMin, dir > 0 ? pinnedCrosshairFreq * factor : pinnedCrosshairFreq / factor));
+    }
+    drawAllCharts();
+    renderExpanded();
+  } else if ((e.key === 'Home' || e.key === 'End') && pinnedCrosshairFreq != null) {
+    e.preventDefault();
+    pinnedCrosshairFreq = (e.key === 'Home') ? (chartOpts.fMin || 10) : (chartOpts.fMax || 1000);
+    drawAllCharts();
+    renderExpanded();
+  }
 });
 
 let _bfResizeTimer = null;
