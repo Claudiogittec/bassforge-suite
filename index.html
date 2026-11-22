@@ -1428,10 +1428,12 @@
                 <button type="button" class="tb-btn" data-wl-exp="0" onclick="setWoodlockExplode(0)" style="padding:2px 6px; font-size:10px;">0%</button>
                 <button type="button" class="tb-btn" data-wl-exp="0.5" onclick="setWoodlockExplode(0.5)" style="padding:2px 6px; font-size:10px;">50%</button>
                 <button type="button" class="tb-btn active" data-wl-exp="1" onclick="setWoodlockExplode(1)" style="padding:2px 6px; font-size:10px;">100%</button>
+                <button type="button" id="btnWlXray" class="tb-btn" onclick="toggleWoodlockXray()" title="Alternar transparência Raio-X para ver o interior" style="padding:2px 6px; font-size:10px;">👁️ Raio-X</button>
+                <button type="button" class="tb-btn" onclick="resetWoodlockCam()" title="Resetar ângulo da câmera 3D" style="padding:2px 6px; font-size:10px;">🔄 Reset</button>
               </span>
             </div>
           </div>
-          <canvas id="woodlockCanvas" style="width:100%; height:290px; background:#060911; border-radius:6px;"></canvas>
+          <canvas id="woodlockCanvas" style="width:100%; height:350px; background:#060911; border-radius:6px; cursor:grab;"></canvas>
         </div>
       </div>
 
@@ -6380,17 +6382,75 @@ function renderActiveWoodlockCanvas() {
   }
 }
 
+let wlCamYaw = -0.58;
+let wlCamPitch = 0.40;
+let wlCamZoom = 1.0;
+let wlCamXray = false;
+let _wlOrbitBound = false;
+
+function toggleWoodlockXray() {
+  wlCamXray = !wlCamXray;
+  const b = document.getElementById('btnWlXray');
+  if (b) b.classList.toggle('active', wlCamXray);
+  renderActiveWoodlockCanvas();
+}
+
+function resetWoodlockCam() {
+  wlCamYaw = -0.58;
+  wlCamPitch = 0.40;
+  wlCamZoom = 1.0;
+  renderActiveWoodlockCanvas();
+}
+
+function bindWoodlock3dOrbit() {
+  if (_wlOrbitBound) return;
+  const cv = document.getElementById('woodlockCanvas');
+  if (!cv || typeof cv.addEventListener !== 'function') return;
+  _wlOrbitBound = true;
+  let dragging = false, lx = 0, ly = 0;
+  cv.addEventListener('mousedown', e => {
+    if (wlViewMode !== 'exploded') return;
+    dragging = true; lx = e.clientX; ly = e.clientY;
+    cv.style.cursor = 'grabbing';
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging || wlViewMode !== 'exploded') return;
+    const dx = e.clientX - lx, dy = e.clientY - ly;
+    lx = e.clientX; ly = e.clientY;
+    wlCamYaw += dx * 0.0085;
+    wlCamPitch = Math.max(-1.35, Math.min(1.35, wlCamPitch + dy * 0.0085));
+    renderActiveWoodlockCanvas();
+  });
+  window.addEventListener('mouseup', () => {
+    if (dragging) {
+      dragging = false;
+      cv.style.cursor = 'grab';
+    }
+  });
+  cv.addEventListener('wheel', e => {
+    if (wlViewMode !== 'exploded') return;
+    e.preventDefault();
+    wlCamZoom = Math.max(0.55, Math.min(2.5, wlCamZoom * (e.deltaY > 0 ? 0.92 : 1.08)));
+    renderActiveWoodlockCanvas();
+  }, { passive: false });
+  cv.addEventListener('dblclick', () => {
+    if (wlViewMode === 'exploded') resetWoodlockCam();
+  });
+}
+
 /**
- * Desenha Vista 3D Montada/Explodida lendo EXCLUSIVAMENTE pack.geometry.parts (Fonte Única PGS).
+ * Visualizador 3D Sólido Interativo 360° (estilo SketchUp) lendo EXCLUSIVAMENTE pack.geometry.parts (PGS).
+ * Suporta arrastar com o mouse (Orbit 360°), scroll (Zoom), Raio-X e explosão 0%/50%/100%.
  */
 function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
+  bindWoodlock3dOrbit();
   const cv = targetCanvas || document.getElementById('woodlockCanvas');
   if (!cv || !pack) return;
   const geom = pack.geometry || buildPgsGeometryModel(pack);
   const ctx = cv.getContext('2d');
   const dpr = targetCanvas ? 1 : (window.devicePixelRatio || 1);
   const w = targetCanvas ? (targetCanvas.width || 920) : (cv.clientWidth || 500);
-  const h = targetCanvas ? (targetCanvas.height || 360) : (cv.clientHeight || 290);
+  const h = targetCanvas ? (targetCanvas.height || 360) : (cv.clientHeight || 350);
   if (!targetCanvas) {
     cv.width = w * dpr;
     cv.height = h * dpr;
@@ -6403,93 +6463,152 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
   const ac = pack.acoustics;
   const F = env.F, E = env.E, D = env.D_ext, t = geom.material.thickness;
   const er = Math.max(0, Math.min(1, Number.isFinite(explodeRatio) ? explodeRatio : 1.0));
+  const yaw = targetCanvas ? -0.58 : wlCamYaw;
+  const pitch = targetCanvas ? 0.40 : wlCamPitch;
+  const zoom = targetCanvas ? 1.0 : wlCamZoom;
+  const xray = targetCanvas ? false : wlCamXray;
+
+  const cy = Math.cos(yaw), sy = Math.sin(yaw);
+  const cp = Math.cos(pitch), sp = Math.sin(pitch);
   const maxD = Math.max(F, E, D, 200);
   const exp = maxD * 0.22 * er;
-  const cos30 = 0.866, sin30 = 0.48;
-  const totalSpanX = (F + D + 2.4 * exp) * cos30;
-  const totalSpanY = (F + D + 2.4 * exp) * sin30 + (E + 2.2 * exp);
-  const sc = Math.min((w - 60) / Math.max(1, totalSpanX), (h - 62) / Math.max(1, totalSpanY));
-  const ox = w * 0.50 - ((F - D) * 0.25) * cos30 * sc;
-  const oy = h * 0.58 + (E * 0.35) * sc;
+  const sc = (Math.min(w, h) * 0.62 / Math.max(1, maxD + 1.8 * exp)) * zoom;
+  const ox = w * 0.50;
+  const oy = h * 0.53;
 
-  const iso = (x, y, z) => ({
-    x: ox + ((x - F / 2) - (z - D / 2)) * cos30 * sc,
-    y: oy + ((x - F / 2) + (z - D / 2)) * sin30 * sc - y * sc
-  });
+  const project = (x, y, z) => {
+    const px = x - F / 2, py = y - E / 2, pz = z - D / 2;
+    const rx = px * cy - pz * sy;
+    const rz1 = px * sy + pz * cy;
+    const ry = py * cp - rz1 * sp;
+    const rz = py * sp + rz1 * cp;
+    return { x: ox + rx * sc, y: oy - ry * sc, z: rz };
+  };
 
-  const drawBox = (x0, y0, z0, dx, dy, dz, fillTop, fillFront, fillSide, strokeCol) => {
-    const p = [
-      iso(x0, y0, z0), iso(x0 + dx, y0, z0), iso(x0 + dx, y0, z0 + dz), iso(x0, y0, z0 + dz),
-      iso(x0, y0 + dy, z0), iso(x0 + dx, y0 + dy, z0), iso(x0 + dx, y0 + dy, z0 + dz), iso(x0, y0 + dy, z0 + dz)
+  // Iluminação direcional difusa (estilo SketchUp)
+  const L = [0.45, 0.72, 0.53];
+  const shadeRgb = (base, nx, ny, nz, alpha) => {
+    // Rotaciona normal para o espaço da câmera para sombreamento suave
+    const rnx = nx * cy - nz * sy;
+    const rnz1 = nx * sy + nz * cy;
+    const rny = ny * cp - rnz1 * sp;
+    const rnz = ny * sp + rnz1 * cp;
+    const dot = Math.max(0, Math.min(1, rnx * L[0] + rny * L[1] + rnz * L[2]));
+    const lum = 0.44 + 0.56 * dot;
+    return `rgba(${Math.round(base[0] * lum)},${Math.round(base[1] * lum)},${Math.round(base[2] * lum)},${alpha})`;
+  };
+
+  const faces = [];
+  const pushBoxFaces = (x0, y0, z0, dx, dy, dz, baseRgb, strokeCol, alpha, partId) => {
+    const pts = [
+      project(x0, y0, z0), project(x0 + dx, y0, z0), project(x0 + dx, y0, z0 + dz), project(x0, y0, z0 + dz),
+      project(x0, y0 + dy, z0), project(x0 + dx, y0 + dy, z0), project(x0 + dx, y0 + dy, z0 + dz), project(x0, y0 + dy, z0 + dz)
     ];
-    const poly = (idxs, fill) => {
-      ctx.beginPath();
-      ctx.moveTo(p[idxs[0]].x, p[idxs[0]].y);
-      for (let i = 1; i < idxs.length; i++) ctx.lineTo(p[idxs[i]].x, p[idxs[i]].y);
-      ctx.closePath();
-      ctx.fillStyle = fill;
-      ctx.fill();
-      ctx.strokeStyle = strokeCol;
-      ctx.lineWidth = 1.1;
-      ctx.stroke();
-    };
-    poly([0, 3, 7, 4], fillSide);
-    poly([3, 2, 6, 7], fillFront);
-    poly([4, 5, 6, 7], fillTop);
+    const quads = [
+      { idxs: [0, 1, 2, 3], n: [0, -1, 0] }, // base
+      { idxs: [4, 7, 6, 5], n: [0, 1, 0] },  // topo
+      { idxs: [0, 4, 5, 1], n: [0, 0, -1] }, // tras
+      { idxs: [3, 2, 6, 7], n: [0, 0, 1], isFront: partId === 'P_FRONT_BAFFLE', zFront: z0 + dz }, // frente
+      { idxs: [0, 3, 7, 4], n: [-1, 0, 0] }, // esq
+      { idxs: [1, 5, 6, 2], n: [1, 0, 0] }   // dir
+    ];
+    quads.forEach(q => {
+      const avgZ = (pts[q.idxs[0]].z + pts[q.idxs[1]].z + pts[q.idxs[2]].z + pts[q.idxs[3]].z) * 0.25;
+      faces.push({
+        depth: avgZ,
+        pts: q.idxs.map(i => pts[i]),
+        fill: shadeRgb(baseRgb, q.n[0], q.n[1], q.n[2], alpha),
+        stroke: strokeCol,
+        isFront: q.isFront,
+        zFront: q.zFront
+      });
+    });
   };
 
-  const drawIsoHoleOnFront = (xCenter, yCenter, zPlane, radius, color) => {
-    ctx.beginPath();
-    for (let i = 0; i <= 32; i++) {
-      const ang = (i / 32) * Math.PI * 2;
-      const pt = iso(xCenter + Math.cos(ang) * radius, yCenter + Math.sin(ang) * radius, zPlane);
-      if (i === 0) ctx.moveTo(pt.x, pt.y);
-      else ctx.lineTo(pt.x, pt.y);
+  const partColors = p => {
+    if (p.kind === 'divider') return [[167, 139, 250], '#c4b5fd'];
+    if (p.kind === 'port') return [[251, 146, 60], '#fdba74'];
+    if (p.kind === 'batten') return [[96, 165, 250], '#93c5fd'];
+    return [[203, 174, 134], '#38bdf8']; // MDF madeira natural clara com aresta ciano
+  };
+
+  let frontOz = D - t, frontDz = t;
+  (geom.parts || []).forEach(p => {
+    if (p.kind === 'port' && p.area <= 0) {
+      // Tubo PVC cilíndrico em 3D (8 faces)
+      const oxP = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
+      const oyP = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
+      const ozP = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
+      const r = p.size[0] / 2, len = p.size[2], cx = oxP + r, cy0 = oyP + r, segs = 12;
+      for (let i = 0; i < segs; i++) {
+        const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
+        const p0 = project(cx + Math.cos(a0) * r, cy0 + Math.sin(a0) * r, ozP);
+        const p1 = project(cx + Math.cos(a1) * r, cy0 + Math.sin(a1) * r, ozP);
+        const p2 = project(cx + Math.cos(a1) * r, cy0 + Math.sin(a1) * r, ozP + len);
+        const p3 = project(cx + Math.cos(a0) * r, cy0 + Math.sin(a0) * r, ozP + len);
+        const am = 0.5 * (a0 + a1);
+        faces.push({
+          depth: (p0.z + p1.z + p2.z + p3.z) * 0.25,
+          pts: [p0, p1, p2, p3],
+          fill: shadeRgb([251, 146, 60], Math.cos(am), Math.sin(am), 0, xray ? 0.65 : 0.95),
+          stroke: '#fdba74'
+        });
+      }
+      return;
     }
-    ctx.closePath();
-    ctx.fillStyle = 'rgba(6, 9, 17, 0.85)';
-    ctx.fill();
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.4;
-    ctx.stroke();
-  };
-
-  // Renderiza cada sólido diretamente de geom.parts na ordem de profundidade/montagem
-  const renderOrder = ['P_REAR', 'P_BASE', 'P_SIDES', 'P_BP_DIVIDER', 'P_PORT', 'P_TOP', 'P_FRONT_BAFFLE'];
-  const palette = p => p.kind === 'divider'
-    ? ['#7c3aed', '#5b21b6', '#4c1d95', '#c4b5fd']
-    : (p.kind === 'port'
-        ? ['#fb923c', '#c2410c', '#9a3412', '#fdba74']
-        : ['#64748b', '#334155', '#1e293b', '#38bdf8']);
-
-  geom.parts.slice().sort((a, b) => {
-    const ia = renderOrder.findIndex(k => a.id.startsWith(k));
-    const ib = renderOrder.findIndex(k => b.id.startsWith(k));
-    return (ia === -1 ? 4 : ia) - (ib === -1 ? 4 : ib);
-  }).forEach(p => {
-    if (p.kind === 'batten' || (p.kind === 'port' && p.area <= 0)) return;
-    const [ft, ff, fs, scCol] = palette(p);
+    const [rgb, scCol] = partColors(p);
+    const alpha = xray ? (p.kind === 'mdf' ? 0.34 : 0.78) : 0.96;
     const oxP = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
     const oyP = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
     const ozP = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
+    if (p.id === 'P_FRONT_BAFFLE') { frontOz = ozP; frontDz = p.size[2]; }
     if (p.id === 'P_SIDES') {
-      // Lateral Direita + Lateral Esquerda espelhadas a partir do mesmo sólido P_SIDES
-      drawBox(F - t + p.explodeDist * er, oyP, ozP, p.size[0], p.size[1], p.size[2], ft, ff, fs, scCol);
-      drawBox(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], ft, ff, fs, scCol);
+      pushBoxFaces(F - t + p.explodeDist * er, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+      pushBoxFaces(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
     } else {
-      drawBox(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], ft, ff, fs, scCol);
+      pushBoxFaces(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
     }
-    if (p.id === 'P_FRONT_BAFFLE') {
-      (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'round').forEach(c => {
-        drawIsoHoleOnFront(t + c.xInt, t + c.yInt, ozP + p.size[2] + 0.5, c.dia / 2, c.kind === 'driver' ? '#f87171' : '#fb923c');
-      });
-    }
+  });
+
+  // Painter's Algorithm: desenha do fundo para a frente
+  faces.sort((a, b) => a.depth - b.depth);
+  const drawFrontCutouts = zPlane => {
+    (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'round').forEach(c => {
+      ctx.beginPath();
+      for (let i = 0; i <= 32; i++) {
+        const ang = (i / 32) * Math.PI * 2;
+        const pt = project(t + c.xInt + Math.cos(ang) * (c.dia / 2), t + c.yInt + Math.sin(ang) * (c.dia / 2), zPlane + 0.6);
+        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(6, 9, 17, 0.88)';
+      ctx.fill();
+      ctx.strokeStyle = c.kind === 'driver' ? '#f87171' : '#fb923c';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    });
+  };
+
+  faces.forEach(fc => {
+    ctx.beginPath();
+    ctx.moveTo(fc.pts[0].x, fc.pts[0].y);
+    for (let i = 1; i < fc.pts.length; i++) ctx.lineTo(fc.pts[i].x, fc.pts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = fc.fill;
+    ctx.fill();
+    ctx.strokeStyle = fc.stroke;
+    ctx.lineWidth = 0.9;
+    ctx.stroke();
+    if (fc.isFront) drawFrontCutouts(frontOz + frontDz);
   });
 
   const gPassCount = (geom.validation || []).filter(v => v.pass).length;
   ctx.fillStyle = '#e2e8f0';
   ctx.font = 'bold 11px var(--font)';
-  ctx.fillText(`PGS 3D (${Math.round(er * 100)}% EXPLOSÃO) — ${ac.boxType.toUpperCase()} · VALIDAÇÃO G01–G12: ${gPassCount}/${geom.validation.length}`, 14, 18);
+  ctx.fillText(`3D INTERATIVO (${Math.round(er * 100)}% EXPLOSÃO${xray ? ' · RAIO-X' : ''}) — ${ac.boxType.toUpperCase()} · PGS ${gPassCount}/${geom.validation.length}`, 14, 18);
+  ctx.fillStyle = '#94a3b8';
+  ctx.font = '10px var(--font)';
+  ctx.fillText('🖱️ Arraste para girar 360° · Scroll = Zoom · Duplo-clique = Reset', 14, 33);
   ctx.fillStyle = '#38bdf8';
   ctx.font = '10px var(--mono)';
   const bpTxt = (ac.bpChambers && ac.bpChambers.isBp) ? ` | VR(A)=${ac.bpChambers.A_rear.toFixed(0)} · VF(G)=${ac.bpChambers.A_front.toFixed(0)}mm` : '';
