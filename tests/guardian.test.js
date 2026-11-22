@@ -596,6 +596,93 @@ runSuite('12. Analysis Engine (Architectural/Automotive, slots N/D, invariância
   vm.runInContext("setAnalysisEnvironment('automotive')", ctx);
 });
 
+// SUITE 13: Fase A WoodLock CAD — Montagem Invertida, Duto Régua H/V Real & 2 Câmaras BP4/BP6
+runSuite('13. WoodLock CAD Fase A (Normal/Invertida, Régua A×C4, BP4/BP6 2 Câmaras)', () => {
+  // --- 13.1 Montagem Invertida: Vsub=0 no Vbruto, currentCurves bit-a-bit idêntico ---
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+  elements.get('wlMountMode').value = 'normal';
+  vm.runInContext('updateWoodlock()', ctx);
+  const packNorm = vm.runInContext('lastBuildPack', ctx);
+  const curvesBefore = JSON.stringify(vm.runInContext('currentCurves', ctx));
+
+  elements.get('wlMountMode').value = 'inverted';
+  vm.runInContext('updateWoodlock()', ctx);
+  const packInv = vm.runInContext('lastBuildPack', ctx);
+  const curvesAfter = JSON.stringify(vm.runInContext('currentCurves', ctx));
+  assert.strictEqual(curvesAfter, curvesBefore, 'Montagem invertida não pode alterar currentCurves');
+  assert.strictEqual(packInv.acoustics.Vsub, 0, 'Montagem invertida deve zerar Vsub efetivo');
+  assert(packInv.acoustics.Vbruto < packNorm.acoustics.Vbruto - 8.5,
+    `Vbruto invertido (${packInv.acoustics.Vbruto}) deve descontar Vsub (~9 L) em relação ao normal (${packNorm.acoustics.Vbruto})`);
+  elements.get('wlMountMode').value = 'normal';
+
+  // --- 13.2 Duto Régua Horizontal: Baffle reduzido A×C4 + Divisória A4×R ---
+  elements.get('portType').value = 'slot_wall';
+  elements.get('wlSlotOrient').value = 'horizontal';
+  elements.get('slotW').value = '40';
+  elements.get('slotH').value = '6';
+  elements.get('slotWallThick').value = '18';
+  vm.runInContext('recalculate(); autofixWoodlockGeometry("teste slot"); updateWoodlock();', ctx);
+  const packSlot = vm.runInContext('lastBuildPack', ctx);
+  const frontPiece = packSlot.pieces.find(p => p.orient === 'FRENTE');
+  const portDiv = packSlot.pieces.find(p => p.kind === 'port');
+  const expectedC4 = packSlot.dimensions.B - 60 - 18;
+  assert.strictEqual(frontPiece.w, packSlot.dimensions.A, `Baffle régua horizontal deve ter largura A (${packSlot.dimensions.A}), obtido ${frontPiece.w}`);
+  assert.strictEqual(frontPiece.h, expectedC4, `Baffle régua horizontal deve ter altura C4 (${expectedC4}), obtido ${frontPiece.h}`);
+  assert.strictEqual(portDiv.h, packSlot.acoustics.lvMm, `Divisória A4×R deve ter R === lvMm (${packSlot.acoustics.lvMm}), obtido ${portDiv.h}`);
+
+  // --- 13.3 BP4: 2 câmaras reais (A_rear + t + A_front === A) + Divisória Interna do Falante ---
+  elements.get('portType').value = 'round';
+  elements.get('boxType').value = 'bp4';
+  vm.runInContext('selectTopology("bp4"); updateWoodlock();', ctx);
+  const packBp4 = vm.runInContext('lastBuildPack', ctx);
+  assert(packBp4.acoustics.bpChambers && packBp4.acoustics.bpChambers.isBp, 'BP4 deve gerar bpChambers');
+  approx(packBp4.acoustics.bpChambers.A_rear + packBp4.dimensions.t + packBp4.acoustics.bpChambers.A_front, packBp4.dimensions.A, 0.3, 'BP4 A_rear + t + A_front === A');
+  assert(packBp4.pieces.some(p => p.kind === 'divider'), 'BP4 deve incluir Divisória Interna no Plano de Corte');
+  assert(packBp4.baffleHoles.some(h => h.kind === 'driver' && h.panel === 'divisoria'), 'Driver em BP4 deve estar marcado na divisória interna');
+
+  // --- 13.4 BP6 Paralelo: 2 conjuntos de dutos independentes (frontal + traseiro) ---
+  elements.get('bp6Mode').value = 'parallel';
+  vm.runInContext('selectTopology("bp6"); updateWoodlock();', ctx);
+  const packBp6 = vm.runInContext('lastBuildPack', ctx);
+  const portPiecesBp6 = packBp6.pieces.filter(p => p.kind === 'port');
+  assert(portPiecesBp6.length >= 2, `BP6 Paralelo deve gerar 2 peças de duto (VF + VR), obtido ${portPiecesBp6.length}`);
+  assert(packBp6.acoustics.lvRearMm > 0, 'BP6 Paralelo deve calcular lvRearMm > 0');
+
+  // Restaura Oversound padrão
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
+// SUITE 14: Fase B WoodLock CAD — Vista Explodida 3D Isométrica & Planificação 2D Procedural
+runSuite('14. WoodLock CAD Fase B (Vista Explodida 3D, Planificação 2D & HTML Export)', () => {
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+
+  // Alterna entre os 3 modos de visualização CAD sem erro
+  vm.runInContext("setWoodlockViewMode('exploded')", ctx);
+  assert.strictEqual(vm.runInContext('wlViewMode', ctx), 'exploded', 'wlViewMode deve mudar para exploded');
+  vm.runInContext("setWoodlockViewMode('cutplan')", ctx);
+  assert.strictEqual(vm.runInContext('wlViewMode', ctx), 'cutplan', 'wlViewMode deve mudar para cutplan');
+  vm.runInContext("setWoodlockViewMode('blueprint')", ctx);
+  assert.strictEqual(vm.runInContext('wlViewMode', ctx), 'blueprint', 'wlViewMode deve retornar para blueprint');
+
+  // Renderização direta em BP4 e Dutada Régua sem exceções
+  for (const [box, port] of [['bass-reflex', 'slot_wall'], ['bp4', 'round'], ['bp6', 'round'], ['sealed', 'round']]) {
+    elements.get('portType').value = port;
+    vm.runInContext(`selectTopology('${box}'); updateWoodlock(); drawWoodlockExploded3D(lastBuildPack); drawWoodlockCutPlan2D(lastBuildPack);`, ctx);
+  }
+
+  // Restaura Oversound e verifica Vista Explodida 3D no HTML gerado
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+  const res = vm.runInContext('generateBuildPackHtml()', ctx);
+  assert.strictEqual(res.ok, true, 'generateBuildPackHtml deve passar no Oversound');
+  const htmlWithImgs = vm.runInContext("buildPackHtmlString(lastBuildPack, [], 'data:image/png;base64,BP', 'data:image/png;base64,EXP')", ctx);
+  assert(htmlWithImgs.includes('Vista Explodida 3D Isométrica'), 'Pacote HTML deve incluir título da Vista Explodida 3D');
+  assert(htmlWithImgs.includes('data:image/png;base64,EXP'), 'Pacote HTML deve embutir imagem da Vista Explodida 3D');
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');
