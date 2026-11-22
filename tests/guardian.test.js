@@ -404,6 +404,36 @@ runSuite('9. Mirror SHA-256 Parity (BassForge_Kit_Oficial <-> bassforge-pro-x)',
   assert.strictEqual(sha(DB_PATH), sha(mirrorDb), 'drivers-db.html SHA-256 mismatch with bassforge-pro-x');
 });
 
+// SUITE 10: Build Pack P0 Geometric Validator & HTML Export (Oversound 18" Regression Fixture)
+runSuite('10. Build Pack P0 Validator & HTML Export (Oversound 18" Fixture)', () => {
+  const fixturePath = path.join(ROOT, 'tests', 'fixtures', 'oversound_18_invalid.json');
+  assert(fs.existsSync(fixturePath), 'Missing regression fixture oversound_18_invalid.json');
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+
+  // Apply invalid Oversound 18" fixture (tsDia=15, A=800, B=450)
+  ctx.__fixture = fixture;
+  vm.runInContext('applyProjectData(__fixture); updateWoodlock();', ctx);
+  const badRes = vm.runInContext('generateBuildPackHtml()', ctx);
+  assert.strictEqual(badRes.ok, false, 'Invalid Oversound 18" fixture MUST block Build Pack export');
+  const badCodes = badRes.validation.issues.filter(i => i.level === 'critical').map(i => i.code);
+  assert(badCodes.includes('DIA_SD_MISMATCH'), `Expected DIA_SD_MISMATCH, got: ${badCodes.join(', ')}`);
+  assert(badCodes.includes('DRIVER_HEIGHT_FIT'), `Expected DRIVER_HEIGHT_FIT, got: ${badCodes.join(', ')}`);
+
+  // Fix tsDia=18 and viable baffle dimensions (A=860, B=520) -> MUST pass & generate complete HTML
+  elements.get('tsDia').value = '18';
+  elements.get('wlWidthA').value = '860';
+  elements.get('wlHeightB').value = '520';
+  vm.runInContext('updateWoodlock()', ctx);
+  const okRes = vm.runInContext('generateBuildPackHtml()', ctx);
+  assert.strictEqual(okRes.ok, true, `Expected valid build pack after fixing tsDia/A/B, got issues: ${JSON.stringify(okRes.validation.issues)}`);
+  assert.strictEqual(okRes.validation.criticalCount, 0, 'Expected 0 critical issues');
+  assert(okRes.pack.pieces.some(p => p.kind === 'batten'), 'Cut-sheet missing battens BOM');
+  assert(okRes.pack.pieces.some(p => p.kind === 'port'), 'Cut-sheet missing port Lv BOM');
+  assert.strictEqual(okRes.pack.baffleHoles.length, 3, 'Expected 1 driver + 2 round port holes');
+  assert(okRes.html.includes('Pacote de Construção') && okRes.html.includes('Gabarito de Furação'), 'Exported HTML missing required build sections');
+  assert(!okRes.html.includes('Lei de Ohm'), 'Exported HTML must stay out of electrical scope');
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

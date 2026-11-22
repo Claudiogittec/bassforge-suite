@@ -877,6 +877,7 @@
       <button type="button" class="menu-action" onclick="resetCurrentProject(); closeAllMenus()"><span>📄 Novo Projeto (Padrão)</span><kbd>Ctrl+N</kbd></button>
       <button type="button" class="menu-action" onclick="document.getElementById('projJsonInput').click(); closeAllMenus()"><span>📂 Abrir Projeto (.json)...</span><kbd>Ctrl+O</kbd></button>
       <button type="button" class="menu-action" onclick="exportProjectJson(); closeAllMenus()"><span>💾 Salvar Projeto (.json)</span><kbd>Ctrl+S</kbd></button>
+      <button type="button" class="menu-action" onclick="exportBuildPackHtml(); closeAllMenus()"><span>📦 Exportar Pacote de Obra (HTML)</span><kbd>CAD</kbd></button>
       <div class="menu-sep"></div>
       <button type="button" class="menu-action" onclick="document.getElementById('dbJsonInput').click(); closeAllMenus()"><span>📥 Importar Driver (.json)</span></button>
       <button type="button" class="menu-action" onclick="exportExpandedPNG(); closeAllMenus()"><span>📷 Exportar Gráfico (PNG)</span></button>
@@ -1300,31 +1301,57 @@
           <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:12px; font-size:12px; line-height:1.6;" id="wlSummaryBox">
             <!-- Resumo Volumétrico e Modal injetado via JS -->
           </div>
+          <div id="wlValidationBox" style="margin-top:10px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:11.5px; line-height:1.5;">
+            <!-- Validador Geométrico P0 injetado via JS -->
+          </div>
+          <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+            <button type="button" id="btnExportBuildPack" class="tb-btn accent-wiz" onclick="exportBuildPackHtml()" style="padding:7px 12px; font-size:11.5px;">📦 Exportar Pacote de Construção (HTML Imprimível)</button>
+            <button type="button" id="btnExportBuildJson" class="tb-btn" onclick="exportBuildPackJson()" style="padding:7px 12px; font-size:11.5px;">🧾 Exportar BuildPack (.json)</button>
+          </div>
         </div>
 
         <!-- Desenho Técnico CAD 2D/Isométrico -->
         <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px; display:flex; flex-direction:column;">
-          <h3 style="font-size:14px; color:var(--accent); margin-bottom:8px;">📐 Blueprint Técnico Lateral & Frontal (Cotas A, B, C, D, E, F)</h3>
-          <canvas id="woodlockCanvas" style="width:100%; height:260px; background:#060911; border-radius:6px;"></canvas>
+          <h3 style="font-size:14px; color:var(--accent); margin-bottom:8px;">📐 Blueprint Técnico Lateral (Lv vs C) &amp; Frontal com Furação Real</h3>
+          <canvas id="woodlockCanvas" style="width:100%; height:290px; background:#060911; border-radius:6px;"></canvas>
         </div>
       </div>
 
       <!-- Tabela de Plano de Corte (Cut-Sheet) -->
       <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px;">
-        <h3 style="font-size:14px; color:var(--accent); margin-bottom:10px;">📋 Plano de Corte Industrial de Chapas (Topologia: Laterais Embutidas)</h3>
+        <h3 style="font-size:14px; color:var(--accent); margin-bottom:10px;">📋 Plano de Corte Industrial — MDF, Sarrafos &amp; Dutos (Topologia: Laterais Embutidas)</h3>
         <table class="comparison-table">
           <thead>
             <tr>
-              <th>Peça Estrutural</th>
+              <th>Peça / Orientação</th>
               <th>Qtd</th>
               <th>Largura (mm)</th>
-              <th>Altura / Profundidade (mm)</th>
+              <th>Altura / Compr. (mm)</th>
               <th>Chanfro (°)</th>
               <th>Área Líquida (m²)</th>
               <th>Instrução de Montagem</th>
             </tr>
           </thead>
           <tbody id="cutSheetTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Gabarito de Furação do Baffle (Coordenadas Reais) -->
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px;">
+        <h3 style="font-size:14px; color:var(--accent); margin-bottom:6px;">🎯 Gabarito de Furação do Painel Frontal (Origem X=0, Y=0 no canto inferior-esquerdo EXTERNO)</h3>
+        <div id="wlBaffleOriginNote" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;"></div>
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Elemento</th>
+              <th>Tipo / Forma</th>
+              <th>Centro X Ext. (mm)</th>
+              <th>Centro Y Ext. (mm)</th>
+              <th>Dimensão Recorte (mm)</th>
+              <th>Flange / Folga (mm)</th>
+            </tr>
+          </thead>
+          <tbody id="wlHolesTableBody"></tbody>
         </table>
       </div>
 
@@ -1757,44 +1784,44 @@
 // ============================================================================
 const PRESETS = {
   oversound: {
-    name: "Oversound 18 SUB 800 XT",
+    name: "Oversound 18 SUB 800 XT", dia: 18,
     Fs: 40.0, Qms: 7.2, Qes: 0.446, Re: 5.1, Sd: 1186, Vas: 185,
     Xmax: 9.8, Pe: 800, Vsub: 9.0, type: "bass-reflex", Vb: 130, Fb: 44.62,
     numDucts: 2, ductDia: 6.0, ductThick: 1.5, hpf: 36.0
   },
   alumapro: {
-    name: "Alumapro Alchemy 12-8",
+    name: "Alumapro Alchemy 12-8", dia: 12,
     Fs: 35.0, Qms: 6.3, Qes: 0.89, Re: 7.8, Sd: 527, Vas: 65.13,
     Xmax: 12.0, Pe: 300, Vsub: 2.0, type: "sealed", Vb: 2522.3, Fb: 35.0,
     numDucts: 1, ductDia: 4.0, ductThick: 1.5, hpf: 20.0
   },
   kicker: {
-    name: "Kicker Comp 12",
+    name: "Kicker Comp 12", dia: 12,
     Fs: 32.06, Qms: 8.111, Qes: 1.902, Re: 3.8, Sd: 531, Vas: 79.3,
     Xmax: 6.6, Pe: 300, Vsub: 3.1, type: "sealed", Vb: 176.3, Fb: 32.0,
     numDucts: 1, ductDia: 4.0, ductThick: 1.5, hpf: 20.0
   },
   jbl: {
-    name: "JBL 15SWT2200",
+    name: "JBL 15SWT2200", dia: 15,
     Fs: 41.0, Qms: 10.32, Qes: 0.48, Re: 3.39, Sd: 814, Vas: 105,
     Xmax: 9.5, Pe: 1100, Vsub: 6.5, type: "bass-reflex", Vb: 102.6, Fb: 47.9,
     numDucts: 3, ductDia: 4.0, ductThick: 1.5, hpf: 40.0
   },
   jbl_opt_c: {
-    name: "JBL 15SWT2200 (Opção C — 85L @ 48Hz)",
+    name: "JBL 15SWT2200 (Opção C — 85L @ 48Hz)", dia: 15,
     Fs: 41.0, Qms: 16.32, Qes: 0.45, Re: 3.4, Sd: 814, Vas: 76.3,
     Xmax: 10.6, Pe: 1100, Vsub: 6.5, type: "bass-reflex", Vb: 85.0, Fb: 48.0,
     ql: 7.0, temp: 25, numDucts: 3, ductDia: 3.937, ductThick: 1.5, hpf: 38.0,
     manualTune: true
   },
   eighteen: {
-    name: "18 Sound 18W1300",
+    name: "18 Sound 18W1300", dia: 18,
     Fs: 35.0, Qms: 7.0, Qes: 0.31, Re: 5.0, Sd: 1225, Vas: 290,
     Xmax: 9.0, Pe: 600, Vsub: 8.5, type: "bass-reflex", Vb: 150, Fb: 44.95,
     numDucts: 2, ductDia: 6.0, ductThick: 1.5, hpf: 35.0
   },
   dayton: {
-    name: "Dayton Audio UMII12-22",
+    name: "Dayton Audio UMII12-22", dia: 12,
     Fs: 31.0, Qms: 2.75, Qes: 0.71, Re: 4.2, Sd: 505, Vas: 42,
     Xmax: 19.0, Pe: 800, Vsub: 3.8, type: "bass-reflex", Vb: 70, Fb: 30.0,
     numDucts: 1, ductDia: 4.0, ductThick: 1.5, hpf: 25.0
@@ -1911,6 +1938,12 @@ function exportProjectJson() {
     isAutoTune,
     isHpfEnabled,
     chartOpts: { ...chartOpts },
+    validation: lastBuildPack ? {
+      valid: lastBuildPack.validation.valid,
+      criticalCount: lastBuildPack.validation.criticalCount,
+      warnCount: lastBuildPack.validation.warnCount,
+      issues: lastBuildPack.validation.issues
+    } : null,
     fields
   };
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -4405,8 +4438,346 @@ function populateAuditTable() {
 }
 
 // ============================================================================
-// MOTOR WOODLOCK CAD (MARCENARIA, TRAVAMENTO MODAL & PLANO DE CORTE)
+// MOTOR WOODLOCK CAD + VALIDADOR GEOMÉTRICO P0 + PACOTE DE CONSTRUÇÃO (OBRA)
 // ============================================================================
+let lastBuildPack = null;
+
+function escapeHtmlStr(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function estimateDriverCutoutAndFlange(diaIn) {
+  const d = Math.max(4, parseFloat(diaIn) || 12);
+  const table = [
+    [6.5, 168, 145],
+    [8,   212, 185],
+    [10,  264, 232],
+    [12,  315, 282],
+    [15,  392, 354],
+    [18,  468, 422],
+    [21,  546, 496]
+  ];
+  for (let i = 0; i < table.length; i++) {
+    if (Math.abs(d - table[i][0]) < 0.25) {
+      return { diaIn: d, flangeOD: table[i][1], cutoutDia: table[i][2], estimated: true };
+    }
+  }
+  return {
+    diaIn: d,
+    flangeOD: Math.round(d * 25.4 + 10),
+    cutoutDia: Math.round(d * 25.4 * 0.922),
+    estimated: true
+  };
+}
+
+function validateBuildGeometry(opts) {
+  const issues = [];
+  const A = Math.max(50, opts.A || 800);
+  const B = Math.max(50, opts.B || 450);
+  const t = Math.max(6, opts.t || 18);
+  const C_min = Math.min(opts.C_top || 300, opts.D_bot || 300);
+  const nDrivers = Math.max(1, opts.nDrivers || 1);
+  const tsDia = parseFloat(opts.tsDia) || 12;
+  const Sd_cm2 = parseFloat(opts.Sd_cm2) || 500;
+  const driverName = String(opts.driverName || '');
+  const boxType = opts.boxType || 'bass-reflex';
+  const isVented = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6');
+
+  const pistonDiaCm = 2.0 * Math.sqrt(Math.max(1, Sd_cm2) / Math.PI);
+  const diaRatio = pistonDiaCm / (tsDia * 2.54);
+  const estDiaFromSd = Math.round(pistonDiaCm / (2.54 * 0.84));
+  let effectiveDiaIn = tsDia;
+
+  // 1. Consistência tsDia vs Sd
+  if (diaRatio < 0.65 || diaRatio > 0.94) {
+    issues.push({
+      level: 'critical',
+      code: 'DIA_SD_MISMATCH',
+      msg: `Inconsistência crítica: Sd = ${Sd_cm2.toFixed(0)} cm² (Ø pistão ${pistonDiaCm.toFixed(1)} cm) incompatível com tsDia = ${tsDia}″ (sugere ~${estDiaFromSd}″). Corrija o diâmetro nominal do driver.`
+    });
+    effectiveDiaIn = Math.max(tsDia, estDiaFromSd);
+  }
+
+  // 2. Consistência tsDia vs nome declarado do driver
+  const nameMatch = driverName.match(/(?:^|[\s\-_])(6\.5|8|10|12|15|18|21)(?:"|″|\s*pol|\s*SUB|\s*W\d|\s*SWT)/i);
+  if (nameMatch) {
+    const nameDia = parseFloat(nameMatch[1]);
+    if (Number.isFinite(nameDia) && Math.abs(nameDia - tsDia) >= 1.5) {
+      issues.push({
+        level: 'critical',
+        code: 'DIA_NAME_MISMATCH',
+        msg: `Nome do driver indica ${nameDia}″ ("${driverName}"), mas tsDia está definido como ${tsDia}″.`
+      });
+      effectiveDiaIn = Math.max(effectiveDiaIn, nameDia);
+    }
+  }
+
+  const drvGeom = estimateDriverCutoutAndFlange(effectiveDiaIn);
+  drvGeom.pistonDiaCm = +pistonDiaCm.toFixed(1);
+  const flangeOD = drvGeom.flangeOD;
+  const cutoutDia = drvGeom.cutoutDia;
+  const edgeMargin = 16; // mm mínimo até parede interna
+  const minGap = 18;     // mm mínimo entre recortes
+
+  // 3. Checagem de altura/largura para o(s) driver(s)
+  const cols = nDrivers <= 2 ? nDrivers : Math.ceil(nDrivers / 2);
+  const rows = nDrivers <= 2 ? 1 : 2;
+  const minBForDriver = Math.ceil(rows * flangeOD + (rows - 1) * minGap + 2 * 10);
+  if (B < rows * flangeOD) {
+    issues.push({
+      level: 'critical',
+      code: 'DRIVER_HEIGHT_FIT',
+      msg: `Altura interna B = ${B.toFixed(0)} mm não comporta flange estimado de ${effectiveDiaIn}″ (Ø flange ≈ ${flangeOD} mm, recorte ${cutoutDia} mm). Aumente B para ≥ ${minBForDriver} mm.`
+    });
+  } else if (B < minBForDriver) {
+    issues.push({
+      level: 'warn',
+      code: 'DRIVER_HEIGHT_TIGHT',
+      msg: `Altura interna B = ${B.toFixed(0)} mm está muito justa para flange de ${effectiveDiaIn}″ (${flangeOD} mm). Recomendado B ≥ ${minBForDriver} mm.`
+    });
+  }
+
+  // 4. Posicionamento real dos furos no baffle (coordenadas internas [0..A, 0..B], origem canto inferior-esquerdo)
+  const holes = [];
+  const portType = opts.portType || 'round';
+  const isSlot = (portType === 'slot' || portType === 'slot_wall');
+  const isTri = (portType === 'triangle');
+  const numDucts = Math.max(1, parseInt(opts.numDucts) || 1);
+  const ductHoleDia = (parseFloat(opts.ductDia) || 4.0) * 25.4 + 2.0 * (parseFloat(opts.ductThick) || 1.5);
+  const slotWmm = (parseFloat(opts.slotW) || 35.0) * 10.0;
+  const slotHmm = (parseFloat(opts.slotH) || 6.0) * 10.0;
+  const triCount = Math.max(1, Math.min(4, parseInt(opts.triCount) || 2));
+  const triAmm = (parseFloat(opts.triA) || 14.0) * 10.0;
+  const triBmm = (parseFloat(opts.triB) || 14.0) * 10.0;
+  const lvMm = isVented ? ((opts.LvCm || 0) * 10.0) : 0;
+
+  // Reserva de área para duto lateral (quando 1 driver + dutos redondos ou slot)
+  let portReserveRight = 0;
+  if (isVented && !isTri) {
+    if (isSlot) {
+      portReserveRight = slotHmm + 2 * edgeMargin;
+    } else if (nDrivers === 1) {
+      portReserveRight = ductHoleDia + 2 * edgeMargin;
+    }
+  }
+
+  const drvZoneW = Math.max(flangeOD, A - portReserveRight);
+  const cellW = drvZoneW / cols;
+  const cellH = B / rows;
+  for (let i = 0; i < nDrivers; i++) {
+    const col = i % cols;
+    const row = Math.floor(i / cols);
+    const xInt = (col + 0.5) * cellW;
+    const yInt = (row + 0.5) * cellH;
+    holes.push({
+      kind: 'driver',
+      shape: 'round',
+      label: nDrivers > 1 ? `Driver #${i + 1}` : 'Driver Principal',
+      xInt: +xInt.toFixed(1),
+      yInt: +yInt.toFixed(1),
+      xExt: +(xInt + t).toFixed(1),
+      yExt: +(yInt + t).toFixed(1),
+      dia: cutoutDia,
+      flangeDia: flangeOD,
+      collision: false
+    });
+  }
+
+  // Posiciona dutos se caixa dutada / band-pass
+  if (isVented) {
+    if (isTri) {
+      const corners = [
+        { x: triAmm / 3, y: triBmm / 3, corner: 'Inf-Esq' },
+        { x: A - triAmm / 3, y: triBmm / 3, corner: 'Inf-Dir' },
+        { x: triAmm / 3, y: B - triBmm / 3, corner: 'Sup-Esq' },
+        { x: A - triAmm / 3, y: B - triBmm / 3, corner: 'Sup-Dir' }
+      ];
+      for (let i = 0; i < triCount; i++) {
+        const cPos = corners[i % 4];
+        holes.push({
+          kind: 'port',
+          shape: 'triangle',
+          label: `Duto Triângulo #${i + 1} (${cPos.corner})`,
+          xInt: +cPos.x.toFixed(1),
+          yInt: +cPos.y.toFixed(1),
+          xExt: +(cPos.x + t).toFixed(1),
+          yExt: +(cPos.y + t).toFixed(1),
+          triA: +triAmm.toFixed(1),
+          triB: +triBmm.toFixed(1),
+          cornerIdx: i % 4,
+          lvMm: +lvMm.toFixed(1),
+          collision: false
+        });
+      }
+    } else if (isSlot) {
+      // Duto régua vertical na borda direita interna (se slotW <= B) ou horizontal na base
+      const verticalFit = (slotWmm <= B);
+      const wSlot = verticalFit ? slotHmm : slotWmm;
+      const hSlot = verticalFit ? slotWmm : slotHmm;
+      const xInt = verticalFit ? (A - wSlot / 2) : (A / 2);
+      const yInt = verticalFit ? (B / 2) : (hSlot / 2);
+      holes.push({
+        kind: 'port',
+        shape: 'slot',
+        label: portType === 'slot_wall' ? 'Duto Régua (Parede)' : 'Duto Retangular',
+        xInt: +xInt.toFixed(1),
+        yInt: +yInt.toFixed(1),
+        xExt: +(xInt + t).toFixed(1),
+        yExt: +(yInt + t).toFixed(1),
+        w: +wSlot.toFixed(1),
+        h: +hSlot.toFixed(1),
+        lvMm: +lvMm.toFixed(1),
+        collision: false
+      });
+    } else {
+      // Dutos cilíndricos / flared: empilhados na faixa direita se 1 driver, ou distribuídos na faixa inferior/direita
+      const pX = (nDrivers === 1) ? (A - edgeMargin - ductHoleDia / 2) : null;
+      for (let i = 0; i < numDucts; i++) {
+        let xInt, yInt;
+        if (nDrivers === 1) {
+          xInt = pX;
+          const stepY = B / (numDucts + 1);
+          yInt = stepY * (i + 1);
+          // Otimiza espaçamento vertical para 2 dutos (canto superior e inferior com margem)
+          if (numDucts === 2 && B >= 2 * ductHoleDia + 2 * edgeMargin + minGap) {
+            yInt = (i === 0) ? (edgeMargin + ductHoleDia / 2 + 10) : (B - edgeMargin - ductHoleDia / 2 - 10);
+          }
+        } else {
+          xInt = ((i + 1) / (numDucts + 1)) * A;
+          yInt = edgeMargin + ductHoleDia / 2;
+        }
+        holes.push({
+          kind: 'port',
+          shape: 'round',
+          label: `Duto Cilíndrico #${i + 1}`,
+          xInt: +xInt.toFixed(1),
+          yInt: +yInt.toFixed(1),
+          xExt: +(xInt + t).toFixed(1),
+          yExt: +(yInt + t).toFixed(1),
+          dia: +ductHoleDia.toFixed(1),
+          flangeDia: +(ductHoleDia + 22).toFixed(1),
+          lvMm: +lvMm.toFixed(1),
+          collision: false
+        });
+      }
+    }
+  }
+
+  // 5. Verificação matemática de bordas e colisões par-a-par
+  let hasBorderError = false;
+  let hasCollisionError = false;
+
+  holes.forEach(h => {
+    if (h.shape === 'round') {
+      const rCheck = (h.kind === 'driver') ? (h.flangeDia / 2) : (h.dia / 2 + 8);
+      if (h.xInt - rCheck < 0 || h.xInt + rCheck > A || h.yInt - rCheck < 0 || h.yInt + rCheck > B) {
+        h.collision = true;
+        hasBorderError = true;
+      }
+    } else if (h.shape === 'slot') {
+      if (h.xInt - h.w / 2 < -0.5 || h.xInt + h.w / 2 > A + 0.5 || h.yInt - h.h / 2 < -0.5 || h.yInt + h.h / 2 > B + 0.5) {
+        h.collision = true;
+        hasBorderError = true;
+      }
+    }
+  });
+
+  for (let i = 0; i < holes.length; i++) {
+    for (let j = i + 1; j < holes.length; j++) {
+      const h1 = holes[i], h2 = holes[j];
+      if (h1.shape === 'round' && h2.shape === 'round') {
+        const dist = Math.hypot(h1.xInt - h2.xInt, h1.yInt - h2.yInt);
+        const r1 = (h1.kind === 'driver') ? (h1.flangeDia / 2) : (h1.dia / 2);
+        const r2 = (h2.kind === 'driver') ? (h2.flangeDia / 2) : (h2.dia / 2);
+        if (dist < r1 + r2 + minGap) {
+          h1.collision = true;
+          h2.collision = true;
+          hasCollisionError = true;
+        }
+      } else if ((h1.shape === 'round' && h2.shape === 'slot') || (h1.shape === 'slot' && h2.shape === 'round')) {
+        const rc = h1.shape === 'round' ? h1 : h2;
+        const sl = h1.shape === 'slot' ? h1 : h2;
+        const r = (rc.kind === 'driver') ? (rc.flangeDia / 2) : (rc.dia / 2);
+        const cx = Math.max(sl.xInt - sl.w / 2, Math.min(rc.xInt, sl.xInt + sl.w / 2));
+        const cy = Math.max(sl.yInt - sl.h / 2, Math.min(rc.yInt, sl.yInt + sl.h / 2));
+        if (Math.hypot(rc.xInt - cx, rc.yInt - cy) < r + minGap) {
+          h1.collision = true;
+          h2.collision = true;
+          hasCollisionError = true;
+        }
+      }
+    }
+  }
+
+  if (hasBorderError) {
+    const minReqA = Math.ceil(cols * flangeOD + (isVented && !isTri ? (isSlot ? slotHmm : ductHoleDia) + 45 : 30));
+    issues.push({
+      level: 'critical',
+      code: 'BAFFLE_BORDER_OVERFLOW',
+      msg: `Um ou mais recortes/flanges ultrapassam o vão interno A×B (${A.toFixed(0)}×${B.toFixed(0)} mm). Sugestão: A ≥ ${minReqA} mm e B ≥ ${minBForDriver} mm.`
+    });
+  }
+  if (hasCollisionError) {
+    const minReqA = Math.ceil(cols * flangeOD + (isVented && !isTri ? (isSlot ? slotHmm : ductHoleDia) + 60 : 40));
+    issues.push({
+      level: 'critical',
+      code: 'BAFFLE_HOLE_COLLISION',
+      msg: `Colisão geométrica detectada no baffle entre driver e/ou dutos (folga mínima exigida: ${minGap} mm). Aumente A (sugestão ≥ ${minReqA} mm) ou B (≥ ${Math.ceil(Math.max(minBForDriver, numDucts * ductHoleDia + 70))} mm).`
+    });
+  }
+
+  // 6. Profundidade útil do duto (Lv vs C_min)
+  const clearanceMm = isVented ? (C_min - lvMm) : C_min;
+  if (isVented) {
+    const deqMm = ((opts.portGeom && opts.portGeom.DeqM) ? opts.portGeom.DeqM * 1000.0 : ductHoleDia);
+    if (lvMm <= 0) {
+      issues.push({
+        level: 'critical',
+        code: 'PORT_LV_NEGATIVE',
+        msg: `Comprimento cortado do duto Lv = ${(lvMm / 10).toFixed(1)} cm é nulo/negativo. Reduza a área do duto ou baixe Fb.`
+      });
+    } else if (clearanceMm < 40) {
+      issues.push({
+        level: 'critical',
+        code: 'PORT_DEPTH_COLLISION',
+        msg: `Duto (Lv = ${lvMm.toFixed(0)} mm) não cabe na profundidade interna mínima C = ${C_min.toFixed(0)} mm (folga traseira ${clearanceMm.toFixed(0)} mm < 40 mm).`
+      });
+    } else if (clearanceMm < Math.max(50, deqMm * 0.75)) {
+      issues.push({
+        level: 'warn',
+        code: 'PORT_CLEARANCE_TIGHT',
+        msg: `Folga traseira atrás do duto (${clearanceMm.toFixed(0)} mm) abaixo do ideal (≥ ${Math.round(Math.max(50, deqMm * 0.75))} mm).`
+      });
+    }
+  }
+
+  // 7. Aviso documentado de flange estimado
+  issues.push({
+    level: 'ok',
+    code: 'FLANGE_ESTIMATED',
+    msg: `Recorte (${cutoutDia} mm) e flange (${flangeOD} mm) estimados para ${effectiveDiaIn}″ — confirme no datasheet físico antes de furar.`
+  });
+
+  const criticalCount = issues.filter(i => i.level === 'critical').length;
+  const warnCount = issues.filter(i => i.level === 'warn').length;
+
+  return {
+    valid: criticalCount === 0,
+    criticalCount,
+    warnCount,
+    issues,
+    driverGeom: drvGeom,
+    holes,
+    clearanceMm: +clearanceMm.toFixed(1),
+    minC: +C_min.toFixed(1)
+  };
+}
+
 function updateWoodlock() {
   const shapeEl = document.getElementById('wlShape');
   if (!shapeEl) return;
@@ -4419,30 +4790,32 @@ function updateWoodlock() {
   const battens = parseInt(document.getElementById('wlBattens').value) || 0;
 
   const boxType = document.getElementById('boxType').value;
+  const isVented = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6');
   const nDrivers = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
   const Vb = parseFloat(document.getElementById('vbInput').value) || 130.0;
   const Vsub = (parseFloat(document.getElementById('tsVsub').value) || 9.0) * nDrivers;
   const tempC = parseFloat(document.getElementById('tempInput').value) || 20.0;
   const cVal = 20.0547605 * Math.sqrt(273.15 + tempC);
+  const portType = document.getElementById('portType')?.value || 'round';
+  const numDucts = parseInt(document.getElementById('numDucts').value) || 2;
+  const ductDia = parseFloat(document.getElementById('ductDia').value) || 6.0;
+  const ductThick = parseFloat(document.getElementById('ductThick').value) || 1.5;
+  const slotW = parseFloat(document.getElementById('slotW')?.value) || 35.0;
+  const slotH = parseFloat(document.getElementById('slotH')?.value) || 6.0;
+  const slotWallThick = parseFloat(document.getElementById('slotWallThick')?.value) || 18.0;
+  const triCount = parseInt(document.getElementById('triCount')?.value) || 2;
+  const triA = parseFloat(document.getElementById('triA')?.value) || 14.0;
+  const triB = parseFloat(document.getElementById('triB')?.value) || 14.0;
+  const Fb = parseFloat(document.getElementById('fbInput').value) || 44.62;
 
   let Vduto = 0.0;
-  if (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6') {
-    const pg = computePortGeometry({
-      portType: document.getElementById('portType')?.value || 'round',
-      numDucts: parseInt(document.getElementById('numDucts').value) || 2,
-      ductDia: parseFloat(document.getElementById('ductDia').value) || 6.0,
-      ductThick: parseFloat(document.getElementById('ductThick').value) || 1.5,
-      slotW: parseFloat(document.getElementById('slotW')?.value) || 35.0,
-      slotH: parseFloat(document.getElementById('slotH')?.value) || 6.0,
-      slotWallThick: parseFloat(document.getElementById('slotWallThick')?.value) || 18.0,
-      triCount: parseInt(document.getElementById('triCount')?.value) || 2,
-      triA: parseFloat(document.getElementById('triA')?.value) || 14.0,
-      triB: parseFloat(document.getElementById('triB')?.value) || 14.0,
-      Fb: parseFloat(document.getElementById('fbInput').value) || 44.62,
-      Vb,
-      c: cVal
+  let portGeom = null;
+  if (isVented) {
+    portGeom = computePortGeometry({
+      portType, numDucts, ductDia, ductThick, slotW, slotH, slotWallThick,
+      triCount, triA, triB, Fb, Vb, c: cVal
     });
-    Vduto = pg.vDuto;
+    Vduto = portGeom.vDuto;
   }
 
   // Volume dos sarrafos (50mm x t x B) + câmara traseira se BP4/BP6
@@ -4482,12 +4855,56 @@ function updateWoodlock() {
   const rearH = isTrap ? (E_ext / Math.cos((angle * Math.PI) / 180.0)) : E_ext;
 
   const pieces = [
-    { name: "Tampo Superior", qty: 1, w: F_ext, h: C_ext_top, bev: bev, area: (F_ext * C_ext_top) / 1e6, note: "Cobre laterais e frente/traseira" },
-    { name: "Base Inferior", qty: 1, w: F_ext, h: D_ext_bot, bev: bev, area: (F_ext * D_ext_bot) / 1e6, note: "Base estrutural completa (F x D_ext)" },
-    { name: "Painel Frontal (Baffle)", qty: 1, w: F_ext, h: E_ext, bev: 0.0, area: (F_ext * E_ext) / 1e6, note: "Corte reto 90° c/ furação sub e dutos" },
-    { name: "Painel Traseiro", qty: 1, w: F_ext, h: rearH, bev: bev, area: (F_ext * rearH) / 1e6, note: isTrap ? "Inclinado com chanfro superior/inferior" : "Corte reto 90°" },
-    { name: "Laterais Embutidas (Esq + Dir)", qty: 2, w: B, h: 0.5*(C_top + D_bot), bev: bev, area: 2.0 * (B * 0.5 * (C_top + D_bot)) / 1e6, note: `Embutidas (B=${B.toFixed(0)} x C=${C_top.toFixed(0)}/D=${D_bot.toFixed(0)} mm)` }
+    { kind: 'mdf', orient: 'CIMA', name: "Tampo Superior [CIMA]", qty: 1, w: F_ext, h: C_ext_top, t, bev: bev, area: (F_ext * C_ext_top) / 1e6, note: "Sobrepõe laterais, frente e trás (F × C_ext)" },
+    { kind: 'mdf', orient: 'BASE', name: "Base Inferior [BASE]", qty: 1, w: F_ext, h: D_ext_bot, t, bev: bev, area: (F_ext * D_ext_bot) / 1e6, note: "Base estrutural completa (F × D_ext)" },
+    { kind: 'mdf', orient: 'FRENTE', name: "Painel Frontal [FRENTE / Baffle]", qty: 1, w: F_ext, h: E_ext, t, bev: 0.0, area: (F_ext * E_ext) / 1e6, note: "Corte reto 90° — furar conforme gabarito abaixo" },
+    { kind: 'mdf', orient: 'TRÁS', name: "Painel Traseiro [TRÁS]", qty: 1, w: F_ext, h: rearH, t, bev: bev, area: (F_ext * rearH) / 1e6, note: isTrap ? "Inclinado com chanfro superior/inferior" : "Corte reto 90° (F × E)" },
+    { kind: 'mdf', orient: 'LADO ESQ/DIR', name: "Laterais Embutidas [ESQ + DIR]", qty: 2, w: B, h: 0.5*(C_top + D_bot), t, bev: bev, area: 2.0 * (B * 0.5 * (C_top + D_bot)) / 1e6, note: `Embutidas entre tampo/base e frente/trás (B=${B.toFixed(0)} × C=${C_top.toFixed(0)}/D=${D_bot.toFixed(0)} mm)` }
   ];
+
+  // Sarrafos de travamento como peças reais de BOM
+  if (battens > 0) {
+    pieces.push({
+      kind: 'batten', orient: 'INTERNO',
+      name: `Sarrafo de Travamento (MDF ${t}mm)`, qty: battens, w: 50.0, h: B, t, bev: 0.0,
+      area: (battens * 50.0 * B) / 1e6,
+      note: `Colar verticalmente nas paredes internas (50 × ${B.toFixed(0)} × ${t} mm)`
+    });
+  }
+
+  // Dutos como peça real de BOM (com Lv cortado)
+  const portBom = [];
+  if (isVented && portGeom) {
+    const lvMm = Math.max(0, portGeom.LvCm * 10.0);
+    if (portGeom.isTri) {
+      const hypMm = portGeom.hypCm * 10.0;
+      const pLine = {
+        kind: 'port', orient: 'DUTO', name: `Parede Duto Triângulo (${triA}×${triB} cm)`,
+        qty: triCount, w: hypMm, h: lvMm, t, bev: 45.0, area: (triCount * hypMm * lvMm) / 1e6,
+        note: `MDF ${t}mm em 45° nos cantos — comprimento cortado Lv = ${lvMm.toFixed(0)} mm (${portGeom.LvCm.toFixed(1)} cm)`
+      };
+      pieces.push(pLine);
+      portBom.push(pLine);
+    } else if (portGeom.isSlot) {
+      const pLine = {
+        kind: 'port', orient: 'DUTO', name: `Divisória Duto Régua (${slotW}×${slotH} cm)`,
+        qty: 1, w: slotW * 10.0, h: lvMm, t: slotWallThick, bev: 0.0, area: ((slotW * 10.0) * lvMm) / 1e6,
+        note: `MDF ${slotWallThick}mm — comprimento cortado Lv = ${lvMm.toFixed(0)} mm (${portGeom.LvCm.toFixed(1)} cm)`
+      };
+      pieces.push(pLine);
+      portBom.push(pLine);
+    } else {
+      const idMm = ductDia * 25.4;
+      const odMm = idMm + 2.0 * ductThick;
+      const pLine = {
+        kind: 'port', orient: 'DUTO', name: `Tubo PVC/ABS Ø ${ductDia}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`,
+        qty: numDucts, w: odMm, h: lvMm, t: ductThick, bev: 0.0, area: 0.0,
+        note: `Cortar ${numDucts}× tubo(s) com comprimento exato Lv = ${lvMm.toFixed(0)} mm (${portGeom.LvCm.toFixed(2)} cm)`
+      };
+      pieces.push(pLine);
+      portBom.push(pLine);
+    }
+  }
 
   const totalArea = pieces.reduce((acc, p) => acc + p.area, 0.0);
   const woodWeightKg = totalArea * (t / 1000.0) * 750.0;
@@ -4496,6 +4913,58 @@ function updateWoodlock() {
   const sheetsNeeded = Math.max(0.25, (totalArea * 1.12) / sheetArea);
   const estCost = sheetsNeeded * sheetPrice;
 
+  // Validação Geométrica P0
+  const drvSel = document.getElementById('driverPreset');
+  const driverName = drvSel && drvSel.selectedIndex >= 0 ? drvSel.options[drvSel.selectedIndex].text : 'Driver Atual';
+  const tsDiaVal = parseFloat(document.getElementById('tsDia')?.value) || 12;
+  const sdVal = parseFloat(document.getElementById('tsSd')?.value) || 500;
+  const validation = validateBuildGeometry({
+    driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType,
+    A, B, C_top, D_bot, t, F_ext, E_ext, portGeom,
+    portType, numDucts, ductDia, ductThick, slotW, slotH, triCount, triA, triB,
+    LvCm: portGeom ? portGeom.LvCm : 0
+  });
+
+  // Congela snapshot de construção (bassforge-buildpack/v1)
+  const meta = (currentCurves && currentCurves.meta) || {};
+  lastBuildPack = {
+    schema: 'bassforge-buildpack/v1',
+    generatedAt: new Date().toISOString(),
+    driver: {
+      name: driverName,
+      nDrivers,
+      dia_in: tsDiaVal,
+      Fs: parseFloat(document.getElementById('tsFs')?.value) || 0,
+      Qes: parseFloat(document.getElementById('tsQes')?.value) || 0,
+      Qms: parseFloat(document.getElementById('tsQms')?.value) || 0,
+      Vas: parseFloat(document.getElementById('tsVas')?.value) || 0,
+      Re: parseFloat(document.getElementById('tsRe')?.value) || 0,
+      Sd: sdVal,
+      Xmax: parseFloat(document.getElementById('tsXmax')?.value) || 0,
+      Pe: parseFloat(document.getElementById('tsPe')?.value) || 0,
+      Vsub: parseFloat(document.getElementById('tsVsub')?.value) || 0
+    },
+    acoustics: {
+      boxType, Vb, Vr: VbpRear, Fb: meta.Fb || Fb, F3: meta.F3 || 0, FH: meta.FH || 0,
+      fc: meta.fc || 0, hpfEnabled: isHpfEnabled, hpfHz: meta.hpfHz || 0,
+      LvCm: portGeom ? +portGeom.LvCm.toFixed(2) : 0,
+      SpCm2: portGeom ? +(portGeom.Sp * 10000).toFixed(1) : 0,
+      Vduto: +Vduto.toFixed(2),
+      Vbruto: +Vbruto.toFixed(2)
+    },
+    dimensions: {
+      shape, t, A, B, C_top: +C_top.toFixed(1), D_bot: +D_bot.toFixed(1),
+      F_ext: +F_ext.toFixed(1), E_ext: +E_ext.toFixed(1),
+      C_ext_top: +C_ext_top.toFixed(1), D_ext_bot: +D_ext_bot.toFixed(1),
+      V_ext: +V_ext.toFixed(1), totalAreaM2: +totalArea.toFixed(3),
+      sheetsEst: +sheetsNeeded.toFixed(2), weightKg: +woodWeightKg.toFixed(1)
+    },
+    pieces,
+    portBom,
+    baffleHoles: validation.holes,
+    validation
+  };
+
   const summaryBox = document.getElementById('wlSummaryBox');
   if (summaryBox) {
     summaryBox.innerHTML = `
@@ -4503,8 +4972,36 @@ function updateWoodlock() {
       <div><b>Cotas Internas [A×B×C/D]:</b> A=${A.toFixed(0)} mm | B=${B.toFixed(0)} mm | C=${C_top.toFixed(1)} mm | D=${D_bot.toFixed(1)} mm</div>
       <div><b>Cotas Externas [F×E]:</b> F=${F_ext.toFixed(0)} mm | E=${E_ext.toFixed(0)} mm | Vol. Externo=${V_ext.toFixed(1)} L</div>
       <div><b>Modo Fundamental Painel (f₁₁):</b> s/ travas=${f11_unbraced.toFixed(0)} Hz ➔ <span style="color:#10b981;font-weight:700;">c/ travas=${f11_braced.toFixed(0)} Hz</span></div>
-      <div><b>Chapa MDF &amp; Orçamento:</b> Área=${totalArea.toFixed(3)} m² (${sheetsNeeded.toFixed(2)} chapa) | Peso=<b>${woodWeightKg.toFixed(1)} kg</b> | Custo Est.: <span style="color:#fbbf24;font-weight:700;">R$ ${estCost.toFixed(2)}</span></div>
+      <div><b>Chapa MDF &amp; Orçamento:</b> Área=${totalArea.toFixed(3)} m² (${sheetsNeeded.toFixed(2)} chapa 2750×1830) | Peso=<b>${woodWeightKg.toFixed(1)} kg</b> | Custo Est.: <span style="color:#fbbf24;font-weight:700;">R$ ${estCost.toFixed(2)}</span></div>
     `;
+  }
+
+  // Renderiza painel do Validador Geométrico P0 + trava botões de exportação se houver critical
+  const valBox = document.getElementById('wlValidationBox');
+  if (valBox) {
+    const hdrColor = validation.valid ? (validation.warnCount > 0 ? '#f59e0b' : '#10b981') : '#ef4444';
+    const hdrText = validation.valid
+      ? (validation.warnCount > 0 ? `⚠️ VIÁVEL COM AVISOS (${validation.warnCount})` : '✅ GEOMETRIA APROVADA PARA CORTE E FURAÇÃO')
+      : `⛔ OBRA BLOQUEADA — ${validation.criticalCount} ERRO(S) CRÍTICO(S) DE GEOMETRIA`;
+    valBox.style.borderColor = hdrColor;
+    valBox.innerHTML =
+      `<div style="font-weight:700; color:${hdrColor}; margin-bottom:4px;">${hdrText}</div>` +
+      validation.issues.map(it => {
+        const ic = it.level === 'critical' ? '⛔' : (it.level === 'warn' ? '⚠️' : 'ℹ️');
+        const cl = it.level === 'critical' ? '#fca5a5' : (it.level === 'warn' ? '#fde68a' : '#94a3b8');
+        return `<div style="color:${cl}; margin-top:2px;">${ic} ${escapeHtmlStr(it.msg)}</div>`;
+      }).join('');
+  }
+  const btnExpHtml = document.getElementById('btnExportBuildPack');
+  const btnExpJson = document.getElementById('btnExportBuildJson');
+  if (btnExpHtml) {
+    btnExpHtml.disabled = !validation.valid;
+    btnExpHtml.style.opacity = validation.valid ? '1' : '0.45';
+    btnExpHtml.title = validation.valid ? 'Exportar arquivo de obra HTML imprimível' : 'Bloqueado: corrija os erros críticos de geometria acima antes de exportar';
+  }
+  if (btnExpJson) {
+    btnExpJson.disabled = !validation.valid;
+    btnExpJson.style.opacity = validation.valid ? '1' : '0.45';
   }
 
   // Verificador de Alojamento no Veículo
@@ -4531,45 +5028,80 @@ function updateWoodlock() {
   if (tbody) {
     tbody.innerHTML = pieces.map(p => `
       <tr>
-        <td style="font-weight:600; color:#fff;">${p.name}</td>
+        <td style="font-weight:600; color:${p.kind === 'port' ? '#fb923c' : (p.kind === 'batten' ? '#a78bfa' : '#fff')};">${escapeHtmlStr(p.name)}</td>
         <td>${p.qty}x</td>
         <td style="color:var(--accent); font-weight:700;">${p.w.toFixed(1)} mm</td>
         <td style="color:var(--accent); font-weight:700;">${p.h.toFixed(1)} mm</td>
         <td>${p.bev.toFixed(1)}°</td>
-        <td>${p.area.toFixed(3)} m²</td>
-        <td style="color:#9ca3af;">${p.note}</td>
+        <td>${p.area > 0 ? p.area.toFixed(3) + ' m²' : '—'}</td>
+        <td style="color:#9ca3af;">${escapeHtmlStr(p.note)}</td>
       </tr>
     `).join('');
   }
 
-  drawWoodlockBlueprint({ A, B, C_top, D_bot, F_ext, E_ext, t, isTrap });
+  // Tabela de Furação do Baffle
+  const originNote = document.getElementById('wlBaffleOriginNote');
+  if (originNote) {
+    originNote.textContent = `Painel Frontal externo F=${F_ext.toFixed(0)} × E=${E_ext.toFixed(0)} mm (MDF ${t} mm). Medir X a partir da borda ESQUERDA externa e Y a partir da borda INFERIOR externa.`;
+  }
+  const hBody = document.getElementById('wlHolesTableBody');
+  if (hBody) {
+    hBody.innerHTML = validation.holes.map(h => {
+      const dimTxt = h.shape === 'round'
+        ? `Ø ${h.dia.toFixed(1)} mm`
+        : (h.shape === 'slot' ? `${h.w.toFixed(0)} × ${h.h.toFixed(0)} mm` : `Triângulo ${h.triA.toFixed(0)} × ${h.triB.toFixed(0)} mm`);
+      const flTxt = h.kind === 'driver'
+        ? `Flange Ø ${h.flangeDia} mm (est.)`
+        : (h.lvMm ? `Lv = ${h.lvMm.toFixed(0)} mm` : '—');
+      const statusColor = h.collision ? '#f87171' : '#e2e8f0';
+      return `
+        <tr>
+          <td style="font-weight:600; color:${statusColor};">${h.collision ? '⛔ ' : ''}${escapeHtmlStr(h.label)}</td>
+          <td>${h.kind === 'driver' ? 'Transdutor' : 'Duto'} (${h.shape})</td>
+          <td style="color:var(--accent); font-weight:700;">${h.xExt.toFixed(1)} mm</td>
+          <td style="color:var(--accent); font-weight:700;">${h.yExt.toFixed(1)} mm</td>
+          <td style="font-weight:700;">${dimTxt}</td>
+          <td style="color:#9ca3af;">${flTxt}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  drawWoodlockBlueprint({
+    A, B, C_top, D_bot, F_ext, E_ext, t, isTrap,
+    isVented, lvMm: portGeom ? portGeom.LvCm * 10.0 : 0,
+    validation
+  });
 }
 
-function drawWoodlockBlueprint(g) {
-  const cv = document.getElementById('woodlockCanvas');
+function drawWoodlockBlueprint(g, targetCanvas) {
+  const cv = targetCanvas || document.getElementById('woodlockCanvas');
   if (!cv) return;
   const ctx = cv.getContext('2d');
-  const dpr = window.devicePixelRatio || 1;
-  const w = cv.clientWidth || 460;
-  const h = cv.clientHeight || 260;
-  cv.width = w * dpr;
-  cv.height = h * dpr;
-  ctx.scale(dpr, dpr);
+  const dpr = targetCanvas ? 1 : (window.devicePixelRatio || 1);
+  const w = targetCanvas ? (targetCanvas.width || 920) : (cv.clientWidth || 460);
+  const h = targetCanvas ? (targetCanvas.height || 360) : (cv.clientHeight || 290);
+  if (!targetCanvas) {
+    cv.width = w * dpr;
+    cv.height = h * dpr;
+    ctx.scale(dpr, dpr);
+  }
 
   ctx.fillStyle = '#060911';
   ctx.fillRect(0, 0, w, h);
 
-  // Vista 1: Corte Lateral (Esquerda) - Cotas B, C, D, E
+  // Vista 1: Corte Lateral (Esquerda) - Cotas B, C, D, E + Duto Lv vs C
   const pad = 28;
-  const halfW = w * 0.46;
+  const halfW = w * 0.44;
   const maxDimSide = Math.max(g.D_bot + 2*g.t, g.E_ext, 100);
-  const scaleSide = Math.min((halfW - 2*pad) / maxDimSide, (h - 2*pad - 20) / maxDimSide);
+  const scaleSide = Math.min((halfW - 2*pad) / maxDimSide, (h - 2*pad - 24) / maxDimSide);
 
-  const sideX0 = pad + 12;
+  const sideX0 = pad + 10;
   const sideY0 = pad + 14;
   const wTopPx = (g.C_top + 2*g.t) * scaleSide;
   const wBotPx = (g.D_bot + 2*g.t) * scaleSide;
   const hExtPx = g.E_ext * scaleSide;
+  const tSidePx = Math.max(2, g.t * scaleSide);
 
   ctx.strokeStyle = '#38bdf8';
   ctx.lineWidth = 2;
@@ -4583,63 +5115,313 @@ function drawWoodlockBlueprint(g) {
   ctx.fill();
   ctx.stroke();
 
+  // Desenha duto real na vista lateral (Lv vs C)
+  if (g.isVented && g.lvMm > 0) {
+    const lvPx = Math.min(wTopPx - tSidePx, g.lvMm * scaleSide);
+    const pHpx = Math.max(12, Math.min(hExtPx * 0.28, 120 * scaleSide));
+    const pY = sideY0 + hExtPx - tSidePx - pHpx - 6;
+    const portColl = g.validation && g.validation.clearanceMm < 40;
+    ctx.fillStyle = portColl ? 'rgba(239,68,68,0.35)' : 'rgba(249,115,22,0.28)';
+    ctx.strokeStyle = portColl ? '#ef4444' : '#f97316';
+    ctx.lineWidth = 1.6;
+    ctx.fillRect(sideX0 + tSidePx, pY, lvPx, pHpx);
+    ctx.strokeRect(sideX0 + tSidePx, pY, lvPx, pHpx);
+    ctx.fillStyle = portColl ? '#fca5a5' : '#fdba74';
+    ctx.font = 'bold 9.5px var(--mono)';
+    ctx.fillText(`Lv=${g.lvMm.toFixed(0)}mm`, sideX0 + tSidePx + 4, pY + pHpx / 2 + 3);
+  }
+
   ctx.fillStyle = '#e5e7eb';
   ctx.font = 'bold 11px var(--font)';
-  ctx.fillText('PERFIL LATERAL (COTAS B, C, D, E)', sideX0, 18);
+  ctx.fillText('CORTE LATERAL (Lv vs C)', sideX0, 18);
   ctx.fillStyle = '#38bdf8';
-  ctx.font = '10px var(--font)';
+  ctx.font = '10px var(--mono)';
   ctx.fillText(`C=${g.C_top.toFixed(0)}mm`, sideX0 + 6, sideY0 + 14);
-  ctx.fillText(`D=${g.D_bot.toFixed(0)}mm`, sideX0 + 6, sideY0 + hExtPx - 6);
+  if (g.isVented && g.validation) {
+    ctx.fillStyle = g.validation.clearanceMm < 40 ? '#f87171' : '#4ade80';
+    ctx.fillText(`Folga=${g.validation.clearanceMm.toFixed(0)}mm`, sideX0 + 6, sideY0 + 27);
+  }
+  ctx.fillStyle = '#38bdf8';
   ctx.fillText(`E=${g.E_ext.toFixed(0)}mm (B=${g.B.toFixed(0)})`, sideX0, sideY0 + hExtPx + 15);
 
-  // Vista 2: Vista Frontal Baffle (Direita) - Cotas A, B, F, E
-  const frontX0 = w * 0.52;
+  // Vista 2: Vista Frontal Baffle (Direita) com recortes REAIS (driver + dutos)
+  const frontX0 = w * 0.49;
   const maxDimFront = Math.max(g.F_ext, g.E_ext, 100);
-  const scaleFront = Math.min((w - frontX0 - pad) / maxDimFront, (h - 2*pad - 20) / maxDimFront);
+  const scaleFront = Math.min((w - frontX0 - pad) / maxDimFront, (h - 2*pad - 24) / maxDimFront);
   const fPx = g.F_ext * scaleFront;
   const ePx = g.E_ext * scaleFront;
   const tPx = Math.max(2, g.t * scaleFront);
 
   ctx.fillStyle = '#e5e7eb';
   ctx.font = 'bold 11px var(--font)';
-  ctx.fillText('VISTA FRONTAL (COTAS A, B, F, E)', frontX0, 18);
+  ctx.fillText('VISTA FRONTAL — FURAÇÃO REAL (A×B / F×E)', frontX0, 18);
 
   // Contorno externo F x E
-  ctx.strokeStyle = '#ef4444';
+  ctx.strokeStyle = '#38bdf8';
   ctx.lineWidth = 2;
-  ctx.fillStyle = 'rgba(239, 68, 68, 0.08)';
+  ctx.fillStyle = 'rgba(56, 189, 248, 0.06)';
   ctx.fillRect(frontX0, sideY0, fPx, ePx);
   ctx.strokeRect(frontX0, sideY0, fPx, ePx);
 
   // Contorno interno A x B (Laterais embutidas)
-  ctx.strokeStyle = '#94a3b8';
+  ctx.strokeStyle = '#64748b';
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 3]);
   ctx.strokeRect(frontX0 + tPx, sideY0 + tPx, fPx - 2*tPx, ePx - 2*tPx);
   ctx.setLineDash([]);
 
-  // Desenho ilustrativo dos cones (1 a N drivers) no baffle
-  const nDrv = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
-  const cols = nDrv <= 2 ? nDrv : Math.ceil(nDrv / 2);
-  const rows = nDrv <= 2 ? 1 : 2;
-  const cellW = (fPx - 2 * tPx) / cols;
-  const cellH = (ePx - 2 * tPx) / rows;
-  const subRadius = Math.min(cellW, cellH) * 0.34;
-  ctx.strokeStyle = '#f87171';
-  ctx.lineWidth = 1.6;
-  for (let i = 0; i < nDrv; i++) {
-    const col = i % cols;
-    const row = Math.floor(i / cols);
-    const cx = frontX0 + tPx + (col + 0.5) * cellW;
-    const cy = sideY0 + tPx + (row + 0.5) * cellH;
-    ctx.beginPath();
-    ctx.arc(cx, cy, subRadius, 0, 2 * Math.PI);
-    ctx.stroke();
-  }
+  // Desenha furos reais a partir das coordenadas validadas (Y=0 na base interna)
+  const holes = (g.validation && g.validation.holes) ? g.validation.holes : [];
+  holes.forEach(hl => {
+    const cx = frontX0 + tPx + hl.xInt * scaleFront;
+    const cy = sideY0 + ePx - tPx - hl.yInt * scaleFront;
+    const isErr = !!hl.collision;
+    if (hl.shape === 'round') {
+      const rCut = (hl.dia / 2) * scaleFront;
+      const rFlg = ((hl.flangeDia || hl.dia) / 2) * scaleFront;
+      // Flange tracejado
+      if (hl.kind === 'driver') {
+        ctx.strokeStyle = isErr ? '#ef4444' : 'rgba(248, 113, 113, 0.55)';
+        ctx.lineWidth = 1.2;
+        ctx.setLineDash([4, 3]);
+        ctx.beginPath();
+        ctx.arc(cx, cy, rFlg, 0, 2 * Math.PI);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      // Recorte real sólido
+      ctx.fillStyle = isErr ? 'rgba(239, 68, 68, 0.25)' : (hl.kind === 'driver' ? 'rgba(15, 23, 42, 0.85)' : 'rgba(249, 115, 22, 0.22)');
+      ctx.strokeStyle = isErr ? '#ef4444' : (hl.kind === 'driver' ? '#f87171' : '#f97316');
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.arc(cx, cy, rCut, 0, 2 * Math.PI);
+      ctx.fill();
+      ctx.stroke();
+      // Mira de centro
+      ctx.strokeStyle = '#e2e8f0';
+      ctx.lineWidth = 0.8;
+      ctx.beginPath(); ctx.moveTo(cx - 4, cy); ctx.lineTo(cx + 4, cy); ctx.moveTo(cx, cy - 4); ctx.lineTo(cx, cy + 4); ctx.stroke();
+    } else if (hl.shape === 'slot') {
+      const sw = hl.w * scaleFront;
+      const sh = hl.h * scaleFront;
+      ctx.fillStyle = isErr ? 'rgba(239,68,68,0.3)' : 'rgba(249,115,22,0.28)';
+      ctx.strokeStyle = isErr ? '#ef4444' : '#f97316';
+      ctx.lineWidth = 1.6;
+      ctx.fillRect(cx - sw / 2, cy - sh / 2, sw, sh);
+      ctx.strokeRect(cx - sw / 2, cy - sh / 2, sw, sh);
+    } else if (hl.shape === 'triangle') {
+      const ta = hl.triA * scaleFront;
+      const tb = hl.triB * scaleFront;
+      const xL = frontX0 + tPx, xR = frontX0 + fPx - tPx;
+      const yT = sideY0 + tPx, yB = sideY0 + ePx - tPx;
+      ctx.fillStyle = 'rgba(249,115,22,0.28)';
+      ctx.strokeStyle = '#f97316';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      if (hl.cornerIdx === 0) { ctx.moveTo(xL, yB); ctx.lineTo(xL + ta, yB); ctx.lineTo(xL, yB - tb); }
+      else if (hl.cornerIdx === 1) { ctx.moveTo(xR, yB); ctx.lineTo(xR - ta, yB); ctx.lineTo(xR, yB - tb); }
+      else if (hl.cornerIdx === 2) { ctx.moveTo(xL, yT); ctx.lineTo(xL + ta, yT); ctx.lineTo(xL, yT + tb); }
+      else { ctx.moveTo(xR, yT); ctx.lineTo(xR - ta, yT); ctx.lineTo(xR, yT + tb); }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+  });
 
-  ctx.fillStyle = '#fca5a5';
-  ctx.font = '10px var(--font)';
-  ctx.fillText(`F=${g.F_ext.toFixed(0)}mm (A=${g.A.toFixed(0)}mm)`, frontX0, sideY0 + ePx + 15);
+  ctx.fillStyle = '#93c5fd';
+  ctx.font = '10px var(--mono)';
+  ctx.fillText(`F=${g.F_ext.toFixed(0)}mm (A=${g.A.toFixed(0)}mm) · MDF ${g.t}mm`, frontX0, sideY0 + ePx + 15);
+}
+
+function buildPackHtmlString(pack, chartImages, blueprintDataUrl) {
+  const d = pack.driver;
+  const ac = pack.acoustics;
+  const dm = pack.dimensions;
+  const qts = (d.Qms && d.Qes) ? ((d.Qms * d.Qes) / (d.Qms + d.Qes)) : 0;
+  const ebp = d.Qes ? (d.Fs / d.Qes) : 0;
+  const hpfNote = ac.hpfEnabled ? `HPF LR4 ativo em ${ac.hpfHz.toFixed(0)} Hz` : 'HPF subsônico desligado (resposta pura)';
+
+  const piecesRows = pack.pieces.map(p => `
+    <tr>
+      <td><b>${escapeHtmlStr(p.name)}</b></td>
+      <td>${p.qty}x</td>
+      <td>${p.w.toFixed(1)} mm</td>
+      <td>${p.h.toFixed(1)} mm</td>
+      <td>${p.t} mm</td>
+      <td>${p.bev.toFixed(1)}°</td>
+      <td>${escapeHtmlStr(p.note)}</td>
+    </tr>`).join('');
+
+  const holesRows = pack.baffleHoles.map(h => {
+    const dimTxt = h.shape === 'round' ? `Ø ${h.dia.toFixed(1)} mm` : (h.shape === 'slot' ? `${h.w.toFixed(0)} × ${h.h.toFixed(0)} mm` : `Triângulo ${h.triA.toFixed(0)} × ${h.triB.toFixed(0)} mm`);
+    const flTxt = h.kind === 'driver' ? `Flange Ø ${h.flangeDia} mm (est.)` : (h.lvMm ? `Lv = ${h.lvMm.toFixed(0)} mm` : '—');
+    return `
+      <tr>
+        <td><b>${escapeHtmlStr(h.label)}</b></td>
+        <td>${h.xExt.toFixed(1)} mm</td>
+        <td>${h.yExt.toFixed(1)} mm</td>
+        <td><b>${dimTxt}</b></td>
+        <td>${flTxt}</td>
+      </tr>`;
+  }).join('');
+
+  const chartsHtml = (chartImages || []).map(ci => `
+    <div class="chart-item">
+      <div class="chart-cap">${escapeHtmlStr(ci.title)}</div>
+      <img src="${ci.dataUrl}" alt="${escapeHtmlStr(ci.title)}">
+    </div>`).join('');
+
+  const checksHtml = pack.validation.issues.map(it => {
+    const tag = it.level === 'warn' ? 'AVISO' : 'OK';
+    return `<li><b>[${tag}]</b> ${escapeHtmlStr(it.msg)}</li>`;
+  }).join('');
+
+  return `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>BassForge — Pacote de Construção: ${escapeHtmlStr(d.name)}</title>
+<style>
+  body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 22px; background: #fff; font-size: 12px; line-height: 1.45; }
+  h1 { font-size: 20px; margin: 0 0 4px; color: #0b111d; }
+  h2 { font-size: 14px; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #0284c7; color: #0369a1; text-transform: uppercase; letter-spacing: 0.4px; }
+  .meta { color: #475569; font-size: 11px; margin-bottom: 14px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
+  .card { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; background: #f8fafc; }
+  .card small { display: block; color: #64748b; font-size: 10px; text-transform: uppercase; }
+  .card b { font-size: 14px; color: #0f172a; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; font-size: 11.5px; }
+  th, td { border: 1px solid #cbd5e1; padding: 6px 8px; text-align: left; }
+  th { background: #e2e8f0; color: #0f172a; font-weight: 700; }
+  .charts-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .chart-item { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; background: #06090f; page-break-inside: avoid; }
+  .chart-cap { color: #e2e8f0; font-weight: 700; font-size: 11px; margin-bottom: 4px; }
+  .chart-item img, .bp-img { width: 100%; height: auto; display: block; border-radius: 4px; }
+  .ok-box { border: 1px solid #10b981; background: #ecfdf5; padding: 8px 12px; border-radius: 6px; }
+  .ok-box ul { margin: 4px 0 0 18px; padding: 0; }
+  @media print { body { margin: 10mm; } .no-print { display: none; } h2 { page-break-after: avoid; } }
+</style>
+</head>
+<body>
+  <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+    <div>
+      <h1>BassForge SUITE — Pacote de Construção (Arquivo de Obra)</h1>
+      <div class="meta"><b>Driver:</b> ${escapeHtmlStr(d.name)} (${d.nDrivers}× · ${d.dia_in}″) &nbsp;|&nbsp; <b>Topologia:</b> ${escapeHtmlStr(ac.boxType.toUpperCase())} &nbsp;|&nbsp; <b>Gerado em:</b> ${escapeHtmlStr(pack.generatedAt.slice(0, 16).replace('T', ' '))} &nbsp;|&nbsp; ${escapeHtmlStr(hpfNote)}</div>
+    </div>
+    <button class="no-print" onclick="window.print()" style="padding:8px 14px; background:#0284c7; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:700;">🖨️ Imprimir / Salvar PDF</button>
+  </div>
+
+  <h2>1. Identificação do Driver &amp; Parâmetros Thiele-Small</h2>
+  <div class="grid">
+    <div class="card"><small>Fs / EBP</small><b>${d.Fs} Hz / ${ebp.toFixed(0)} Hz</b></div>
+    <div class="card"><small>Qts (Qes / Qms)</small><b>${qts.toFixed(3)} (${d.Qes} / ${d.Qms})</b></div>
+    <div class="card"><small>Vas / Sd</small><b>${d.Vas} L / ${d.Sd} cm²</b></div>
+    <div class="card"><small>Xmax / Pe / Re</small><b>${d.Xmax} mm · ${d.Pe} W · ${d.Re} Ω</b></div>
+  </div>
+
+  <h2>2. Resumo Acústico &amp; Cotas do Gabinete (MDF ${dm.t} mm · Laterais Embutidas)</h2>
+  <div class="grid">
+    <div class="card"><small>Volume Útil / Bruto</small><b>${ac.Vb.toFixed(1)} L / ${ac.Vbruto.toFixed(1)} L</b></div>
+    <div class="card"><small>Sintonia Fb / Corte F3</small><b>${ac.Fb.toFixed(2)} Hz / ${ac.F3.toFixed(2)} Hz</b></div>
+    <div class="card"><small>Interno [A × B × C/D]</small><b>${dm.A} × ${dm.B} × ${dm.C_top}/${dm.D_bot} mm</b></div>
+    <div class="card"><small>Externo [F × E × Prof]</small><b>${dm.F_ext} × ${dm.E_ext} × ${dm.C_ext_top}/${dm.D_ext_bot} mm</b></div>
+  </div>
+  <div class="meta"><b>Área MDF estimada:</b> ${dm.totalAreaM2} m² (~${dm.sheetsEst} chapa 2750×1830 mm) &nbsp;|&nbsp; <b>Peso estimado MDF:</b> ${dm.weightKg} kg${ac.LvCm > 0 ? ` &nbsp;|&nbsp; <b>Duto Lv cortado:</b> ${ac.LvCm} cm (${(ac.LvCm * 10).toFixed(0)} mm) · Sp = ${ac.SpCm2} cm²` : ''}</div>
+
+  ${blueprintDataUrl ? `<h2>3. Blueprint Técnico — Vista Lateral (Lv vs C) &amp; Vista Frontal (Furação Real)</h2><img class="bp-img" src="${blueprintDataUrl}" alt="Blueprint CAD">` : ''}
+
+  <h2>4. Plano de Corte Completo (MDF + Sarrafos + Dutos)</h2>
+  <table>
+    <thead><tr><th>Peça / Orientação</th><th>Qtd</th><th>Largura</th><th>Altura / Compr.</th><th>Esp.</th><th>Chanfro</th><th>Montagem (Laterais Embutidas)</th></tr></thead>
+    <tbody>${piecesRows}</tbody>
+  </table>
+
+  <h2>5. Gabarito de Furação do Painel Frontal (Origem X=0, Y=0 no canto inferior-esquerdo EXTERNO)</h2>
+  <div class="meta">Painel Frontal externo: <b>${dm.F_ext} × ${dm.E_ext} mm</b> (MDF ${dm.t} mm). Meça <b>X</b> a partir da borda esquerda externa e <b>Y</b> a partir da borda inferior externa.</div>
+  <table>
+    <thead><tr><th>Elemento</th><th>Centro X Ext.</th><th>Centro Y Ext.</th><th>Recorte</th><th>Flange / Comprimento Lv</th></tr></thead>
+    <tbody>${holesRows}</tbody>
+  </table>
+
+  <h2>6. Gráficos Acústicos Congelados</h2>
+  <div class="charts-grid">${chartsHtml}</div>
+
+  <h2>7. Checagens de Viabilidade Geométrica</h2>
+  <div class="ok-box"><b>✅ Geometria aprovada para construção (0 erros críticos)</b><ul>${checksHtml}</ul></div>
+</body>
+</html>`;
+}
+
+function generateBuildPackHtml() {
+  if (!lastBuildPack) updateWoodlock();
+  if (!lastBuildPack || !lastBuildPack.validation.valid) {
+    return { ok: false, validation: lastBuildPack ? lastBuildPack.validation : null, html: null };
+  }
+  const chartIds = (lastBuildPack.acoustics.boxType === 'sealed' || lastBuildPack.acoustics.boxType === 'planar')
+    ? ['G4', 'G6', 'G8', 'G11']
+    : ['G4', 'G6', 'G8', 'G11', 'G9'];
+  const chartImages = [];
+  if (currentCurves && typeof document !== 'undefined') {
+    chartIds.forEach(id => {
+      const cfg = CHARTS_INFO.find(c => c.id === id);
+      if (!cfg) return;
+      const off = document.createElement('canvas');
+      drawLogChart(off, currentCurves.frequencies, currentCurves[cfg.key], cfg, {
+        isExpanded: true, exportW: 720, exportH: 380, exportHeaderH: 36,
+        exportTitle: cfg.title, exportSubtitle: `${lastBuildPack.driver.name} | Vb=${lastBuildPack.acoustics.Vb.toFixed(1)}L`
+      });
+      if (typeof off.toDataURL === 'function') {
+        chartImages.push({ id, title: cfg.title, dataUrl: off.toDataURL('image/png') });
+      }
+    });
+  }
+  let bpDataUrl = '';
+  const bpCanvas = document.createElement('canvas');
+  bpCanvas.width = 920;
+  bpCanvas.height = 360;
+  const dm = lastBuildPack.dimensions;
+  drawWoodlockBlueprint({
+    A: dm.A, B: dm.B, C_top: dm.C_top, D_bot: dm.D_bot, F_ext: dm.F_ext, E_ext: dm.E_ext, t: dm.t,
+    isTrap: dm.shape === 'trapezoidal',
+    isVented: ['bass-reflex', 'bp4', 'bp6'].includes(lastBuildPack.acoustics.boxType),
+    lvMm: lastBuildPack.acoustics.LvCm * 10.0,
+    validation: lastBuildPack.validation
+  }, bpCanvas);
+  if (typeof bpCanvas.toDataURL === 'function') bpDataUrl = bpCanvas.toDataURL('image/png');
+
+  const html = buildPackHtmlString(lastBuildPack, chartImages, bpDataUrl);
+  return { ok: true, validation: lastBuildPack.validation, html, pack: lastBuildPack };
+}
+
+function exportBuildPackHtml() {
+  const res = generateBuildPackHtml();
+  if (!res.ok) {
+    const msgs = res.validation ? res.validation.issues.filter(i => i.level === 'critical').map(i => '• ' + i.msg).join('\n') : 'Geometria inválida.';
+    alert('⛔ Exportação bloqueada por erro crítico de geometria:\n\n' + msgs + '\n\nCorrija as cotas na aba Marcenaria CAD antes de exportar.');
+    return false;
+  }
+  const safe = (res.pack.driver.name || 'Projeto').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36);
+  const blob = new Blob([res.html], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.download = `BassForge_Obra_${safe}.html`;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  return true;
+}
+
+function exportBuildPackJson() {
+  if (!lastBuildPack) updateWoodlock();
+  if (!lastBuildPack || !lastBuildPack.validation.valid) {
+    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+    return false;
+  }
+  const safe = (lastBuildPack.driver.name || 'Projeto').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36);
+  const blob = new Blob([JSON.stringify(lastBuildPack, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.download = `BassForge_BuildPack_${safe}.json`;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  return true;
 }
 
 // ============================================================================
