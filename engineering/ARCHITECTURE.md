@@ -1,7 +1,7 @@
 # BassForge SUITE — Mapa Arquitetural, Contratos e Inventário de Riscos
 
-> **Status**: Baseline congelada (`commit 8c95504`, 22/11/2026)  
-> **Escopo**: Auditoria estrutural completa de `index.html` (5.165 linhas · 239,7 KB) e `drivers-db.html` (3.349 linhas · 107,0 KB)  
+> **Status**: Baseline congelada (`commit 8c95504`, 22/11/2026) + Analysis Engine de perfis ambientais (`22/11/2026`)  
+> **Escopo**: Auditoria estrutural completa de `index.html` (6.648 linhas · 313,9 KB) e `drivers-db.html` (3.349 linhas · 107,0 KB)  
 > **Premissa Arquitetural Crítica**: Ambos os arquivos são **HTML5 standalone zero-build** — executam offline via `file://` (`F5`) e no GitHub Pages sem servidor nem bundler. Qualquer modularização futura em arquivos separados **não pode** usar ES Modules (`import/export`) diretamente sob `file://` sem um passo de build/empacotamento, pois navegadores bloqueiam `file://` via CORS.
 
 ---
@@ -19,6 +19,7 @@
 | **Inicialização & Navegação** | L2395–L2515 | `openExpandedChart`, `initUI`, `loadPreset`, `switchTab` | Alto (renderiza grid de 13 gráficos e abas) |
 | **Physics Core — Topologias, Dutos & Transferência** | L2516–L3568 | `computeTopologySuitability`, `selectTopology`, `computePortGeometry`, `analyzeTransferAlignment`, `recalculate`, `generateSimulationData` | **Misto**: `computeTopologySuitability`, `computePortGeometry`, `analyzeTransferAlignment` e `generateSimulationData` são **quase puras** (recebem objeto `opts`/`p`); `recalculate` e `selectTopology` fazem leitura/escrita direta no DOM |
 | **Motor de Gráficos Canvas (13 curvas)** | L3569–L4295 | `getLogFreqTicks`, `formatFreqTick`, `formatYTickLabel`, `pickNiceStep`, `computeYAxisScale`, `interpolateSeriesAtFreq`, `computeVisiblePeak`, `drawLogChart`, `bindInteractiveChart`, `getExpandedOverlayConfig`, `onExpandedOverlayChange`, `drawAllCharts`, `renderExpanded`, `exportExpandedPNG` | Alto (Canvas 2D + hover/cursor + modal expandido) |
+| **Analysis Engine — Perfis de Ambiente** | L1917–L2230 | `CHART_REGISTRY`, `ENV_PROFILES`, `formatChartDisplayTitle`, `scanSeriesInBand`, `evaluatePhysicalConstraints`, `updateChartConstraintBadges`, `buildChartGridForEnv`, `syncExpandedSelectForEnv`, `setAnalysisEnvironment` | Baixo (lê `currentCurves` + escreve apenas a grade/seletor/badges; numeração visual `#1..#13` por perfil mantendo `#1..#13` original em `CHARTS_INFO` como controle interno) |
 | **Auditoria & Engenharia Auxiliar** | L4296–L4716 | `populateAuditTable`, `updateWoodlock`, `drawWoodlockBlueprint`, `updateElectrical`, `updateReverseVolume` | Alto (tabelas de corte, MDF, porta-malas, fiação, derating 70%) |
 | **Workstation UI (Menus, Modais, Status)** | L4717–L4873, L5097–L5165 | `closeAllMenus`, `toggleMenu`, `openConfigModal`, `closeConfigModals`, `switchModalTab`, `toggleQuickSidebar`, `resetCurrentProject`, `updateDesktopStatusBar`, `openChartContextMenu`, `closeChartContextMenu`, `ctxAction` | Alto (menus desktop, barra de status, menu de contexto) |
 | **Wizard de Alinhamento (6 Perfis)** | L4874–L5096 | `openWizardModal`, `selectWizardGoal`, `computeWizardPlan`, `updateWizardPreview`, `applyWizardRecommendation` | Médio/Alto (lê T/S do DOM, gera plano e aplica) |
@@ -82,6 +83,8 @@ Nenhuma alteração nos itens abaixo é permitida sem atualização explícita e
 3. `generateSimulationData()` (`index.html` L3182–L3568) — Síntese das 13 curvas (`G1`–`G13`), EPDR e conservação de energia `G2`/`G10`.
 4. Contratos de ponte (`BASSFORGE_DRIVER_DB_V1`, `BASSFORGE_ACTIVE_DRIVER_V1`, `#driver=`).
 
+> **Análise/Visualização (NÃO congelada, mas subordinada)**: `CHART_REGISTRY`, `ENV_PROFILES`, `evaluatePhysicalConstraints()`, `setAnalysisEnvironment()` e a montagem da grade podem evoluir, mas **não podem** recalcular física, alterar `currentCurves` nem escrever em inputs do projeto. Contrato garantido pela Suite 12 (`tests/guardian.test.js`): alternar `automotive ↔ architectural` mantém o **mesmo objeto** `currentCurves` e valores bit-a-bit idênticos.
+
 ---
 
 ## 5. Dependências Externas
@@ -96,3 +99,4 @@ Nenhuma alteração nos itens abaixo é permitida sem atualização explícita e
 1. **Escape HTML nos 6 pontos de `innerHTML` com strings externas** (Seção 3).
 2. **Impedância em Caixa Selada/Planar (`G11_InBoxZ`)**: refinar amortecimento mecânico para usar $Q_{mc} = Q_{ms}\sqrt{1+\alpha}$ em vez de $Q_{tc}$ (para precisão do pico de impedância em $F_c$).
 3. **Migração de Schema `localStorage`**: adicionar campo explícito `schemaVersion` e rotina de migração defensiva antes de evoluir campos do banco.
+4. **`G7_CabinGain`**: a série entregue é `G4 + T_cabin` (resposta acoplada à cabine), não o ganho isolado — o título foi corrigido para *"Cabin Gain Acoplado"* na camada de visualização. Expor `T_cabin` puro exigiria aprovação de contrato de `currentCurves`.

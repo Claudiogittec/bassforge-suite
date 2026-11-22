@@ -431,6 +431,15 @@ runSuite('10. Build Pack P0 Validator & HTML Export (Oversound 18" Fixture)', ()
   assert(okRes.pack.pieces.some(p => p.kind === 'port'), 'Cut-sheet missing port Lv BOM');
   assert.strictEqual(okRes.pack.baffleHoles.length, 3, 'Expected 1 driver + 2 round port holes');
   assert(okRes.html.includes('Pacote de Construção') && okRes.html.includes('Gabarito de Furação'), 'Exported HTML missing required build sections');
+  assert(okRes.html.includes('Balanço Volumétrico:'), 'Exported HTML missing Balanço Volumétrico');
+  assert(okRes.html.includes('Limites Físicos da Simulação'), 'Exported HTML missing physical constraint checks');
+  // Paridade Lv canônico (Seção 2 == Plano de Corte == Gabarito)
+  const lvMm = okRes.pack.acoustics.lvMm;
+  const portPiece = okRes.pack.pieces.find(p => p.kind === 'port');
+  const portHole = okRes.pack.baffleHoles.find(h => h.kind === 'port');
+  assert.strictEqual(portPiece.h, lvMm, `Cut-sheet Lv (${portPiece.h}) != acoustics.lvMm (${lvMm})`);
+  assert.strictEqual(Math.round(portHole.lvMm), lvMm, `Baffle hole Lv (${portHole.lvMm}) != acoustics.lvMm (${lvMm})`);
+  assert(okRes.html.includes(`(${lvMm} mm)`), `Section 2 meta must show canonical Lv (${lvMm} mm)`);
   assert(!okRes.html.includes('Lei de Ohm'), 'Exported HTML must stay out of electrical scope');
 });
 
@@ -463,6 +472,128 @@ runSuite('11. Geometric Autofix on Load & Dynamic Minimum Floor Guard', () => {
     const pk = vm.runInContext('lastBuildPack', ctx);
     assert.strictEqual(pk.validation.valid, true, `Preset ${preset} failed autofix validity: ${JSON.stringify(pk.validation.issues)}`);
   }
+});
+
+// SUITE 12: Analysis Engine — Perfis de Ambiente, Slots NÃO Implementados & Invariância Física
+runSuite('12. Analysis Engine (Architectural/Automotive, slots N/D, invariância física)', () => {
+  // --- 12.1 Perfis: 13 slots cada, na ordem exata da spec (§2 Architectural / §3 Automotive) ---
+  const orders = vm.runInContext('({ arch: ENV_PROFILES.architectural.order.join(","), auto: ENV_PROFILES.automotive.order.join(",") })', ctx);
+  assert.strictEqual(
+    orders.arch,
+    'G4,G6,G8,G11,G9,G13,G1,G2,G12,G3,G10,SLOT_ROOM_GAIN,SLOT_SPL_ROOM',
+    `Architectural order diverged: ${orders.arch}`
+  );
+  assert.strictEqual(
+    orders.auto,
+    'G4,G6,G8,G11,G9,G13,G5,G7,G1,G2,G12,G3,G10',
+    `Automotive order diverged: ${orders.auto}`
+  );
+  const counts = vm.runInContext('({ arch: ENV_PROFILES.architectural.order.length, auto: ENV_PROFILES.automotive.order.length, uniqA: new Set(ENV_PROFILES.architectural.order).size, uniqB: new Set(ENV_PROFILES.automotive.order).size })', ctx);
+  assert.strictEqual(counts.arch, 13, 'Architectural must have 13 slots');
+  assert.strictEqual(counts.auto, 13, 'Automotive must have 13 slots');
+  assert.strictEqual(counts.uniqA, 13, 'Architectural slots must be unique');
+  assert.strictEqual(counts.uniqB, 13, 'Automotive slots must be unique');
+
+  // Numeração visual dinâmica 1..13 por perfil (prefixo interno de CHARTS_INFO preservado)
+  const displayCheck = vm.runInContext(`({
+    arch1: formatChartDisplayTitle(CHART_REGISTRY[ENV_PROFILES.architectural.order[0]], 0),
+    arch12: formatChartDisplayTitle(CHART_REGISTRY[ENV_PROFILES.architectural.order[11]], 11),
+    arch13: formatChartDisplayTitle(CHART_REGISTRY[ENV_PROFILES.architectural.order[12]], 12),
+    auto7: formatChartDisplayTitle(CHART_REGISTRY[ENV_PROFILES.automotive.order[6]], 6),
+    auto8: formatChartDisplayTitle(CHART_REGISTRY[ENV_PROFILES.automotive.order[7]], 7),
+    auto13: formatChartDisplayTitle(CHART_REGISTRY[ENV_PROFILES.automotive.order[12]], 12),
+    internalG4: CHARTS_INFO.find(c => c.id === 'G4').title
+  })`, ctx);
+  assert.strictEqual(displayCheck.arch1, '#1 Normalized Amplitude (dB)', `Arch #1 title: ${displayCheck.arch1}`);
+  assert.strictEqual(displayCheck.arch12, '#12 Room Gain (dB)', `Arch #12 title: ${displayCheck.arch12}`);
+  assert.strictEqual(displayCheck.arch13, '#13 SPL in Room (dB-SPL)', `Arch #13 title: ${displayCheck.arch13}`);
+  assert.strictEqual(displayCheck.auto7, '#7 SPL in Car (dB-SPL)', `Auto #7 title: ${displayCheck.auto7}`);
+  assert.strictEqual(displayCheck.auto8, '#8 Cabin Gain Acoplado (dB)', `Auto #8 title: ${displayCheck.auto8}`);
+  assert.strictEqual(displayCheck.auto13, '#13 Cone SPL (dB-SPL)', `Auto #13 title: ${displayCheck.auto13}`);
+  assert.strictEqual(displayCheck.internalG4, '#4 Normalized Amplitude (dB)', 'Prefixo interno de CHARTS_INFO deve ser preservado');
+
+  // --- 12.2 Registro: todo slot calculado aponta para uma série real de 600 pontos ---
+  const registry = vm.runInContext('Object.keys(CHART_REGISTRY).map(id => ({ id, key: CHART_REGISTRY[id].key, av: CHART_REGISTRY[id].availability }))', ctx);
+  const curves = vm.runInContext('currentCurves', ctx);
+  const calculated = registry.filter(r => r.av !== 'unimplemented');
+  assert.strictEqual(calculated.length, 13, `Expected 13 calculated charts, got ${calculated.length}`);
+  for (const r of calculated) {
+    const arr = curves[r.key];
+    assert(Array.isArray(arr) && arr.length === 600, `${r.id}: série ${r.key} ausente ou com tamanho inválido`);
+  }
+
+  // --- 12.3 Slots não implementados: sem chave, sem curva, com placeholder explícito ---
+  for (const slot of ['SLOT_SPL_ROOM', 'SLOT_ROOM_GAIN']) {
+    const entry = vm.runInContext(`CHART_REGISTRY.${slot}`, ctx);
+    assert.strictEqual(entry.availability, 'unimplemented', `${slot} deve ser 'unimplemented'`);
+    assert.strictEqual(entry.key, null, `${slot} NÃO pode apontar para série existente`);
+    assert(entry.placeholder && entry.placeholderDetail, `${slot} precisa de texto de placeholder`);
+    assert.notStrictEqual(entry.key, 'G5_SPLinCar', `${slot} jamais pode reutilizar G5_SPLinCar`);
+    assert.notStrictEqual(entry.key, 'G7_CabinGain', `${slot} jamais pode reutilizar G7_CabinGain`);
+  }
+
+  // --- 12.4 Invariância: alternar ambiente NÃO recalcula física nem toca inputs ---
+  const fieldIds = ['vbInput', 'fbInput', 'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsXmax', 'boxType'];
+  const fieldsBefore = fieldIds.map(id => elements.get(id).value).join('|');
+  const tuneBefore = vm.runInContext('isAutoTune', ctx);
+  const hpfBefore = vm.runInContext('isHpfEnabled', ctx);
+  const curvesRefBefore = vm.runInContext('currentCurves', ctx);
+  const snapshotBefore = JSON.stringify(curvesRefBefore);
+
+  vm.runInContext("setAnalysisEnvironment('architectural')", ctx);
+  const curvesRefArch = vm.runInContext('currentCurves', ctx);
+  assert.strictEqual(curvesRefArch, curvesRefBefore, 'Alternar ambiente recalculou currentCurves (novo objeto) — Physics Core violado');
+  assert.strictEqual(JSON.stringify(curvesRefArch), snapshotBefore, 'Alternar para Architectural alterou valores das séries');
+
+  vm.runInContext("setAnalysisEnvironment('automotive')", ctx);
+  assert.strictEqual(JSON.stringify(vm.runInContext('currentCurves', ctx)), snapshotBefore, 'Retorno para Automotive alterou valores das séries');
+  assert.strictEqual(fieldIds.map(id => elements.get(id).value).join('|'), fieldsBefore, 'Alternar ambiente alterou inputs do projeto');
+  assert.strictEqual(vm.runInContext('isAutoTune', ctx), tuneBefore, 'Alternar ambiente alterou isAutoTune');
+  assert.strictEqual(vm.runInContext('isHpfEnabled', ctx), hpfBefore, 'Alternar ambiente alterou isHpfEnabled');
+
+  // --- 12.5 Restrições físicas: detecção de violação e de estado seguro ---
+  const critical = vm.runInContext(`evaluatePhysicalConstraints({
+    frequencies: [20, 30, 40],
+    meta: { Xmax: 5, velLimit: 17, Pe: 800, deltaT: 0, Fb: 35, boxType: 'bass-reflex' },
+    G1_MaxPower: [800, 800, 800], G8_ConeExcursion: [9, 2, 1], G9_PortAirVel: [25, 5, 3], G13_GroupDelay: [5, 5, 5]
+  }, 15, 200)`, ctx);
+  assert(critical.some(c => c.id === 'G8' && c.code === 'EXCURSION_OVER_XMAX' && c.severity === 'critical'),
+    `Esperado alerta crítico de excursão, obtido: ${JSON.stringify(critical)}`);
+  assert(critical.some(c => c.id === 'G9' && c.code === 'PORT_VELOCITY_OVER_LIMIT' && c.severity === 'critical'),
+    `Esperado alerta crítico de velocidade de duto, obtido: ${JSON.stringify(critical)}`);
+  assert(critical.every(c => c.id !== 'SLOT_SPL_ROOM' && c.id !== 'SLOT_ROOM_GAIN'),
+    'Restrições nunca podem ser atribuídas a slots não implementados');
+
+  const safe = vm.runInContext(`evaluatePhysicalConstraints({
+    frequencies: [20, 30, 40],
+    meta: { Xmax: 10, velLimit: 17, Pe: 800, deltaT: 0, Fb: 35, boxType: 'bass-reflex' },
+    G1_MaxPower: [800, 800, 800], G8_ConeExcursion: [2, 1, 1], G9_PortAirVel: [1, 1, 1], G13_GroupDelay: [3, 3, 3]
+  }, 15, 200)`, ctx);
+  assert.strictEqual(safe.length, 0, `Projeto seguro não deveria gerar alertas, obtido: ${JSON.stringify(safe)}`);
+
+  // Restrições valem para os DOIS ambientes (mesma função pura, séries idênticas)
+  const criticalInArch = vm.runInContext(`evaluatePhysicalConstraints({
+    frequencies: [20, 30, 40],
+    meta: { Xmax: 5, velLimit: 17, Pe: 800, deltaT: 0, Fb: 35, boxType: 'bass-reflex' },
+    G1_MaxPower: [800, 800, 800], G8_ConeExcursion: [9, 2, 1], G9_PortAirVel: [25, 5, 3], G13_GroupDelay: [5, 5, 5]
+  }, 15, 200).filter(c => c.severity === 'critical').map(c => c.id).sort().join(',')`, ctx);
+  assert.strictEqual(criticalInArch, 'G8,G9', `Alertas críticos devem ser idênticos nos dois perfis, obtido: ${criticalInArch}`);
+
+  // --- 12.6 G7: rótulo corrigido, física preservada ---
+  const g7 = vm.runInContext('CHART_REGISTRY.G7', ctx);
+  assert(/Acoplado/.test(g7.title), `G7 deve explicitar "Acoplado" no título, obtido: ${g7.title}`);
+  assert.strictEqual(g7.availability, 'modeled', 'G7 é estimado por modelo físico (T_cabin)');
+  assert.strictEqual(g7.key, 'G7_CabinGain', 'G7 deve manter a chave física congelada G7_CabinGain');
+
+  // --- 12.7 Persistência do ambiente no Projeto (.json) ---
+  vm.runInContext("setAnalysisEnvironment('architectural')", ctx);
+  const payload = vm.runInContext('buildProjectPayload()', ctx);
+  assert.strictEqual(payload.analysisEnv, 'architectural', 'buildProjectPayload deve salvar analysisEnv');
+  vm.runInContext("setAnalysisEnvironment('automotive')", ctx);
+  ctx.__analysisProject = payload;
+  vm.runInContext('applyProjectData(__analysisProject)', ctx);
+  assert.strictEqual(vm.runInContext('analysisEnv', ctx), 'architectural', 'applyProjectData deve restaurar analysisEnv');
+  vm.runInContext("setAnalysisEnvironment('automotive')", ctx);
 });
 
 console.log('\n---------------------------------------------------------------');

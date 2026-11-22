@@ -803,6 +803,65 @@
     min-height: 14px;
   }
 
+  /* ANALYSIS ENGINE — BADGES DE RESTRIÇÃO E SLOTS NÃO IMPLEMENTADOS */
+  .chart-alert {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: var(--mono);
+    font-size: 9.5px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 4px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+    line-height: 1.35;
+  }
+  .chart-alert-critical {
+    color: #fecdd3;
+    background: rgba(239, 68, 68, 0.18);
+    border-color: rgba(239, 68, 68, 0.65);
+  }
+  .chart-alert-warn {
+    color: #fde68a;
+    background: rgba(245, 158, 11, 0.16);
+    border-color: rgba(245, 158, 11, 0.55);
+  }
+  .chart-alert-info {
+    color: #bae6fd;
+    background: rgba(56, 189, 248, 0.14);
+    border-color: rgba(56, 189, 248, 0.45);
+  }
+  .chart-box-placeholder {
+    border-style: dashed;
+    border-color: rgba(100, 116, 139, 0.55);
+    background: rgba(15, 23, 42, 0.55);
+    justify-content: center;
+  }
+  .chart-placeholder-body {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    text-align: center;
+    min-height: 120px;
+    padding: 10px 12px;
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.45;
+  }
+  .chart-placeholder-body b {
+    color: #cbd5e1;
+    font-size: 11.5px;
+  }
+  .chart-placeholder-body small {
+    font-family: var(--mono);
+    font-size: 9.5px;
+    color: #64748b;
+    max-width: 280px;
+  }
+
   /* MODAL EXPANDIDO */
   .expanded-view {
     display: none;
@@ -1196,6 +1255,10 @@
       </div>
       <!-- CONTROLE COMPACTO DOS GRÁFICOS NA MESMA LINHA -->
       <div id="chartToolbar" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        <span class="chart-toolbar-label">Ambiente:</span>
+        <button type="button" class="chart-pill-btn" data-env-btn="architectural" onclick="setAnalysisEnvironment('architectural')" title="Perfil Architectural — sala/estúdio (fidelidade e tempo)">🏛️ Architectural</button>
+        <button type="button" class="chart-pill-btn active" data-env-btn="automotive" onclick="setAnalysisEnvironment('automotive')" title="Perfil Automotive — cabine (SPL e limites)">🚗 Automotive</button>
+        <span style="width:1px; height:16px; background:var(--border); margin:0 3px;"></span>
         <span class="chart-toolbar-label">Banda:</span>
         <button type="button" class="chart-pill-btn" data-freq-btn="15-200" onclick="setFreqRange(15, 200, this)">15–200</button>
         <button type="button" class="chart-pill-btn" data-freq-btn="15-500" onclick="setFreqRange(15, 500, this)">15–500</button>
@@ -1756,6 +1819,7 @@
         <b style="color:var(--accent);">Ctrl + S / O</b><span>Salvar / Abrir Projeto Completo (.json)</span>
         <b style="color:var(--accent);">Botão Direito</b><span>Menu de contexto sobre qualquer gráfico</span>
         <b style="color:var(--accent);">← / →</b><span>Mover mira fixada (Shift: rápido · Ctrl: 0.1 Hz)</span>
+        <b style="color:var(--accent);">↑ / ↓</b><span>Alternar gráfico no modo 🔍 Expandido (ordem do perfil)</span>
         <b style="color:var(--accent);">Esc</b><span>Fechar janelas, menus e soltar mira fixada</span>
       </div>
     </div>
@@ -1834,9 +1898,9 @@ const CHARTS_INFO = [
   { id: 'G2',  key: 'G2_VentSPL',       title: '#2 Vent SPL (dB-SPL)',         unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 0, min: 80,   max: 150,  color: '#f97316' },
   { id: 'G3',  key: 'G3_FreeAirZ',      title: '#3 Free Air Impedance (Ohms)', unit: 'Ω',   kind: 'linear', nonNeg: true,  decimals: 1, min: 0,    max: 100,  color: '#dc2626' },
   { id: 'G4',  key: 'G4_NormAmp',       title: '#4 Normalized Amplitude (dB)', unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 1, min: -18,  max: 12,   color: '#38bdf8' },
-  { id: 'G5',  key: 'G5_SPLinCar',      title: '#5 SPL in Car (dB)',           unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 0, min: 90,   max: 160,  color: '#e11d48' },
+  { id: 'G5',  key: 'G5_SPLinCar',      title: '#5 SPL in Car (dB-SPL)',       unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 0, min: 90,   max: 160,  color: '#e11d48' },
   { id: 'G6',  key: 'G6_SPLThermic',    title: '#6 SPL Thermic (dB)',          unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 0, min: 80,   max: 150,  color: '#dc2626' },
-  { id: 'G7',  key: 'G7_CabinGain',     title: '#7 Cabin Gain (dB)',           unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 0, min: -6,   max: 30,   color: '#fb923c' },
+  { id: 'G7',  key: 'G7_CabinGain',     title: '#7 Cabin Gain Acoplado (dB)',  unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 0, min: -6,   max: 30,   color: '#fb923c' },
   { id: 'G8',  key: 'G8_ConeExcursion', title: '#8 Cone Excursion (mm)',       unit: 'mm',  kind: 'linear', nonNeg: true,  decimals: 1, min: 0,    max: 40,   color: '#a855f7' },
   { id: 'G9',  key: 'G9_PortAirVel',    title: '#9 Port Air Velocity (m/s)',   unit: 'm/s', kind: 'linear', nonNeg: true,  decimals: 1, min: 0,    max: 60,   color: '#f43f5e' },
   { id: 'G10', key: 'G10_ConeSPL',      title: '#10 Cone SPL (dB-SPL)',        unit: 'dB',  kind: 'db',     nonNeg: false, decimals: 0, min: 80,   max: 150,  color: '#dc2626' },
@@ -1845,9 +1909,325 @@ const CHARTS_INFO = [
   { id: 'G13', key: 'G13_GroupDelay',   title: '#13 Group Delay (ms)',         unit: 'ms',  kind: 'linear', nonNeg: true,  decimals: 1, min: 0,    max: 40,   color: '#14b8a6' }
 ];
 
+// ============================================================================
+// ANALYSIS ENGINE — REGISTRO ESTÁVEL, PERFIS DE AMBIENTE E RESTRIÇÕES FÍSICAS
+// Camada pura de organização/interpretação. NÃO altera o Physics Core:
+// nenhuma fórmula, nenhuma série de `currentCurves` e nenhum input do projeto
+// são modificados ao alternar Architectural <-> Automotive.
+// ============================================================================
+const CHART_REGISTRY = (() => {
+  const chartMeta = {
+    G1:  { label: 'Max Power',            availability: 'calculated', constraint: 'power' },
+    G2:  { label: 'Vent SPL',             availability: 'calculated' },
+    G3:  { label: 'Free Air Impedance',   availability: 'calculated' },
+    G4:  { label: 'Normalized Amplitude', availability: 'calculated' },
+    G5:  { label: 'SPL in Car',           availability: 'modeled', constraint: 'cabin',
+           modelNote: 'T_cabin 1D (F100 = c / L_carro) — cabine pressurizada, sem geometria 3D' },
+    G6:  { label: 'SPL Thermic',          availability: 'calculated', constraint: 'thermal' },
+    G7:  { label: 'Cabin Gain Acoplado',  availability: 'modeled', constraint: 'cabin',
+           modelNote: 'G4 + T_cabin — resposta acoplada à cabine (não é o ganho de cabine isolado)' },
+    G8:  { label: 'Cone Excursion',       availability: 'calculated', constraint: 'excursion' },
+    G9:  { label: 'Port Air Velocity',    availability: 'calculated', constraint: 'portVelocity' },
+    G10: { label: 'Cone SPL',             availability: 'calculated' },
+    G11: { label: 'In Box Impedance',     availability: 'calculated' },
+    G12: { label: 'Acoustic Phase',       availability: 'calculated' },
+    G13: { label: 'Group Delay',          availability: 'calculated', constraint: 'groupDelay' }
+  };
+  const reg = {};
+  CHARTS_INFO.forEach(c => {
+    reg[c.id] = Object.assign({}, c, chartMeta[c.id] || { label: c.title, availability: 'calculated' });
+  });
+  // Slots exigidos pela spec que ainda NÃO possuem motor físico: nunca recebem curva.
+  reg.SLOT_SPL_ROOM = {
+    id: 'SLOT_SPL_ROOM', key: null, label: 'SPL in Room', unit: 'dB-SPL',
+    title: 'SPL in Room (dB-SPL)', availability: 'unimplemented',
+    placeholder: 'Modelo de sala não implementado',
+    placeholderDetail: 'Requer dimensões da sala (L×W×H), modos estacionários e posicionamento caixa/ouvinte.'
+  };
+  reg.SLOT_ROOM_GAIN = {
+    id: 'SLOT_ROOM_GAIN', key: null, label: 'Room Gain', unit: 'dB',
+    title: 'Room Gain (dB)', availability: 'unimplemented',
+    placeholder: 'Room Gain não implementado',
+    placeholderDetail: 'Exige modelo físico de sala. Room Gain ≠ Cabin Gain — não é substituível.'
+  };
+  return reg;
+})();
+
+const ENV_PROFILES = {
+  architectural: {
+    id: 'architectural',
+    label: 'Architectural',
+    icon: '🏛️',
+    description: 'Ambientes residenciais e profissionais: resposta acústica e qualidade sonora.',
+    order: ['G4', 'G6', 'G8', 'G11', 'G9', 'G13', 'G1', 'G2', 'G12', 'G3', 'G10', 'SLOT_ROOM_GAIN', 'SLOT_SPL_ROOM']
+  },
+  automotive: {
+    id: 'automotive',
+    label: 'Automotive',
+    icon: '🚗',
+    description: 'Aplicação automotiva: pressão sonora e capacidade operacional.',
+    order: ['G4', 'G6', 'G8', 'G11', 'G9', 'G13', 'G5', 'G7', 'G1', 'G2', 'G12', 'G3', 'G10']
+  }
+};
+
+/**
+ * Formata o título visual do card/seletor seguindo a numeração 1..13 do perfil ativo,
+ * mantendo o prefixo original (#1..#13) em CHARTS_INFO apenas como controle interno.
+ */
+function formatChartDisplayTitle(entry, posIndex) {
+  if (!entry) return '';
+  const cleanTitle = String(entry.title || entry.label || entry.id).replace(/^#\d+\s+/, '');
+  return (typeof posIndex === 'number' && posIndex >= 0) ? `#${posIndex + 1} ${cleanTitle}` : cleanTitle;
+}
+
+const ANALYSIS_THRESHOLDS = {
+  portVelocityWarnRatio: 0.80,
+  excursionWarnRatio: 0.90,
+  powerWarnRatio: 0.95,
+  groupDelayWarnMs: 20,
+  thermalWarnDb: -1.0
+};
+
+const SEVERITY_RANK = { info: 1, warn: 2, critical: 3 };
+
+function getAnalysisEnv() {
+  return ENV_PROFILES[analysisEnv] ? analysisEnv : 'automotive';
+}
+
+function getAnalysisProfile(env) {
+  return ENV_PROFILES[env] || ENV_PROFILES.automotive;
+}
+
+/** Varre uma série dentro da banda visível e devolve o extremo (max/min) e a frequência. */
+function scanSeriesInBand(freqs, values, fLo, fHi, mode) {
+  const res = { value: null, freq: null };
+  if (!Array.isArray(freqs) || !Array.isArray(values)) return res;
+  for (let i = 0; i < freqs.length; i++) {
+    const f = freqs[i];
+    if (f < fLo || f > fHi) continue;
+    const v = values[i];
+    if (!Number.isFinite(v)) continue;
+    if (res.value === null || (mode === 'min' ? v < res.value : v > res.value)) {
+      res.value = v;
+      res.freq = f;
+    }
+  }
+  return res;
+}
+
+/**
+ * Avalia as restrições de engenharia obrigatórias (§4 da spec) sobre as séries
+ * JÁ CALCULADAS. Função pura: não recalcula física, não escreve no DOM.
+ * @returns {Array<{id,code,severity,badge,message,value,limit,freq}>}
+ */
+function evaluatePhysicalConstraints(curves, fMin, fMax) {
+  const out = [];
+  if (!curves || !Array.isArray(curves.frequencies) || !curves.frequencies.length) return out;
+  const m = curves.meta || {};
+  const fLo = Math.max(1, Number.isFinite(fMin) ? fMin : 10);
+  const fHi = Number.isFinite(fMax) ? Math.max(fLo, fMax) : 1000;
+  const tuneRef = (Number.isFinite(m.Fb) && m.Fb > 0) ? m.Fb
+    : ((Number.isFinite(m.fc) && m.fc > 0) ? m.fc : fLo);
+  const fUsefulLo = Math.min(fHi, Math.max(fLo, tuneRef));
+  const T = ANALYSIS_THRESHOLDS;
+
+  // 1. Cone Excursion vs Xmax (limite mecânico absoluto)
+  const xmax = (Number.isFinite(m.Xmax) && m.Xmax > 0) ? m.Xmax : null;
+  const exc = scanSeriesInBand(curves.frequencies, curves.G8_ConeExcursion, fLo, fHi, 'max');
+  if (xmax && exc.value !== null) {
+    const ratio = exc.value / xmax;
+    if (ratio >= 1.0) {
+      out.push({
+        id: 'G8', code: 'EXCURSION_OVER_XMAX', severity: 'critical',
+        badge: `Xmax ${(ratio * 100).toFixed(0)}%`, value: exc.value, limit: xmax, freq: exc.freq,
+        message: `Excursão de ${exc.value.toFixed(1)} mm em ${exc.freq.toFixed(0)} Hz excede o Xmax de ${xmax.toFixed(1)} mm.`
+      });
+    } else if (ratio >= T.excursionWarnRatio) {
+      out.push({
+        id: 'G8', code: 'EXCURSION_NEAR_XMAX', severity: 'warn',
+        badge: `Xmax ${(ratio * 100).toFixed(0)}%`, value: exc.value, limit: xmax, freq: exc.freq,
+        message: `Excursão de ${exc.value.toFixed(1)} mm em ${exc.freq.toFixed(0)} Hz está em ${(ratio * 100).toFixed(0)}% do Xmax (${xmax.toFixed(1)} mm).`
+      });
+    }
+  }
+
+  // 2. Port Air Velocity vs limite laminar (5%/10% Mach)
+  const velLimit = (Number.isFinite(m.velLimit) && m.velLimit > 0) ? m.velLimit : null;
+  const vel = scanSeriesInBand(curves.frequencies, curves.G9_PortAirVel, fLo, fHi, 'max');
+  if (velLimit && vel.value !== null && vel.value > 0.01) {
+    const ratio = vel.value / velLimit;
+    if (ratio >= 1.0) {
+      out.push({
+        id: 'G9', code: 'PORT_VELOCITY_OVER_LIMIT', severity: 'critical',
+        badge: `${vel.value.toFixed(1)} m/s`, value: vel.value, limit: velLimit, freq: vel.freq,
+        message: `Velocidade do ar de ${vel.value.toFixed(1)} m/s em ${vel.freq.toFixed(0)} Hz excede o limite de ${velLimit.toFixed(1)} m/s (turbulência/chuffing).`
+      });
+    } else if (ratio >= T.portVelocityWarnRatio) {
+      out.push({
+        id: 'G9', code: 'PORT_VELOCITY_NEAR_LIMIT', severity: 'warn',
+        badge: `${vel.value.toFixed(1)} m/s`, value: vel.value, limit: velLimit, freq: vel.freq,
+        message: `Velocidade do ar de ${vel.value.toFixed(1)} m/s em ${vel.freq.toFixed(0)} Hz está em ${(ratio * 100).toFixed(0)}% do limite laminar (${velLimit.toFixed(1)} m/s).`
+      });
+    }
+  }
+
+  // 3. Max Power limitada mecanicamente na banda útil (acima da sintonia)
+  const pe = (Number.isFinite(m.Pe) && m.Pe > 0) ? m.Pe : null;
+  const pw = scanSeriesInBand(curves.frequencies, curves.G1_MaxPower, fUsefulLo, fHi, 'min');
+  if (pe && pw.value !== null && pw.value < pe * T.powerWarnRatio) {
+    out.push({
+      id: 'G1', code: 'POWER_MECH_LIMITED', severity: 'warn',
+      badge: `${pw.value.toFixed(0)} W`, value: pw.value, limit: pe, freq: pw.freq,
+      message: `Potência admissível cai a ${pw.value.toFixed(0)} W em ${pw.freq.toFixed(0)} Hz (limite mecânico por excursão, Pe = ${pe.toFixed(0)} W).`
+    });
+  }
+
+  // 4. Compressão térmica ativa
+  if (Number.isFinite(m.deltaT) && m.deltaT > 0) {
+    const comp = Number.isFinite(m.powerCompDb) ? m.powerCompDb : 0;
+    if (comp <= T.thermalWarnDb) {
+      out.push({
+        id: 'G6', code: 'THERMAL_COMPRESSION', severity: 'warn',
+        badge: `${comp.toFixed(1)} dB`, value: comp, limit: T.thermalWarnDb, freq: null,
+        message: `Compressão térmica de ${comp.toFixed(1)} dB com ΔT = +${m.deltaT} °C — o SPL térmico já está atenuado.`
+      });
+    } else {
+      out.push({
+        id: 'G6', code: 'THERMAL_ACTIVE', severity: 'info',
+        badge: `+${m.deltaT} °C`, value: comp, limit: null, freq: null,
+        message: `ΔT = +${m.deltaT} °C aplicado ao Re/Qes — compressão de ${comp.toFixed(2)} dB (abaixo do limiar de alerta).`
+      });
+    }
+  }
+
+  // 5. Group Delay na banda útil
+  const gd = scanSeriesInBand(curves.frequencies, curves.G13_GroupDelay, fUsefulLo, fHi, 'max');
+  if (gd.value !== null && gd.value > T.groupDelayWarnMs) {
+    out.push({
+      id: 'G13', code: 'GROUP_DELAY_HIGH', severity: 'warn',
+      badge: `${gd.value.toFixed(0)} ms`, value: gd.value, limit: T.groupDelayWarnMs, freq: gd.freq,
+      message: `Atraso de grupo de ${gd.value.toFixed(1)} ms em ${gd.freq.toFixed(0)} Hz acima do limiar audível de ${T.groupDelayWarnMs} ms.`
+    });
+  }
+
+  return out;
+}
+
+/** Aplica os badges de restrição nos cabeçalhos dos cards (pior severidade por gráfico). */
+function updateChartConstraintBadges(constraints) {
+  const worst = {};
+  (constraints || []).forEach(item => {
+    const cur = worst[item.id];
+    if (!cur || (SEVERITY_RANK[item.severity] || 0) > (SEVERITY_RANK[cur.severity] || 0)) worst[item.id] = item;
+  });
+  CHARTS_INFO.forEach(cfg => {
+    const el = document.getElementById('badge_' + cfg.id);
+    if (!el) return;
+    const hit = worst[cfg.id];
+    if (!hit) {
+      el.style.display = 'none';
+      el.textContent = '';
+      el.className = 'chart-alert';
+      el.setAttribute('title', '');
+      return;
+    }
+    const icon = hit.severity === 'critical' ? '⛔' : (hit.severity === 'warn' ? '⚠️' : 'ℹ️');
+    el.style.display = 'inline-flex';
+    el.className = 'chart-alert chart-alert-' + hit.severity;
+    el.textContent = icon + ' ' + hit.badge;
+    el.setAttribute('title', hit.message);
+  });
+}
+
+/** Monta a grade de gráficos na ordem do perfil ativo (por ID estável, nunca por índice). */
+function buildChartGridForEnv() {
+  const grid = document.getElementById('tabGrid');
+  if (!grid) return;
+  const profile = getAnalysisProfile(getAnalysisEnv());
+  grid.innerHTML = '';
+  profile.order.forEach((slotId, posIndex) => {
+    const entry = CHART_REGISTRY[slotId];
+    if (!entry) return;
+    const displayTitle = formatChartDisplayTitle(entry, posIndex);
+    const box = document.createElement('div');
+    if (entry.availability === 'unimplemented') {
+      box.className = 'chart-box chart-box-placeholder';
+      box.setAttribute('data-chart-id', entry.id);
+      box.setAttribute('data-chart-pos', String(posIndex + 1));
+      box.innerHTML = `
+        <div class="chart-header">
+          <span class="chart-title">${displayTitle}</span>
+          <span class="chart-alert chart-alert-info">N/D</span>
+        </div>
+        <div class="chart-placeholder-body">
+          <b>${entry.placeholder}</b>
+          <small>${entry.placeholderDetail}</small>
+        </div>
+      `;
+      grid.appendChild(box);
+      return;
+    }
+    box.className = 'chart-box';
+    box.setAttribute('data-chart-id', entry.id);
+    box.setAttribute('data-chart-pos', String(posIndex + 1));
+    box.innerHTML = `
+      <div class="chart-header" style="cursor:pointer;" title="Clique para abrir em tela expandida" onclick="openExpandedChart('${entry.id}')">
+        <span class="chart-title">${displayTitle}</span>
+        <span style="display:flex; align-items:center; gap:5px;">
+          <span class="chart-alert" id="badge_${entry.id}" style="display:none;"></span>
+          <button type="button" class="chart-expand-btn" aria-label="Expandir ${displayTitle}">⤢</button>
+        </span>
+      </div>
+      <canvas id="cv_${entry.id}" class="chart-canvas" ondblclick="openExpandedChart('${entry.id}')"></canvas>
+      <div class="chart-info" id="info_${entry.id}"><span>Pico: --</span><span>Passe o cursor · Duplo-clique ⤢</span></div>
+    `;
+    grid.appendChild(box);
+  });
+  syncExpandedSelectForEnv();
+}
+
+/** Reordena o seletor do modo Expandido pelo perfil ativo (séries calculadas). */
+function syncExpandedSelectForEnv() {
+  const sel = document.getElementById('expandedSelect');
+  if (!sel) return;
+  const prev = sel.value;
+  const profile = getAnalysisProfile(getAnalysisEnv());
+  const ordered = profile.order.filter(id => CHART_REGISTRY[id] && CHART_REGISTRY[id].availability !== 'unimplemented');
+  // Séries calculadas fora do perfil continuam acessíveis na análise individual
+  CHARTS_INFO.forEach(c => { if (ordered.indexOf(c.id) === -1) ordered.push(c.id); });
+  sel.innerHTML = '';
+  ordered.forEach(id => {
+    const opt = document.createElement('option');
+    opt.value = id;
+    const posIndex = profile.order.indexOf(id);
+    opt.textContent = formatChartDisplayTitle(CHART_REGISTRY[id], posIndex >= 0 ? posIndex : null);
+    sel.appendChild(opt);
+  });
+  sel.value = ordered.indexOf(prev) !== -1 ? prev : (ordered.indexOf('G4') !== -1 ? 'G4' : ordered[0]);
+}
+
+/**
+ * Alterna o ambiente de análise. NUNCA chama recalculate(), NUNCA altera inputs
+ * do projeto: apenas reordena a apresentação e reavalia os critérios.
+ */
+function setAnalysisEnvironment(env, opts = {}) {
+  analysisEnv = ENV_PROFILES[env] ? env : 'automotive';
+  document.querySelectorAll('[data-env-btn]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-env-btn') === analysisEnv);
+  });
+  if (opts.skipRender) return analysisEnv;
+  buildChartGridForEnv();
+  if (currentCurves) {
+    drawAllCharts();
+    renderExpanded();
+  }
+  return analysisEnv;
+}
+
 let currentCurves = null;
 let referenceSnapshot = null;
 let isAutoTune = true;
+let analysisEnv = 'automotive';
 const chartOpts = {
   fMin: 10,
   fMax: 1000,
@@ -1925,7 +2305,7 @@ const PROJECT_FIELD_IDS = [
   'elPreoutV', 'elLimProfile', 'elXoverHz', 'elLeMh', 'elMeasV'
 ];
 
-function exportProjectJson() {
+function buildProjectPayload() {
   const fields = {};
   PROJECT_FIELD_IDS.forEach(id => {
     const el = document.getElementById(id);
@@ -1933,12 +2313,13 @@ function exportProjectJson() {
   });
   const sel = document.getElementById('driverPreset');
   const driverLabel = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : 'Projeto';
-  const payload = {
+  return {
     schema: 'bassforge-project/v1',
     savedAt: new Date().toISOString(),
     name: driverLabel,
     isAutoTune,
     isHpfEnabled,
+    analysisEnv: getAnalysisEnv(),
     chartOpts: { ...chartOpts },
     validation: lastBuildPack ? {
       valid: lastBuildPack.validation.valid,
@@ -1948,6 +2329,11 @@ function exportProjectJson() {
     } : null,
     fields
   };
+}
+
+function exportProjectJson() {
+  const payload = buildProjectPayload();
+  const driverLabel = payload.name;
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   const safe = driverLabel.replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 32);
@@ -1979,7 +2365,11 @@ function applyProjectData(proj, opts = {}) {
   }
   if (typeof proj.isHpfEnabled === 'boolean') setHpfEnabled(proj.isHpfEnabled, false);
   setTuningMode(proj.isAutoTune !== false);
+  if (typeof proj.analysisEnv === 'string' && ENV_PROFILES[proj.analysisEnv]) {
+    analysisEnv = proj.analysisEnv;
+  }
   if (!opts.skipAutofix) autofixWoodlockGeometry('abertura de projeto');
+  setAnalysisEnvironment(getAnalysisEnv());
   return true;
 }
 
@@ -2471,6 +2861,8 @@ window.addEventListener('storage', ev => {
 // INICIALIZAÇÃO DA INTERFACE
 // ============================================================================
 function openExpandedChart(chartId) {
+  const entry = CHART_REGISTRY[chartId];
+  if (!entry || entry.availability === 'unimplemented') return;
   const sel = document.getElementById('expandedSelect');
   if (sel) sel.value = chartId;
   const ov = document.getElementById('expandedOverlay');
@@ -2479,21 +2871,7 @@ function openExpandedChart(chartId) {
 }
 
 function initUI() {
-  const grid = document.getElementById('tabGrid');
-  grid.innerHTML = '';
-  CHARTS_INFO.forEach(c => {
-    const box = document.createElement('div');
-    box.className = 'chart-box';
-    box.innerHTML = `
-      <div class="chart-header" style="cursor:pointer;" title="Clique para abrir em tela expandida" onclick="openExpandedChart('${c.id}')">
-        <span class="chart-title">${c.title}</span>
-        <button type="button" class="chart-expand-btn" aria-label="Expandir ${c.title}">⤢</button>
-      </div>
-      <canvas id="cv_${c.id}" class="chart-canvas" ondblclick="openExpandedChart('${c.id}')"></canvas>
-      <div class="chart-info" id="info_${c.id}"><span>Pico: --</span><span>Passe o cursor · Duplo-clique ⤢</span></div>
-    `;
-    grid.appendChild(box);
-  });
+  buildChartGridForEnv();
   loadDriversFromStorage();
   if (!checkIncomingDriverLink()) {
     loadPreset();
@@ -4336,6 +4714,8 @@ function drawAllCharts() {
     cv.oncontextmenu = e => openChartContextMenu(e, c.id);
     bindInteractiveChart(cv, drawFn, setReadout, setSummary);
   });
+  // Analysis Engine: reavalia as restrições físicas sobre as séries já calculadas
+  updateChartConstraintBadges(evaluatePhysicalConstraints(currentCurves, chartOpts.fMin, chartOpts.fMax));
 }
 
 function renderExpanded() {
@@ -5065,11 +5445,13 @@ function updateWoodlock() {
     });
   }
 
-  // Dutos como peça real de BOM (com Lv cortado unificado)
+  // Dutos como peça real de BOM (com Lv cortado canônico unificado em mm inteiros)
+  const lvMmCanon = (isVented && portGeom) ? Math.round(Math.max(0, portGeom.LvCm * 10.0)) : 0;
+  const lvCmCanon = +(lvMmCanon / 10.0).toFixed(1);
   const portBom = [];
   if (isVented && portGeom) {
-    const lvMm = Math.round(Math.max(0, portGeom.LvCm * 10.0));
-    const lvCmStr = (lvMm / 10.0).toFixed(1);
+    const lvMm = lvMmCanon;
+    const lvCmStr = lvCmCanon.toFixed(1);
     if (portGeom.isTri) {
       const hypMm = portGeom.hypCm * 10.0;
       const pLine = {
@@ -5132,11 +5514,13 @@ function updateWoodlock() {
     driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType,
     A, B, C_top, D_bot, t, F_ext, E_ext, portGeom,
     portType, numDucts, ductDia, ductThick, slotW, slotH, triCount, triA, triB,
-    LvCm: portGeom ? (Math.round(portGeom.LvCm * 10.0) / 10.0) : 0
+    LvCm: lvCmCanon
   });
 
   // Congela snapshot de construção (bassforge-buildpack/v1)
   const meta = (currentCurves && currentCurves.meta) || {};
+  const activeEnv = getAnalysisEnv();
+  const simConstraints = currentCurves ? evaluatePhysicalConstraints(currentCurves, chartOpts.fMin, chartOpts.fMax) : [];
   lastBuildPack = {
     schema: 'bassforge-buildpack/v1',
     generatedAt: new Date().toISOString(),
@@ -5157,10 +5541,18 @@ function updateWoodlock() {
     acoustics: {
       boxType, Vb, Vr: VbpRear, Fb: meta.Fb || Fb, F3: meta.F3 || 0, FH: meta.FH || 0,
       fc: meta.fc || 0, hpfEnabled: isHpfEnabled, hpfHz: meta.hpfHz || 0,
-      LvCm: portGeom ? +portGeom.LvCm.toFixed(2) : 0,
+      deltaT: Number.isFinite(meta.deltaT) ? meta.deltaT : 0,
+      analysisEnv: activeEnv,
+      band: [chartOpts.fMin || 10, chartOpts.fMax || 1000],
+      lvMm: lvMmCanon,
+      LvCm: lvCmCanon,
       SpCm2: portGeom ? +(portGeom.Sp * 10000).toFixed(1) : 0,
+      Vsub: +Vsub.toFixed(2),
       Vduto: +Vduto.toFixed(2),
-      Vbruto: +Vbruto.toFixed(2)
+      Vbracing: +Vbracing.toFixed(2),
+      VtotSim: +(Vb + VbpRear + Vsub + Vduto).toFixed(2),
+      Vbruto: +Vbruto.toFixed(2),
+      constraints: simConstraints
     },
     dimensions: {
       shape, t, A, B, C_top: +C_top.toFixed(1), D_bot: +D_bot.toFixed(1),
@@ -5447,7 +5839,20 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl) {
   const dm = pack.dimensions;
   const qts = (d.Qms && d.Qes) ? ((d.Qms * d.Qes) / (d.Qms + d.Qes)) : 0;
   const ebp = d.Qes ? (d.Fs / d.Qes) : 0;
+  const profile = getAnalysisProfile(ac.analysisEnv || getAnalysisEnv());
   const hpfNote = ac.hpfEnabled ? `HPF LR4 ativo em ${ac.hpfHz.toFixed(0)} Hz` : 'HPF subsônico desligado (resposta pura)';
+  const dtNote = (ac.deltaT && ac.deltaT > 0) ? `Bobina ΔT: +${ac.deltaT} °C` : 'Bobina ΔT: 0 °C (nominal)';
+  const bandArr = Array.isArray(ac.band) ? ac.band : [10, 1000];
+  const isSealedLike = (ac.boxType === 'sealed' || ac.boxType === 'planar');
+  const tuneLabel = isSealedLike ? 'Ressonância Fc / Corte F3' : 'Sintonia Fb / Corte F3';
+  const tuneValue = isSealedLike
+    ? `${(ac.fc || 0).toFixed(2)} Hz / ${ac.F3.toFixed(2)} Hz`
+    : `${ac.Fb.toFixed(2)} Hz / ${ac.F3.toFixed(2)} Hz`;
+  const lvMmVal = Number.isFinite(ac.lvMm) ? ac.lvMm : Math.round((ac.LvCm || 0) * 10.0);
+  const lvCmVal = (lvMmVal / 10.0).toFixed(1);
+  const vSubVal = Number.isFinite(ac.Vsub) ? ac.Vsub : (d.Vsub * d.nDrivers);
+  const vBracingVal = Number.isFinite(ac.Vbracing) ? ac.Vbracing : Math.max(0, +(ac.Vbruto - ac.Vb - (ac.Vr || 0) - vSubVal - (ac.Vduto || 0)).toFixed(2));
+  const volBalanceTxt = `Vb ${ac.Vb.toFixed(1)} L${ac.Vr > 0 ? ` + VR ${ac.Vr.toFixed(1)} L` : ''} + Vsub ${vSubVal.toFixed(1)} L + Vduto ${(ac.Vduto || 0).toFixed(2)} L + Vtravas ${vBracingVal.toFixed(2)} L = ${ac.Vbruto.toFixed(2)} L brutos`;
 
   const piecesRows = pack.pieces.map(p => `
     <tr>
@@ -5484,6 +5889,20 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl) {
     return `<li><b>[${tag}]</b> ${escapeHtmlStr(it.msg)}</li>`;
   }).join('');
 
+  const constraints = Array.isArray(ac.constraints) ? ac.constraints : [];
+  const hasCritConstraint = constraints.some(c => c.severity === 'critical');
+  const hasWarnConstraint = constraints.some(c => c.severity === 'warn');
+  const simBoxClass = hasCritConstraint ? 'crit-box' : (hasWarnConstraint ? 'warn-box' : 'ok-box');
+  const simBoxHdr = hasCritConstraint
+    ? '⛔ Atenção: limites físicos excedidos na banda simulada'
+    : (hasWarnConstraint ? '⚠️ Limites físicos da simulação com avisos' : '✅ Limites físicos da simulação dentro da faixa segura');
+  const simChecksHtml = constraints.length
+    ? constraints.map(c => {
+        const tag = c.severity === 'critical' ? 'CRÍTICO' : (c.severity === 'warn' ? 'AVISO' : 'INFO');
+        return `<li><b>[${tag}]</b> ${escapeHtmlStr(c.message)}</li>`;
+      }).join('')
+    : `<li><b>[OK]</b> Excursão (&lt; Xmax), velocidade de duto (&lt; limite laminar), potência admissível e atraso de grupo dentro dos critérios na banda ${bandArr[0]}–${bandArr[1]} Hz.</li>`;
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -5493,7 +5912,7 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl) {
   body { font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; margin: 22px; background: #fff; font-size: 12px; line-height: 1.45; }
   h1 { font-size: 20px; margin: 0 0 4px; color: #0b111d; }
   h2 { font-size: 14px; margin: 18px 0 8px; padding-bottom: 4px; border-bottom: 2px solid #0284c7; color: #0369a1; text-transform: uppercase; letter-spacing: 0.4px; }
-  .meta { color: #475569; font-size: 11px; margin-bottom: 14px; }
+  .meta { color: #475569; font-size: 11px; margin-bottom: 10px; }
   .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 10px; }
   .card { border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; background: #f8fafc; }
   .card small { display: block; color: #64748b; font-size: 10px; text-transform: uppercase; }
@@ -5505,8 +5924,10 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl) {
   .chart-item { border: 1px solid #cbd5e1; border-radius: 6px; padding: 6px; background: #06090f; page-break-inside: avoid; }
   .chart-cap { color: #e2e8f0; font-weight: 700; font-size: 11px; margin-bottom: 4px; }
   .chart-item img, .bp-img { width: 100%; height: auto; display: block; border-radius: 4px; }
-  .ok-box { border: 1px solid #10b981; background: #ecfdf5; padding: 8px 12px; border-radius: 6px; }
-  .ok-box ul { margin: 4px 0 0 18px; padding: 0; }
+  .ok-box { border: 1px solid #10b981; background: #ecfdf5; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; }
+  .warn-box { border: 1px solid #f59e0b; background: #fffbeb; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; }
+  .crit-box { border: 1px solid #ef4444; background: #fef2f2; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px; }
+  .ok-box ul, .warn-box ul, .crit-box ul { margin: 4px 0 0 18px; padding: 0; }
   @media print { body { margin: 10mm; } .no-print { display: none; } h2 { page-break-after: avoid; } }
 </style>
 </head>
@@ -5514,7 +5935,7 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl) {
   <div style="display:flex; justify-content:space-between; align-items:flex-start;">
     <div>
       <h1>BassForge SUITE — Pacote de Construção (Arquivo de Obra)</h1>
-      <div class="meta"><b>Driver:</b> ${escapeHtmlStr(d.name)} (${d.nDrivers}× · ${d.dia_in}″) &nbsp;|&nbsp; <b>Topologia:</b> ${escapeHtmlStr(ac.boxType.toUpperCase())} &nbsp;|&nbsp; <b>Gerado em:</b> ${escapeHtmlStr(pack.generatedAt.slice(0, 16).replace('T', ' '))} &nbsp;|&nbsp; ${escapeHtmlStr(hpfNote)}</div>
+      <div class="meta"><b>Driver:</b> ${escapeHtmlStr(d.name)} (${d.nDrivers}× · ${d.dia_in}″) &nbsp;|&nbsp; <b>Topologia:</b> ${escapeHtmlStr(ac.boxType.toUpperCase())} &nbsp;|&nbsp; <b>Perfil:</b> ${profile.icon} ${escapeHtmlStr(profile.label)} &nbsp;|&nbsp; <b>Banda:</b> ${bandArr[0]}–${bandArr[1]} Hz &nbsp;|&nbsp; ${escapeHtmlStr(dtNote)} &nbsp;|&nbsp; ${escapeHtmlStr(hpfNote)} &nbsp;|&nbsp; <b>Gerado em:</b> ${escapeHtmlStr(pack.generatedAt.slice(0, 16).replace('T', ' '))}</div>
     </div>
     <button class="no-print" onclick="window.print()" style="padding:8px 14px; background:#0284c7; color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:700;">🖨️ Imprimir / Salvar PDF</button>
   </div>
@@ -5530,11 +5951,12 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl) {
   <h2>2. Resumo Acústico &amp; Cotas do Gabinete (MDF ${dm.t} mm · Laterais Embutidas)</h2>
   <div class="grid">
     <div class="card"><small>Volume Útil / Bruto</small><b>${ac.Vb.toFixed(1)} L / ${ac.Vbruto.toFixed(1)} L</b></div>
-    <div class="card"><small>Sintonia Fb / Corte F3</small><b>${ac.Fb.toFixed(2)} Hz / ${ac.F3.toFixed(2)} Hz</b></div>
+    <div class="card"><small>${tuneLabel}</small><b>${tuneValue}</b></div>
     <div class="card"><small>Interno [A × B × C/D]</small><b>${dm.A} × ${dm.B} × ${dm.C_top}/${dm.D_bot} mm</b></div>
     <div class="card"><small>Externo [F × E × Prof]</small><b>${dm.F_ext} × ${dm.E_ext} × ${dm.C_ext_top}/${dm.D_ext_bot} mm</b></div>
   </div>
-  <div class="meta"><b>Área MDF estimada:</b> ${dm.totalAreaM2} m² (~${dm.sheetsEst} chapa 2750×1830 mm) &nbsp;|&nbsp; <b>Peso estimado MDF:</b> ${dm.weightKg} kg${ac.LvCm > 0 ? ` &nbsp;|&nbsp; <b>Duto Lv cortado:</b> ${ac.LvCm} cm (${(ac.LvCm * 10).toFixed(0)} mm) · Sp = ${ac.SpCm2} cm²` : ''}</div>
+  <div class="meta"><b>Balanço Volumétrico:</b> ${escapeHtmlStr(volBalanceTxt)}</div>
+  <div class="meta"><b>Área MDF estimada:</b> ${dm.totalAreaM2} m² (~${dm.sheetsEst} chapa 2750×1830 mm) &nbsp;|&nbsp; <b>Peso estimado MDF:</b> ${dm.weightKg} kg${lvMmVal > 0 ? ` &nbsp;|&nbsp; <b>Duto Lv cortado:</b> ${lvCmVal} cm (${lvMmVal} mm) · Sp = ${ac.SpCm2} cm²` : ''}</div>
 
   ${blueprintDataUrl ? `<h2>3. Blueprint Técnico — Vista Lateral (Lv vs C) &amp; Vista Frontal (Furação Real)</h2><img class="bp-img" src="${blueprintDataUrl}" alt="Blueprint CAD">` : ''}
 
@@ -5551,35 +5973,51 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl) {
     <tbody>${holesRows}</tbody>
   </table>
 
-  <h2>6. Gráficos Acústicos Congelados</h2>
+  <h2>6. Gráficos Acústicos Congelados — Perfil ${escapeHtmlStr(profile.label)}</h2>
   <div class="charts-grid">${chartsHtml}</div>
 
-  <h2>7. Checagens de Viabilidade Geométrica</h2>
+  <h2>7. Checagens de Viabilidade Geométrica &amp; Limites Físicos da Simulação</h2>
   <div class="ok-box"><b>✅ Geometria aprovada para construção (0 erros críticos)</b><ul>${checksHtml}</ul></div>
+  <div class="${simBoxClass}"><b>${simBoxHdr}</b><ul>${simChecksHtml}</ul></div>
 </body>
 </html>`;
 }
 
 function generateBuildPackHtml() {
-  if (!lastBuildPack) updateWoodlock();
+  updateWoodlock();
   if (!lastBuildPack || !lastBuildPack.validation.valid) {
     return { ok: false, validation: lastBuildPack ? lastBuildPack.validation : null, html: null };
   }
-  const chartIds = (lastBuildPack.acoustics.boxType === 'sealed' || lastBuildPack.acoustics.boxType === 'planar')
-    ? ['G4', 'G6', 'G8', 'G11']
-    : ['G4', 'G6', 'G8', 'G11', 'G9'];
+  const ac = lastBuildPack.acoustics;
+  const profile = getAnalysisProfile(ac.analysisEnv || getAnalysisEnv());
+  const isSealedLike = (ac.boxType === 'sealed' || ac.boxType === 'planar');
+  const targetCount = (profile.id === 'automotive') ? 8 : 6;
+  const selectedSlots = [];
+  for (let i = 0; i < profile.order.length && selectedSlots.length < targetCount; i++) {
+    const id = profile.order[i];
+    const entry = CHART_REGISTRY[id];
+    if (!entry || entry.availability === 'unimplemented') continue;
+    if (isSealedLike && id === 'G9') continue;
+    selectedSlots.push({ id, posIndex: i, entry });
+  }
+  const tuneSubtitle = isSealedLike
+    ? `Fc=${(ac.fc || 0).toFixed(1)}Hz`
+    : `Fb=${ac.Fb.toFixed(1)}Hz`;
+  const hpfSubtitle = ac.hpfEnabled ? ` | HPF=${ac.hpfHz.toFixed(0)}Hz` : '';
+  const exportSubtitle = `${lastBuildPack.driver.name} | Vb=${ac.Vb.toFixed(1)}L | ${tuneSubtitle}${hpfSubtitle} | ${profile.label}`;
   const chartImages = [];
   if (currentCurves && typeof document !== 'undefined') {
-    chartIds.forEach(id => {
+    selectedSlots.forEach(({ id, posIndex, entry }) => {
       const cfg = CHARTS_INFO.find(c => c.id === id);
       if (!cfg) return;
+      const displayTitle = formatChartDisplayTitle(entry, posIndex);
       const off = document.createElement('canvas');
       drawLogChart(off, currentCurves.frequencies, currentCurves[cfg.key], cfg, {
         isExpanded: true, exportW: 720, exportH: 380, exportHeaderH: 36,
-        exportTitle: cfg.title, exportSubtitle: `${lastBuildPack.driver.name} | Vb=${lastBuildPack.acoustics.Vb.toFixed(1)}L`
+        exportTitle: displayTitle, exportSubtitle
       });
       if (typeof off.toDataURL === 'function') {
-        chartImages.push({ id, title: cfg.title, dataUrl: off.toDataURL('image/png') });
+        chartImages.push({ id, title: displayTitle, dataUrl: off.toDataURL('image/png') });
       }
     });
   }
@@ -5591,8 +6029,8 @@ function generateBuildPackHtml() {
   drawWoodlockBlueprint({
     A: dm.A, B: dm.B, C_top: dm.C_top, D_bot: dm.D_bot, F_ext: dm.F_ext, E_ext: dm.E_ext, t: dm.t,
     isTrap: dm.shape === 'trapezoidal',
-    isVented: ['bass-reflex', 'bp4', 'bp6'].includes(lastBuildPack.acoustics.boxType),
-    lvMm: lastBuildPack.acoustics.LvCm * 10.0,
+    isVented: ['bass-reflex', 'bp4', 'bp6'].includes(ac.boxType),
+    lvMm: ac.lvMm,
     validation: lastBuildPack.validation
   }, bpCanvas);
   if (typeof bpCanvas.toDataURL === 'function') bpDataUrl = bpCanvas.toDataURL('image/png');
@@ -6254,6 +6692,17 @@ document.addEventListener('keydown', e => {
     }
     drawAllCharts();
     renderExpanded();
+  } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+    const expTab = document.getElementById('tabExpanded');
+    const sel = document.getElementById('expandedSelect');
+    if (expTab && expTab.style.display === 'flex' && sel && sel.options.length > 0) {
+      e.preventDefault();
+      const len = sel.options.length;
+      const cur = sel.selectedIndex >= 0 ? sel.selectedIndex : 0;
+      const delta = (e.key === 'ArrowDown') ? 1 : -1;
+      sel.selectedIndex = (cur + delta + len) % len;
+      renderExpanded();
+    }
   } else if ((e.key === 'Home' || e.key === 'End') && pinnedCrosshairFreq != null) {
     e.preventDefault();
     pinnedCrosshairFreq = (e.key === 'Home') ? (chartOpts.fMin || 10) : (chartOpts.fMax || 1000);
