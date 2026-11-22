@@ -833,6 +833,215 @@ runSuite('17. Exportador CAD DXF R12 1:1 (Camadas, Nesting, Baffle & Corte Later
   vm.runInContext('loadPreset()', ctx);
 });
 
+// SUITE 18: Alinhamento PGS Duto Régua + Exportador de Macro FreeCAD (.FCMacro)
+runSuite('18. Alinhamento PGS Duto Régua & Exportador Macro FreeCAD (.FCMacro)', () => {
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+  elements.get('portType').value = 'slot_wall';
+  vm.runInContext("selectTopology('bass-reflex'); recalculate(); autofixWoodlockGeometry('s18'); updateWoodlock();", ctx);
+  const slotPack = vm.runInContext('lastBuildPack', ctx);
+  const t = slotPack.dimensions.t;
+  const slotHole = slotPack.baffleHoles.find(h => h.kind === 'port' && h.shape === 'slot');
+  const portPart = slotPack.geometry.parts.find(p => p.kind === 'port');
+  const frontPart = slotPack.geometry.parts.find(p => p.id === 'P_FRONT_BAFFLE');
+  assert(slotHole && portPart && frontPart, 'Dutada régua deve possuir recorte slot, peça port e baffle frontal');
+  approx(portPart.origin[1], t + slotHole.h, 0.2, 'Divisória régua horizontal deve iniciar exatamente em y = t + slotH');
+  approx(portPart.origin[1] + portPart.size[1], frontPart.origin[1], 0.2, 'Topo da divisória régua deve encostar exatamente na base do baffle reduzido');
+
+  const macro0 = vm.runInContext('buildFreeCadMacroString(lastBuildPack, 0.0)', ctx);
+  const macro1 = vm.runInContext('buildFreeCadMacroString(lastBuildPack, 1.0)', ctx);
+  assert(macro0.includes('PACK_JSON = r\'\'\'') && macro0.includes('EXPLODE_RATIO = 0.00') && macro0.includes('make_planar_chamfers'), 'Macro FreeCAD 0% deve ser válida e autocontida');
+  assert(macro1.includes('EXPLODE_RATIO = 1.00') && !macro1.includes('NaN'), 'Macro FreeCAD 100% explodida deve ser válida sem NaN');
+
+  elements.get('portType').value = 'round';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
+// SUITE 19: Expansão CAD 3D P1 — Trapézio, BP6 Série, Duto Triângulo & Duto Régua Vertical
+runSuite('19. Expansão CAD 3D P1 (Trapézio, BP6 Série, Duto Triângulo & Régua Vertical)', () => {
+  // 19.1 Trapézio 15°
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+  elements.get('wlShape').value = 'trapezoidal';
+  elements.get('wlAngle').value = '15';
+  vm.runInContext("selectTopology('sealed'); recalculate(); autofixWoodlockGeometry('s19_trap'); updateWoodlock();", ctx);
+  const trapPack = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(trapPack.geometry.envelope.shape, 'trapezoidal', 'Envelope PGS deve marcar trapezoidal');
+  assert(trapPack.dimensions.C_top < trapPack.dimensions.D_bot - 50, 'Trapézio deve ter C_top < D_bot');
+  const pTop = trapPack.geometry.parts.find(p => p.id === 'P_TOP');
+  const pSides = trapPack.geometry.parts.find(p => p.id === 'P_SIDES');
+  const pRear = trapPack.geometry.parts.find(p => p.id === 'P_REAR');
+  approx(pTop.origin[2] + pTop.size[2], trapPack.geometry.envelope.D_ext, 0.3, 'P_TOP trapezoidal deve alinhar à frente D_ext');
+  assert(pSides.trapezoid && pRear.trapezoid, 'P_SIDES e P_REAR devem carregar metadados trapezoidais');
+  elements.get('wlShape').value = 'rectangular';
+
+  // 19.2 Duto Régua Vertical
+  elements.get('portType').value = 'slot_wall';
+  elements.get('wlSlotOrient').value = 'vertical';
+  elements.get('slotW').value = '58';
+  elements.get('slotH').value = '7';
+  vm.runInContext("selectTopology('bass-reflex'); recalculate(); autofixWoodlockGeometry('s19_sv'); updateWoodlock();", ctx);
+  const svPack = vm.runInContext('lastBuildPack', ctx);
+  const svFront = svPack.geometry.parts.find(p => p.id === 'P_FRONT_BAFFLE');
+  const svPort = svPack.geometry.parts.find(p => p.kind === 'port');
+  approx(svFront.origin[0], svPack.dimensions.t, 0.2, 'Baffle régua vertical deve encostar na lateral esquerda x = t');
+  approx(svFront.origin[0] + svFront.size[0], svPort.origin[0], 0.2, 'Divisória régua vertical deve encostar na borda direita do baffle');
+  elements.get('wlSlotOrient').value = 'horizontal';
+
+  // 19.3 Duto Triângulo Bass-Reflex
+  elements.get('portType').value = 'triangle';
+  elements.get('triCount').value = '4';
+  elements.get('triA').value = '14';
+  elements.get('triB').value = '14';
+  vm.runInContext("selectTopology('bass-reflex'); recalculate(); autofixWoodlockGeometry('s19_tri'); updateWoodlock();", ctx);
+  const triPack = vm.runInContext('lastBuildPack', ctx);
+  const triPort = triPack.geometry.parts.find(p => p.kind === 'port');
+  const triCuts = triPack.geometry.cutouts.filter(c => c.shape === 'triangle');
+  assert(triPort && triPort.triMeta && triPort.triMeta.count === 4, 'Duto triângulo deve exportar triMeta com 4 cantos');
+  assert.strictEqual(triCuts.length, 4, 'Baffle deve possuir 4 cutouts triangulares');
+
+  // 19.4 BP6 Série
+  elements.get('portType').value = 'round';
+  vm.runInContext("selectTopology('bp6'); setTuningMode(false);", ctx);
+  elements.get('vbInput').value = '60';
+  elements.get('vrInput').value = '80';
+  elements.get('fbInput').value = '55.0';
+  elements.get('ductDia').value = '4.0';
+  elements.get('numDucts').value = '2';
+  elements.get('bp6Mode').value = 'series';
+  elements.get('fbVrInput').value = '35.0';
+  vm.runInContext("recalculate(); autofixWoodlockGeometry('s19_bp6s'); updateWoodlock();", ctx);
+  const bp6sPack = vm.runInContext('lastBuildPack', ctx);
+  const serCut = bp6sPack.geometry.cutouts.find(c => c.partId === 'P_BP_DIVIDER' && c.kind === 'port');
+  const serPort = bp6sPack.geometry.parts.find(p => p.id === 'P_PORT_SERIES');
+  assert(serCut && serPort && serPort.axis === '-X', 'BP6 Série deve vincular duto acoplador à P_BP_DIVIDER com P_PORT_SERIES no eixo -X');
+  assert.strictEqual(bp6sPack.validation.valid, true, 'BP6 Série após autofix deve ser 100% válida');
+
+  elements.get('bp6Mode').value = 'parallel';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
+// SUITE 20: Cobertura Completa Árvore 01..08 (2 Subs + P_CENTER_DIV, Duto Único V/R, BP4/BP6 Duto Quadrado, Planar/BP6 Trapézio)
+runSuite('20. Árvore Completa 01..08 (2 Subs, Duto Único, BP Duto Quadrado, Trapézio Universal)', () => {
+  // 20.1 Selada 2 Subs com P_CENTER_DIV
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+  elements.get('simNumDrivers').value = '2';
+  elements.get('wlPortLayout').value = 'standard';
+  elements.get('wlShape').value = 'rectangular';
+  elements.get('vbInput').value = '260';
+  vm.runInContext("selectTopology('sealed'); recalculate(); autofixWoodlockGeometry('s20_2s'); updateWoodlock();", ctx);
+  const s2Pack = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(s2Pack.validation.valid, true, 'Selada 2 Subs deve ser válida');
+  assert(s2Pack.geometry.parts.some(p => p.id === 'P_CENTER_DIV'), 'Selada 2 Subs deve gerar P_CENTER_DIV');
+  assert.strictEqual(s2Pack.geometry.cutouts.filter(c => c.kind === 'driver').length, 2, 'Selada 2 Subs deve ter 2 furos de driver');
+
+  // 20.2 Duto Único Vertical Central (2 Subs)
+  elements.get('portType').value = 'slot_wall';
+  elements.get('wlSlotOrient').value = 'vertical';
+  elements.get('wlPortLayout').value = 'center_shared';
+  elements.get('vbInput').value = '280';
+  elements.get('slotW').value = '50';
+  elements.get('slotH').value = '12';
+  vm.runInContext("selectTopology('bass-reflex'); setTuningMode(false);", ctx);
+  elements.get('fbInput').value = '36.0';
+  vm.runInContext("recalculate(); autofixWoodlockGeometry('s20_uv'); updateWoodlock();", ctx);
+  const uvPack = vm.runInContext('lastBuildPack', ctx);
+  const uvFront = uvPack.geometry.parts.find(p => p.id === 'P_FRONT_BAFFLE');
+  const uvPort = uvPack.geometry.parts.find(p => p.kind === 'port');
+  assert.strictEqual(uvPack.validation.valid, true, 'Duto Único Vertical deve ser válido');
+  assert(uvFront && uvFront.frontSplit, 'Duto Único Vertical deve dividir P_FRONT_BAFFLE em 2 painéis');
+  assert(uvPort && uvPort.sharedCenterSlot, 'Duto Único Vertical deve exportar sharedCenterSlot (2 paredes paralelas)');
+  elements.get('wlPortLayout').value = 'standard';
+  elements.get('wlSlotOrient').value = 'horizontal';
+
+  // 20.3 BP6 Paralelo Duto Quadrado de Topo
+  elements.get('simNumDrivers').value = '1';
+  elements.get('portType').value = 'slot_wall';
+  elements.get('slotW').value = '40';
+  elements.get('slotH').value = '6';
+  vm.runInContext("selectTopology('bp6'); setTuningMode(false);", ctx);
+  elements.get('bp6Mode').value = 'parallel';
+  elements.get('vbInput').value = '70';
+  elements.get('vrInput').value = '90';
+  elements.get('fbInput').value = '58.0';
+  elements.get('fbVrInput').value = '42.0';
+  vm.runInContext("recalculate(); autofixWoodlockGeometry('s20_bp6q'); updateWoodlock();", ctx);
+  const bp6qPack = vm.runInContext('lastBuildPack', ctx);
+  const bp6qSides = bp6qPack.geometry.parts.find(p => p.id === 'P_SIDES');
+  const bp6qTop = bp6qPack.geometry.parts.find(p => p.id === 'P_TOP');
+  assert.strictEqual(bp6qPack.validation.valid, true, 'BP6 Paralelo Duto Quadrado deve ser válido');
+  assert(bp6qSides && bp6qSides.leftTopExtend && bp6qSides.rightTopExtend, 'BP6 Paralelo Duto Quadrado deve estender ambas as laterais (BM = B + t)');
+  assert(bp6qTop && bp6qTop.size[0] < bp6qPack.geometry.envelope.F - 100, 'BP6 Paralelo Duto Quadrado deve reduzir tampo superior F2');
+
+  // 20.4 Planar Quadrado Trapezoidal
+  elements.get('wlShape').value = 'trapezoidal';
+  elements.get('wlAngle').value = '12';
+  elements.get('wlPlanarStyle').value = 'square';
+  elements.get('vbInput').value = '140';
+  vm.runInContext("selectTopology('planar'); recalculate(); autofixWoodlockGeometry('s20_pt'); updateWoodlock();", ctx);
+  const ptPack = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(ptPack.validation.valid, true, 'Planar Quadrado Trapezoidal deve ser válido');
+  assert.strictEqual(ptPack.geometry.envelope.shape, 'trapezoidal', 'Planar Trapezoidal deve preservar envelope trapezoidal');
+  assert(ptPack.dimensions.C_top < ptPack.dimensions.D_bot - 40, 'Planar Trapezoidal deve ter C_top < D_bot');
+
+  // Restaura estado padrão
+  elements.get('wlShape').value = 'rectangular';
+  elements.get('simNumDrivers').value = '1';
+  elements.get('portType').value = 'round';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
+// SUITE 21: Módulos 09 (Bracing 6-Eixos + Window Brace) e 10 (Alojamento Veicular DIV/CXRODAS/BARRA)
+runSuite('21. Módulos 09 & 10 (Bracing 6-Eixos + Window Brace, Matriz DIV Meia-Madeira, CXRODAS & BARRA)', () => {
+  const bIds = ['wlBraceFF', 'wlBraceTB', 'wlBraceLR', 'wlBraceCross', 'wlBraceBaffle', 'wlBraceRear'];
+  // 21.1 Bracing 6-eixos completo (1_1_1_1_1_1) em Trapézio + Window Brace 5 furos
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+  elements.get('wlShape').value = 'trapezoidal';
+  elements.get('wlAngle').value = '12';
+  bIds.forEach(id => { elements.get(id).checked = true; });
+  elements.get('wlBattens').value = '6';
+  vm.runInContext("selectTopology('sealed'); recalculate(); autofixWoodlockGeometry('s21_br'); updateWoodlock();", ctx);
+  const brPack = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(brPack.validation.valid, true, 'Bracing 6-eixos trapezoidal deve ser válido');
+  const winPart = brPack.geometry.parts.find(p => p.id === 'P_BRACE_CROSS');
+  assert(winPart && winPart.braceMeta && winPart.braceMeta.isWindow && winPart.braceMeta.holesCount === 5,
+    'Window Brace trapezoidal deve exportar braceMeta.isWindow com 5 furos');
+  const braceParts = brPack.geometry.parts.filter(p => p.kind === 'batten');
+  assert.strictEqual(braceParts.length, 6, 'Devem existir 6 peças individuais P_BRACE_*');
+  bIds.forEach(id => { elements.get(id).checked = false; });
+  elements.get('wlBattens').value = '0';
+
+  // 21.2 Alojamento Veicular Completo (Matriz 3x4 + CXRODAS + BARRA)
+  elements.get('wlShape').value = 'rectangular';
+  elements.get('wlMatrixCols').value = '3';
+  elements.get('wlMatrixRows').value = '4';
+  elements.get('wlWheelArch').checked = true;
+  elements.get('wlProtectBar').checked = true;
+  elements.get('wlWidthA').value = '1050';
+  elements.get('wlHeightB').value = '720';
+  elements.get('vbInput').value = '300';
+  vm.runInContext("recalculate(); autofixWoodlockGeometry('s21_aloj'); updateWoodlock();", ctx);
+  const alPack = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(alPack.validation.valid, true, 'Alojamento completo deve ser válido');
+  assert(alPack.geometry.parts.some(p => p.id === 'P_MATRIX_V' && p.qty === 2), 'Matriz 3x4 deve gerar 2 divisórias verticais');
+  assert(alPack.geometry.parts.some(p => p.id === 'P_MATRIX_H' && p.qty === 3), 'Matriz 3x4 deve gerar 3 divisórias horizontais');
+  assert(alPack.geometry.parts.some(p => p.id === 'P_WHEEL_ARCH'), 'CXRODAS deve gerar P_WHEEL_ARCH');
+  assert(alPack.geometry.parts.some(p => p.id === 'P_PROTECT_BAR'), 'BARRA deve gerar P_PROTECT_BAR');
+
+  // Restaura estado padrão
+  elements.get('wlMatrixCols').value = '1';
+  elements.get('wlMatrixRows').value = '1';
+  elements.get('wlWheelArch').checked = false;
+  elements.get('wlProtectBar').checked = false;
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

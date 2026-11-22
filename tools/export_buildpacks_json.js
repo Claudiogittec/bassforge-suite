@@ -3,7 +3,7 @@ const path = require('path');
 const vm = require('vm');
 
 const htmlPath = path.join('c:/Users/Dinalli/Desktop/Projetos acusticos/BassForge_Kit_Oficial/index.html');
-const outDir = path.join('C:/Users/Dinalli/Desktop/Projetos acusticos/BassForge_FreeCAD_Validacao/json');
+const outDir = path.join('C:/Users/Dinalli/Desktop/Projetos acusticos/BassForge_CAD_Biblioteca/06_BuildPacks_JSON');
 fs.mkdirSync(outDir, { recursive: true });
 
 const html = fs.readFileSync(htmlPath, 'utf8');
@@ -62,29 +62,50 @@ vm.runInContext('initUI();', ctx);
 const cases = [
   { file: '01_selada.json', topo: 'sealed', port: 'round', pStyle: 'square' },
   { file: '02_dutada_redonda.json', topo: 'bass-reflex', port: 'round', pStyle: 'square' },
-  { file: '03_dutada_regua.json', topo: 'bass-reflex', port: 'slot_wall', pStyle: 'square' },
-  { file: '04_bp4.json', topo: 'bp4', port: 'round', pStyle: 'square', bp: true },
+  { file: '03_dutada_regua.json', topo: 'bass-reflex', port: 'slot_wall', pStyle: 'square', slotOrient: 'horizontal', slotW: '80', slotH: '6' },
+  { file: '04_bp4.json', topo: 'bp4', port: 'round', pStyle: 'square', bp: 'bp4' },
   { file: '05_planar_quadrado.json', topo: 'planar', port: 'round', pStyle: 'square' },
   { file: '06_planar_triangulo.json', topo: 'planar', port: 'round', pStyle: 'triangle' },
-  { file: '07_free_air.json', topo: 'free-air', port: 'round', pStyle: 'square' }
+  { file: '07_free_air.json', topo: 'free-air', port: 'round', pStyle: 'square' },
+  { file: '08_bp6_paralela.json', topo: 'bp6', port: 'round', pStyle: 'square', bp: 'bp6', bp6Mode: 'parallel' },
+  { file: '09_selada_trapezoidal.json', topo: 'sealed', port: 'round', pStyle: 'square', shape: 'trapezoidal', angle: '15' },
+  { file: '10_dutada_regua_vertical.json', topo: 'bass-reflex', port: 'slot_wall', pStyle: 'square', slotOrient: 'vertical', slotW: '58', slotH: '7' },
+  { file: '11_dutada_triangulo.json', topo: 'bass-reflex', port: 'triangle', pStyle: 'square', triCount: '4', triA: '14', triB: '14' },
+  { file: '12_bp6_serie.json', topo: 'bp6', port: 'round', pStyle: 'square', bp: 'bp6', bp6Mode: 'series' }
 ];
 
 for (const c of cases) {
   elements.get('driverPreset').value = 'oversound';
   vm.runInContext('loadPreset();', ctx);
+  elements.get('wlShape').value = c.shape || 'rectangular';
+  if (c.angle && elements.get('wlAngle')) elements.get('wlAngle').value = c.angle;
   elements.get('wlPlanarStyle').value = c.pStyle;
+  if (elements.get('wlSlotOrient')) elements.get('wlSlotOrient').value = c.slotOrient || 'horizontal';
   vm.runInContext(`selectTopology('${c.topo}');`, ctx);
   elements.get('portType').value = c.port;
-  if (c.bp) {
+  if (c.port === 'slot_wall') {
+    if (elements.get('slotW')) elements.get('slotW').value = c.slotW || '80';
+    if (elements.get('slotH')) elements.get('slotH').value = c.slotH || '6';
+  }
+  if (c.port === 'triangle') {
+    if (elements.get('triCount')) elements.get('triCount').value = c.triCount || '4';
+    if (elements.get('triA')) elements.get('triA').value = c.triA || '14';
+    if (elements.get('triB')) elements.get('triB').value = c.triB || '14';
+  }
+  if (c.bp === 'bp4' || c.bp === 'bp6') {
     vm.runInContext('setTuningMode(false);', ctx);
     elements.get('vbInput').value = '60';
     elements.get('vrInput').value = '80';
     elements.get('fbInput').value = '55.0';
     elements.get('ductDia').value = '4.0';
     elements.get('numDucts').value = '2';
+    if (c.bp === 'bp6' && elements.get('bp6Mode')) {
+      elements.get('bp6Mode').value = c.bp6Mode || 'parallel';
+      if (elements.get('fbVrInput')) elements.get('fbVrInput').value = '35.0';
+    }
   }
   vm.runInContext("recalculate(); autofixWoodlockGeometry('freecad'); updateWoodlock();", ctx);
   const pack = vm.runInContext('lastBuildPack', ctx);
   fs.writeFileSync(path.join(outDir, c.file), JSON.stringify(pack, null, 2), 'utf8');
-  console.log('JSON OK:', c.file);
+  console.log('JSON OK:', c.file, '| valid:', pack.validation.valid);
 }
