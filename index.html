@@ -35,21 +35,28 @@
   ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.22); border-radius: 3px; }
   ::-webkit-scrollbar-thumb:hover { background: rgba(0, 212, 255, 0.45); }
 
+  html, body {
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
   body {
     font-family: var(--font);
     background: var(--bg-base);
     color: var(--text-main);
-    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    overflow-x: hidden;
   }
 
   /* HEADER UNIFICADO — BASSFORGE SUITE */
   header {
     background: linear-gradient(180deg, #0d1524 0%, var(--bg-surface) 100%);
     border-bottom: 1px solid var(--border);
-    height: 44px;
+    height: 40px;
     padding: 0 14px;
     display: flex;
     justify-content: space-between;
@@ -105,18 +112,21 @@
   .app-container {
     display: flex;
     flex: 1;
+    min-height: 0;
+    width: 100%;
     overflow: hidden;
   }
 
   /* SIDEBAR DE CONTROLES (CAD PROPERTY INSPECTOR RECOLHÍVEL) */
   .sidebar {
     width: 268px;
+    height: 100%;
+    min-height: 0;
     background: var(--bg-surface);
     border-right: 1px solid var(--border);
     padding: 8px 10px;
     overflow-y: auto;
     flex-shrink: 0;
-    max-height: calc(100vh - 134px);
     transition: width 0.18s ease, padding 0.18s ease, opacity 0.15s ease;
   }
   .sidebar.collapsed {
@@ -570,12 +580,14 @@
   /* ÁREA PRINCIPAL */
   main {
     flex: 1;
-    padding: 14px 18px;
+    min-width: 0;
+    min-height: 0;
+    height: 100%;
+    padding: 8px 14px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    max-height: calc(100vh - 134px);
+    gap: 8px;
   }
 
   
@@ -631,13 +643,14 @@
   .kpi-row {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-    gap: 10px;
+    gap: 8px;
+    flex-shrink: 0;
   }
   .kpi-card {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 14px;
+    border-radius: 7px;
+    padding: 7px 11px;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -651,16 +664,17 @@
   }
   .kpi-card.warn::before { background: var(--warning); }
   .kpi-card.good::before { background: var(--success); }
-  .kpi-label { font-size: 11px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
-  .kpi-value { font-family: var(--mono); font-size: 17px; font-weight: 800; color: #fff; margin-top: 2px; }
-  .kpi-sub { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+  .kpi-label { font-size: 10px; color: var(--text-muted); font-weight: 600; text-transform: uppercase; }
+  .kpi-value { font-family: var(--mono); font-size: 15.5px; font-weight: 800; color: #fff; margin-top: 1px; }
+  .kpi-sub { font-family: var(--mono); font-size: 9.5px; color: var(--text-muted); margin-top: 1px; }
 
   /* TABS */
   .tabs-bar {
     display: flex;
     gap: 8px;
     border-bottom: 1px solid var(--border);
-    padding-bottom: 8px;
+    padding-bottom: 6px;
+    flex-shrink: 0;
   }
   .tab-btn {
     background: transparent;
@@ -724,14 +738,14 @@
   /* GRIDS DE GRÁFICOS */
   .charts-grid-12 {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
-    gap: 14px;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 10px;
   }
   .chart-box {
     background: var(--bg-card);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 10px 10px 8px 10px;
+    border-radius: 7px;
+    padding: 7px 8px 6px 8px;
     display: flex;
     flex-direction: column;
     position: relative;
@@ -746,10 +760,10 @@
     justify-content: space-between;
     align-items: center;
     gap: 8px;
-    margin-bottom: 6px;
+    margin-bottom: 4px;
   }
   .chart-title {
-    font-size: 12px;
+    font-size: 11.5px;
     font-weight: 700;
     color: #f3f4f6;
   }
@@ -758,7 +772,7 @@
     border: 1px solid transparent;
     color: var(--text-muted);
     font-size: 11px;
-    padding: 2px 6px;
+    padding: 1px 5px;
     border-radius: 4px;
     cursor: pointer;
     transition: 0.15s;
@@ -771,7 +785,7 @@
   }
   .chart-canvas {
     width: 100%;
-    height: 210px;
+    height: clamp(138px, calc((100vh - 295px) / 3 - 52px), 220px);
     background: #06090f;
     border: 1px solid rgba(30, 41, 59, 0.65);
     border-radius: 6px;
@@ -780,13 +794,13 @@
   }
   .chart-info {
     font-family: var(--mono);
-    font-size: 10.5px;
+    font-size: 10px;
     color: var(--text-muted);
-    margin-top: 5px;
+    margin-top: 4px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    min-height: 15px;
+    min-height: 14px;
   }
 
   /* MODAL EXPANDIDO */
@@ -797,11 +811,11 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: 8px;
-    padding: 14px 16px;
+    padding: 12px 14px;
   }
   .expanded-canvas {
     width: 100%;
-    height: 510px;
+    height: clamp(360px, calc(100vh - 295px), 780px);
     background: #06090f;
     border: 1px solid rgba(30, 41, 59, 0.75);
     border-radius: 8px;
@@ -823,9 +837,10 @@
   .comparison-table tr:nth-child(even) { background: rgba(255, 255, 255, 0.02); }
 
   @media (max-width: 900px) {
+    html, body { height: auto; overflow-y: auto; }
     .app-container { flex-direction: column; overflow-y: auto; }
-    .sidebar { width: 100%; max-height: none; }
-    main { max-height: none; }
+    .sidebar { width: 100%; height: auto; }
+    main { height: auto; }
   }
 </style>
 </head>
@@ -5156,8 +5171,21 @@ document.addEventListener('keydown', e => {
   else if (e.key === '5') switchTab('audit');
 });
 
+let _bfResizeTimer = null;
+function scheduleViewportRedraw() {
+  if (_bfResizeTimer) clearTimeout(_bfResizeTimer);
+  _bfResizeTimer = setTimeout(() => {
+    requestAnimationFrame(() => {
+      drawAllCharts();
+      renderExpanded();
+      updateWoodlock();
+    });
+  }, 60);
+}
+
 window.onload = () => { initUI(); };
-window.onresize = () => { drawAllCharts(); renderExpanded(); updateWoodlock(); };
+window.addEventListener('resize', scheduleViewportRedraw);
+document.addEventListener('fullscreenchange', scheduleViewportRedraw);
 </script>
 </body>
 </html>
