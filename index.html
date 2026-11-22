@@ -1409,7 +1409,8 @@
           <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
             <button type="button" id="btnExportBuildPack" class="tb-btn accent-wiz" onclick="exportBuildPackHtml()" style="padding:7px 12px; font-size:11.5px;">📦 Exportar Pacote de Construção (HTML Imprimível)</button>
             <button type="button" id="btnExportBuildJson" class="tb-btn" onclick="exportBuildPackJson()" style="padding:7px 12px; font-size:11.5px;">🧾 Exportar BuildPack (.json)</button>
-            <button type="button" id="btnExportBuildDxf" class="tb-btn" onclick="exportBuildPackDxf()" style="padding:7px 12px; font-size:11.5px;">📐 Exportar CAD (.dxf 1:1)</button>
+            <button type="button" id="btnExportBuildDxf" class="tb-btn" onclick="exportBuildPackDxf()" style="padding:7px 12px; font-size:11.5px;">📐 Exportar CAD 2D (.dxf)</button>
+            <button type="button" id="btnExportBuildDxf3d" class="tb-btn" onclick="exportBuildPackDxf3d()" style="padding:7px 12px; font-size:11.5px;">🧊 Exportar CAD 3D (.dxf)</button>
           </div>
         </div>
 
@@ -5918,6 +5919,7 @@ function updateWoodlock() {
   const btnExpHtml = document.getElementById('btnExportBuildPack');
   const btnExpJson = document.getElementById('btnExportBuildJson');
   const btnExpDxf = document.getElementById('btnExportBuildDxf');
+  const btnExpDxf3d = document.getElementById('btnExportBuildDxf3d');
   if (btnExpHtml) {
     btnExpHtml.disabled = !validation.valid;
     btnExpHtml.style.opacity = validation.valid ? '1' : '0.45';
@@ -5930,7 +5932,12 @@ function updateWoodlock() {
   if (btnExpDxf) {
     btnExpDxf.disabled = !validation.valid;
     btnExpDxf.style.opacity = validation.valid ? '1' : '0.45';
-    btnExpDxf.title = validation.valid ? 'Exportar desenho técnico DXF R12 em milímetros (1:1) para CAD/CNC' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
+    btnExpDxf.title = validation.valid ? 'Exportar desenho técnico 2D DXF R12 em milímetros (1:1) para CAD/CNC' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
+  }
+  if (btnExpDxf3d) {
+    btnExpDxf3d.disabled = !validation.valid;
+    btnExpDxf3d.style.opacity = validation.valid ? '1' : '0.45';
+    btnExpDxf3d.title = validation.valid ? 'Exportar modelo 3D real em 3DFACE (mm) para visualizar com Orbit 3D no CAD' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
   }
 
   // Verificador de Alojamento no Veículo
@@ -7235,7 +7242,163 @@ function exportBuildPackDxf() {
   const safe = (lastBuildPack.driver.name || 'Projeto').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36);
   const blob = new Blob([dxf], { type: 'application/dxf' });
   const a = document.createElement('a');
-  a.download = `BassForge_CAD_${safe}.dxf`;
+  a.download = `BassForge_CAD_2D_${safe}.dxf`;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  return true;
+}
+
+/**
+ * Gera modelo 3D real em DXF R12 (3DFACE + LINE 3D em mm, Z = altura) a partir da Fonte Única PGS.
+ * Conversão PGS (X=larg, Y=alt, Z=prof) -> CAD 3D (X=larg, Y=prof, Z=alt) para o gabinete ficar em pé no Z=0.
+ */
+function buildPgs3dDxfString(pack, explodeRatio = 0.0) {
+  if (!pack) return '';
+  const geom = pack.geometry || buildPgsGeometryModel(pack);
+  const env = geom.envelope;
+  const F = env.F, t = geom.material.thickness;
+  const er = Math.max(0, Math.min(1, Number.isFinite(explodeRatio) ? explodeRatio : 0.0));
+  const lines = [];
+  const push = (...vals) => { for (const v of vals) lines.push(String(v)); };
+  const f = n => (Number.isFinite(n) ? n.toFixed(2) : '0.00');
+
+  // Mapeia ponto PGS (px, py, pz) para CAD 3D (X=px, Y=pz, Z=py)
+  const pt = (px, py, pz) => [px, pz, py];
+  const addLine3d = (layer, a, b) => {
+    push(0, 'LINE', 8, layer, 10, f(a[0]), 20, f(a[1]), 30, f(a[2]), 11, f(b[0]), 21, f(b[1]), 31, f(b[2]));
+  };
+  const addFace3d = (layer, p0, p1, p2, p3) => {
+    push(
+      0, '3DFACE', 8, layer,
+      10, f(p0[0]), 20, f(p0[1]), 30, f(p0[2]),
+      11, f(p1[0]), 21, f(p1[1]), 31, f(p1[2]),
+      12, f(p2[0]), 22, f(p2[1]), 32, f(p2[2]),
+      13, f(p3[0]), 23, f(p3[1]), 33, f(p3[2])
+    );
+  };
+  const addBox3d = (layer, x0, y0, z0, dx, dy, dz) => {
+    const v = [
+      pt(x0, y0, z0), pt(x0 + dx, y0, z0), pt(x0 + dx, y0, z0 + dz), pt(x0, y0, z0 + dz),
+      pt(x0, y0 + dy, z0), pt(x0 + dx, y0 + dy, z0), pt(x0 + dx, y0 + dy, z0 + dz), pt(x0, y0 + dy, z0 + dz)
+    ];
+    // 6 faces 3DFACE
+    addFace3d(layer, v[0], v[1], v[2], v[3]); // base
+    addFace3d(layer, v[4], v[5], v[6], v[7]); // topo
+    addFace3d(layer, v[0], v[1], v[5], v[4]); // tras
+    addFace3d(layer, v[3], v[2], v[6], v[7]); // frente
+    addFace3d(layer, v[0], v[3], v[7], v[4]); // esq
+    addFace3d(layer, v[1], v[2], v[6], v[5]); // dir
+    // 12 arestas wireframe
+    [[0,1],[1,2],[2,3],[3,0],[4,5],[5,6],[6,7],[7,4],[0,4],[1,5],[2,6],[3,7]].forEach(([i, j]) => addLine3d(layer, v[i], v[j]));
+  };
+  const addCylinderZ = (layer, cx, cy, z0, r, len, segs = 20) => {
+    if (!(r > 0 && len > 0)) return;
+    for (let i = 0; i < segs; i++) {
+      const a0 = (i / segs) * Math.PI * 2;
+      const a1 = ((i + 1) / segs) * Math.PI * 2;
+      const x0 = cx + Math.cos(a0) * r, y0 = cy + Math.sin(a0) * r;
+      const x1 = cx + Math.cos(a1) * r, y1 = cy + Math.sin(a1) * r;
+      addFace3d(layer, pt(x0, y0, z0), pt(x1, y1, z0), pt(x1, y1, z0 + len), pt(x0, y0, z0 + len));
+    }
+  };
+  const addCircleOnPlaneZ = (layer, cx, cy, zPlane, r, segs = 36) => {
+    if (!(r > 0)) return;
+    for (let i = 0; i < segs; i++) {
+      const a0 = (i / segs) * Math.PI * 2;
+      const a1 = ((i + 1) / segs) * Math.PI * 2;
+      addLine3d(layer,
+        pt(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r, zPlane),
+        pt(cx + Math.cos(a1) * r, cy + Math.sin(a1) * r, zPlane));
+    }
+  };
+
+  // HEADER (AC1009, mm)
+  push(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$INSUNITS', 70, 4, 9, '$MEASUREMENT', 70, 1, 0, 'ENDSEC');
+
+  // TABLES: LAYER + VPORT (*ACTIVE em vista isométrica 3D)
+  const layers = [
+    ['PAINEIS_3D', 4],
+    ['DIVISORIAS_3D', 6],
+    ['DUTOS_3D', 30],
+    ['TRAVAMENTOS_3D', 5],
+    ['FURACAO_3D', 1]
+  ];
+  push(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LAYER', 70, layers.length);
+  layers.forEach(([name, color]) => push(0, 'LAYER', 2, name, 70, 0, 62, color, 6, 'CONTINUOUS'));
+  push(0, 'ENDTAB');
+  // VPORT inicial em câmera isométrica SE (1, -1, 0.75) para já abrir em 3D no CAD
+  push(
+    0, 'TABLE', 2, 'VPORT', 70, 1,
+    0, 'VPORT', 2, '*ACTIVE', 70, 0,
+    10, '0.0', 20, '0.0', 11, '1.0', 21, '1.0',
+    12, f(F / 2), 22, f(env.D_ext / 2),
+    16, '1.0', 26, '-1.0', 36, '0.75',
+    17, f(F / 2), 27, f(env.D_ext / 2), 37, f(env.E / 2),
+    40, f(Math.max(F, env.E, env.D_ext) * 1.8), 41, '1.6', 42, '50.0',
+    0, 'ENDTAB', 0, 'ENDSEC'
+  );
+
+  // ENTITIES 3D
+  push(0, 'SECTION', 2, 'ENTITIES');
+
+  (geom.parts || []).forEach(p => {
+    const ox = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
+    const oy = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
+    const oz = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
+    const [dx, dy, dz] = p.size;
+
+    if (p.id === 'P_SIDES') {
+      addBox3d('PAINEIS_3D', ox, oy, oz, dx, dy, dz);
+      addBox3d('PAINEIS_3D', F - t + p.explodeDist * er, oy, oz, dx, dy, dz);
+    } else if (p.kind === 'divider') {
+      addBox3d('DIVISORIAS_3D', ox, oy, oz, dx, dy, dz);
+    } else if (p.kind === 'batten') {
+      addBox3d('TRAVAMENTOS_3D', ox, oy, oz, dx, dy, dz);
+    } else if (p.kind === 'port') {
+      if (p.area <= 0) {
+        // Tubo PVC cilíndrico em 3D
+        addCylinderZ('DUTOS_3D', ox + dx / 2, oy + dy / 2, oz, dx / 2, dz, 20);
+      } else {
+        addBox3d('DUTOS_3D', ox, oy, oz, dx, dy, dz);
+      }
+    } else {
+      addBox3d('PAINEIS_3D', ox, oy, oz, dx, dy, dz);
+    }
+
+    // Recortes 3D na face frontal do baffle
+    if (p.id === 'P_FRONT_BAFFLE') {
+      const zFront = oz + dz + 0.5;
+      (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE').forEach(c => {
+        if (c.shape === 'round') {
+          addCircleOnPlaneZ('FURACAO_3D', t + c.xInt, t + c.yInt, zFront, c.dia / 2, 36);
+          if (c.kind === 'driver' && c.flangeDia) {
+            addCircleOnPlaneZ('FURACAO_3D', t + c.xInt, t + c.yInt, zFront, c.flangeDia / 2, 36);
+          }
+        } else if (c.shape === 'slot') {
+          const x0 = t + c.xInt - c.w / 2, y0 = t + c.yInt - c.h / 2;
+          const a = pt(x0, y0, zFront), b = pt(x0 + c.w, y0, zFront), d = pt(x0 + c.w, y0 + c.h, zFront), e = pt(x0, y0 + c.h, zFront);
+          addLine3d('FURACAO_3D', a, b); addLine3d('FURACAO_3D', b, d); addLine3d('FURACAO_3D', d, e); addLine3d('FURACAO_3D', e, a);
+        }
+      });
+    }
+  });
+
+  push(0, 'ENDSEC', 0, 'EOF');
+  return lines.join('\r\n') + '\r\n';
+}
+
+function exportBuildPackDxf3d() {
+  if (!lastBuildPack) updateWoodlock();
+  if (!lastBuildPack || !lastBuildPack.validation.valid) {
+    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+    return false;
+  }
+  const dxf = buildPgs3dDxfString(lastBuildPack, wlViewMode === 'exploded' ? wlExplodeRatio : 0.0);
+  const safe = (lastBuildPack.driver.name || 'Projeto').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36);
+  const blob = new Blob([dxf], { type: 'application/dxf' });
+  const a = document.createElement('a');
+  a.download = `BassForge_CAD_3D_${safe}.dxf`;
   a.href = URL.createObjectURL(blob);
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1500);
