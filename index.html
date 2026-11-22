@@ -1618,7 +1618,7 @@
         <label>Camadas de Diagnóstico (Eixo Y &amp; Engenharia)</label>
         <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
           <button type="button" id="btnAutoScaleY" class="chart-pill-btn active" onclick="toggleChartOpt('autoScaleY')">📐 Auto-Scale Y</button>
-          <button type="button" id="btnShowMarkers" class="chart-pill-btn active" onclick="toggleChartOpt('showMarkers')">📍 Marcadores (Fb/F3/Fs/HPF)</button>
+          <button type="button" id="btnShowMarkers" class="chart-pill-btn" onclick="toggleChartOpt('showMarkers')">📍 Marcadores (Fb/F3/Fs/HPF)</button>
           <button type="button" id="btnShowLimits" class="chart-pill-btn active" onclick="toggleChartOpt('showLimits')">⚠️ Limites (Xmax/Mach/20ms)</button>
         </div>
       </div>
@@ -1820,7 +1820,7 @@ const chartOpts = {
   fMin: 10,
   fMax: 1000,
   autoScaleY: true,
-  showMarkers: true,
+  showMarkers: false,
   showLimits: true
 };
 
@@ -4052,17 +4052,23 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
     });
   }
 
-  // Crosshair completo X + Y + ponto luminoso sobre a curva
-  const crossX = options.crosshairX;
+  // Crosshair completo X + Y + ponto luminoso sobre a curva (suporta hover e fixação por clique)
+  const isPinned = !!options.isPinned;
+  let crossX = options.crosshairX;
+  if (crossX == null && options.crosshairFreq != null && options.crosshairFreq >= fMin && options.crosshairFreq <= fMax) {
+    crossX = xMap(options.crosshairFreq);
+  }
   if (crossX != null && crossX >= padL && crossX <= padL + pw) {
     const ratio = (crossX - padL) / pw;
-    const fCur = Math.pow(10, logMin + ratio * (logMax - logMin));
+    const fCur = (options.crosshairFreq != null && options.crosshairX == null)
+      ? options.crosshairFreq
+      : Math.pow(10, logMin + ratio * (logMax - logMin));
     const vCur = interpolateSeriesAtFreq(freqs, primarySeries.values, fCur);
     const yCur = yMap(vCur);
 
-    ctx.strokeStyle = 'rgba(148, 163, 184, 0.75)';
-    ctx.lineWidth = 1;
-    ctx.setLineDash([3, 3]);
+    ctx.strokeStyle = isPinned ? 'rgba(0, 212, 255, 0.90)' : 'rgba(148, 163, 184, 0.75)';
+    ctx.lineWidth = isPinned ? 1.25 : 1;
+    ctx.setLineDash(isPinned ? [5, 2] : [3, 3]);
     ctx.beginPath(); ctx.moveTo(crossX, padT); ctx.lineTo(crossX, padT + ph); ctx.stroke();
     if (yCur >= padT && yCur <= padT + ph) {
       ctx.beginPath(); ctx.moveTo(padL, yCur); ctx.lineTo(padL + pw, yCur); ctx.stroke();
@@ -4073,14 +4079,14 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
       const sv = interpolateSeriesAtFreq(freqs, s.values, fCur);
       const sy = yMap(sv);
       ctx.fillStyle = '#06090f';
-      ctx.beginPath(); ctx.arc(crossX, sy, isExpanded ? 5 : 4, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = s.color;
-      ctx.beginPath(); ctx.arc(crossX, sy, isExpanded ? 3.5 : 2.8, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(crossX, sy, isExpanded ? 5.5 : 4.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = isPinned ? '#00d4ff' : s.color;
+      ctx.beginPath(); ctx.arc(crossX, sy, isExpanded ? 3.8 : 3.0, 0, Math.PI * 2); ctx.fill();
     });
 
     // Tooltip flutuante no gráfico expandido
     if (isExpanded) {
-      const lines = [`${fCur.toFixed(1)} Hz`];
+      const lines = [`${isPinned ? '📌 ' : ''}${fCur.toFixed(1)} Hz`];
       seriesList.forEach(s => {
         const sv = interpolateSeriesAtFreq(freqs, s.values, fCur);
         const prefix = seriesList.length > 1 ? s.shortLabel + ': ' : '';
@@ -4120,8 +4126,11 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
   canvas._chartGeom = { padL, padT, pw, ph, fMin, fMax };
 }
 
+let pinnedCrosshairFreq = null;
+
 function bindInteractiveChart(canvas, drawFn, getReadout, onLeave) {
   canvas.onmousemove = e => {
+    if (pinnedCrosshairFreq != null) return;
     const g = canvas._chartGeom;
     if (!g) return;
     const rect = canvas.getBoundingClientRect();
@@ -4129,13 +4138,30 @@ function bindInteractiveChart(canvas, drawFn, getReadout, onLeave) {
     if (x >= g.padL && x <= g.padL + g.pw) {
       const ratio = (x - g.padL) / g.pw;
       const f = Math.pow(10, Math.log10(g.fMin) + ratio * (Math.log10(g.fMax) - Math.log10(g.fMin)));
-      getReadout(f, x);
+      getReadout(f, x, false);
       drawFn(x);
     }
   };
   canvas.onmouseleave = () => {
+    if (pinnedCrosshairFreq != null) return;
     onLeave();
     drawFn(null);
+  };
+  canvas.onclick = e => {
+    if (e.button && e.button !== 0) return;
+    const g = canvas._chartGeom;
+    if (!g) return;
+    const rect = canvas.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    if (x < g.padL || x > g.padL + g.pw) return;
+    if (pinnedCrosshairFreq != null) {
+      pinnedCrosshairFreq = null;
+    } else {
+      const ratio = (x - g.padL) / g.pw;
+      pinnedCrosshairFreq = Math.pow(10, Math.log10(g.fMin) + ratio * (Math.log10(g.fMax) - Math.log10(g.fMin)));
+    }
+    drawAllCharts();
+    renderExpanded();
   };
 }
 
@@ -4217,25 +4243,32 @@ function drawAllCharts() {
       const pk = computeVisiblePeak(currentCurves.frequencies, currentCurves[c.key], chartOpts.fMin, chartOpts.fMax);
       infoEl.innerHTML = `<span>Pico: <b style="color:${c.color}">${pk.maxV.toFixed(1)} ${c.unit}</b> @ ${pk.maxF.toFixed(0)} Hz</span><span>${abSeries ? 'A/B Ativo · ⤢' : 'Duplo-clique ⤢'}</span>`;
     };
-    const drawFn = crossX => drawLogChart(cv, currentCurves.frequencies, currentCurves[c.key], c, { isExpanded: false, crosshairX: crossX, overlaySeries: abSeries });
-    setSummary();
+    const setReadout = (f, _x, pinned) => {
+      const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[c.key], f);
+      const pinTag = pinned ? '📌 ' : '';
+      if (abSeries) {
+        const valA = interpolateSeriesAtFreq(currentCurves.frequencies, abSeries[1].values, f);
+        const dv = val - valA;
+        if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${pinTag}${f.toFixed(1)}Hz</b> B:${val.toFixed(1)} | <span style="color:#fbbf24">A:${valA.toFixed(1)}</span> (Δ${dv >= 0 ? '+' : ''}${dv.toFixed(1)})</span>`;
+      } else {
+        if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${pinTag}${f.toFixed(1)} Hz</b> ➔ ${val.toFixed(2)} ${c.unit}</span><span>${pinned ? 'Clique p/ soltar' : 'Clique p/ fixar'}</span>`;
+      }
+    };
+    const drawFn = crossX => drawLogChart(cv, currentCurves.frequencies, currentCurves[c.key], c, {
+      isExpanded: false,
+      crosshairX: crossX,
+      crosshairFreq: crossX == null ? pinnedCrosshairFreq : null,
+      isPinned: crossX == null && pinnedCrosshairFreq != null,
+      overlaySeries: abSeries
+    });
+    if (pinnedCrosshairFreq != null) {
+      setReadout(pinnedCrosshairFreq, null, true);
+    } else {
+      setSummary();
+    }
     drawFn(null);
     cv.oncontextmenu = e => openChartContextMenu(e, c.id);
-    bindInteractiveChart(
-      cv,
-      drawFn,
-      f => {
-        const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[c.key], f);
-        if (abSeries) {
-          const valA = interpolateSeriesAtFreq(currentCurves.frequencies, abSeries[1].values, f);
-          const dv = val - valA;
-          if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${f.toFixed(1)}Hz</b> B:${val.toFixed(1)} | <span style="color:#fbbf24">A:${valA.toFixed(1)}</span> (Δ${dv >= 0 ? '+' : ''}${dv.toFixed(1)})</span>`;
-        } else {
-          if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${f.toFixed(1)} Hz</b> ➔ ${val.toFixed(2)} ${c.unit}</span><span>Clique ⤢ p/ zoom</span>`;
-        }
-      },
-      setSummary
-    );
+    bindInteractiveChart(cv, drawFn, setReadout, setSummary);
   });
 }
 
@@ -4248,33 +4281,39 @@ function renderExpanded() {
   if (!cv || !baseCfg) return;
 
   const { cfg, series } = getExpandedOverlayConfig(baseCfg);
+  const setExpReadout = (f, _x, pinned) => {
+    const pinTag = pinned ? '📌 ' : '';
+    if (series && series.length > 1) {
+      let txt = series.map(s => `${s.shortLabel}: ${interpolateSeriesAtFreq(currentCurves.frequencies, s.values, f).toFixed(2)} ${cfg.unit}`).join(' | ');
+      if (series.length === 2 && series[1].isRefA) {
+        const dv = interpolateSeriesAtFreq(currentCurves.frequencies, series[0].values, f) - interpolateSeriesAtFreq(currentCurves.frequencies, series[1].values, f);
+        txt += ` | Δ: ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} ${cfg.unit}`;
+      }
+      if (cursorInfo) cursorInfo.textContent = `${pinTag}${f.toFixed(1)} Hz ➔ ${txt}${pinned ? ' (Clique p/ soltar)' : ''}`;
+    } else {
+      const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[cfg.key], f);
+      if (cursorInfo) cursorInfo.textContent = `${pinTag}${f.toFixed(1)} Hz ➔ ${val.toFixed(2)} ${cfg.unit}${pinned ? ' (Clique p/ soltar)' : ''}`;
+    }
+  };
   const drawFn = crossX => drawLogChart(
     cv,
     currentCurves.frequencies,
     currentCurves[cfg.key],
     cfg,
-    { isExpanded: true, crosshairX: crossX, overlaySeries: series }
+    {
+      isExpanded: true,
+      crosshairX: crossX,
+      crosshairFreq: crossX == null ? pinnedCrosshairFreq : null,
+      isPinned: crossX == null && pinnedCrosshairFreq != null,
+      overlaySeries: series
+    }
   );
   drawFn(null);
+  if (pinnedCrosshairFreq != null) setExpReadout(pinnedCrosshairFreq, null, true);
   cv.oncontextmenu = e => openChartContextMenu(e, cfg.id);
-  bindInteractiveChart(
-    cv,
-    drawFn,
-    f => {
-      if (series && series.length > 1) {
-        let txt = series.map(s => `${s.shortLabel}: ${interpolateSeriesAtFreq(currentCurves.frequencies, s.values, f).toFixed(2)} ${cfg.unit}`).join(' | ');
-        if (series.length === 2 && series[1].isRefA) {
-          const dv = interpolateSeriesAtFreq(currentCurves.frequencies, series[0].values, f) - interpolateSeriesAtFreq(currentCurves.frequencies, series[1].values, f);
-          txt += ` | Δ: ${dv >= 0 ? '+' : ''}${dv.toFixed(2)} ${cfg.unit}`;
-        }
-        if (cursorInfo) cursorInfo.textContent = `${f.toFixed(1)} Hz ➔ ${txt}`;
-      } else {
-        const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[cfg.key], f);
-        if (cursorInfo) cursorInfo.textContent = `${f.toFixed(1)} Hz ➔ ${val.toFixed(2)} ${cfg.unit}`;
-      }
-    },
-    () => { if (cursorInfo) cursorInfo.textContent = 'Mova o mouse sobre a curva'; }
-  );
+  bindInteractiveChart(cv, drawFn, setExpReadout, () => {
+    if (cursorInfo) cursorInfo.textContent = 'Mova o mouse sobre a curva (clique para fixar)';
+  });
 }
 
 function exportExpandedPNG() {
@@ -5150,7 +5189,16 @@ document.addEventListener('click', e => {
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape') { closeAllMenus(); closeConfigModals(); return; }
+  if (e.key === 'Escape') {
+    closeAllMenus();
+    closeConfigModals();
+    if (pinnedCrosshairFreq != null) {
+      pinnedCrosshairFreq = null;
+      drawAllCharts();
+      renderExpanded();
+    }
+    return;
+  }
   if (e.ctrlKey && e.key.toLowerCase() === 's') { e.preventDefault(); exportProjectJson(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'o') { e.preventDefault(); document.getElementById('projJsonInput')?.click(); return; }
   if (e.ctrlKey && e.key.toLowerCase() === 'n') { e.preventDefault(); resetCurrentProject(); return; }
