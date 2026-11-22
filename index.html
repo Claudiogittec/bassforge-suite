@@ -5660,7 +5660,7 @@ function updateWoodlock() {
 
   const isTrap = (!isFreeAir && !isPlanar && shape === 'trapezoidal');
   const bev = isTrap ? angle : 0.0;
-  const rearH = isTrap ? (E_ext / Math.cos((angle * Math.PI) / 180.0)) : E_ext;
+  const rearH = isTrap ? (B / Math.cos((angle * Math.PI) / 180.0)) : B;
 
   const isSlotFrontReduced = (isVented && !isBp && portGeom && portGeom.isSlot);
   const slotC4 = Math.max(50.0, B - (slotH * 10.0) - slotWallThick);
@@ -5668,7 +5668,7 @@ function updateWoodlock() {
   const frontW = isSlotFrontReduced ? (slotOrient === 'horizontal' ? A : slotAbaffle) : (isPlanar ? A : F_ext);
   const frontH = isSlotFrontReduced
     ? (slotOrient === 'horizontal' ? slotC4 : B)
-    : (isPlanar ? (planarGeom.style === 'square' ? planarGeom.C4 : B) : E_ext);
+    : (isPlanar ? (planarGeom.style === 'square' ? planarGeom.C4 : B) : (isFreeAir ? E_ext : B));
   const frontNote = isSlotFrontReduced
     ? (slotOrient === 'horizontal'
         ? `Baffle reduzido embutido (A=${A.toFixed(0)} × C4=${slotC4.toFixed(0)} mm) — abre boca do duto régua horizontal na base`
@@ -6204,15 +6204,16 @@ function buildPgsGeometryModel(pack) {
     if (p.orient === 'BASE') {
       id = 'P_BASE'; origin = [0, 0, 0]; size = [F, t, D_ext]; explodeDir = [0, -1, 0]; explodeDist = +(expBase * 0.85).toFixed(1); assemblyOrder = 1; frontFace = '+Y';
     } else if (p.orient === 'TRÁS') {
-      id = 'P_REAR'; origin = [0, 0, 0]; size = [F, E, t]; explodeDir = [0, 0, -1]; assemblyOrder = 2; frontFace = '+Z';
+      id = 'P_REAR'; origin = [0, t, 0]; size = [F, B, t]; explodeDir = [0, 0, -1]; assemblyOrder = 2; frontFace = '+Z';
     } else if (p.orient === 'LADO ESQ/DIR') {
       // Gera referência espacial da lateral esquerda (e segunda instância em X = F - t)
-      id = 'P_SIDES'; origin = [0, t, t]; size = [t, B, C_med]; explodeDir = [-1, 0, 0]; explodeDist = +(expBase * 0.9).toFixed(1); assemblyOrder = 3; frontFace = '+X';
+      const sideDepth = (ac.planarGeom && dm.CG) ? dm.CG : C_med;
+      id = 'P_SIDES'; origin = [0, t, t]; size = [t, B, sideDepth]; explodeDir = [-1, 0, 0]; explodeDist = +(expBase * 0.9).toFixed(1); assemblyOrder = 3; frontFace = '+X';
     } else if (p.kind === 'divider') {
       if (p.orient === 'PLANAR_DIV') {
-        id = 'P_PLANAR_DIV'; origin = [t, +(t + B * 0.18).toFixed(1), +(t + C_med).toFixed(1)]; size = [A, t, p.h]; explodeDir = [0, -0.35, 0.7]; explodeDist = +(expBase * 0.7).toFixed(1); assemblyOrder = 5; frontFace = '+Y';
+        id = 'P_PLANAR_DIV'; origin = [t, +(t + B * 0.18).toFixed(1), +(t + C_med + t).toFixed(1)]; size = [A, t, Math.max(10, p.h - t)]; explodeDir = [0, -0.35, 0.7]; explodeDist = +(expBase * 0.7).toFixed(1); assemblyOrder = 5; frontFace = '+Y';
       } else if (p.orient === 'PLANAR_TRI') {
-        id = 'P_PLANAR_CHAMFER'; origin = [t, t, +(t + C_med).toFixed(1)]; size = [t, p.h, p.w]; explodeDir = [-0.6, 0.3, 0.6]; explodeDist = +(expBase * 0.75).toFixed(1); assemblyOrder = 5; frontFace = '+X';
+        id = 'P_PLANAR_CHAMFER'; origin = [t, t, +(t + C_med + t).toFixed(1)]; size = [t, p.h, Math.max(10, p.w - t)]; explodeDir = [-0.6, 0.3, 0.6]; explodeDist = +(expBase * 0.75).toFixed(1); assemblyOrder = 5; frontFace = '+X';
       } else {
         const divX = (ac.bpChambers && ac.bpChambers.A_rear) ? (t + ac.bpChambers.A_rear) : (F / 2 - t / 2);
         id = 'P_BP_DIVIDER'; origin = [+divX.toFixed(1), t, t]; size = [t, B, C_med]; explodeDir = [0, 0.35, 0]; explodeDist = +(expBase * 0.6).toFixed(1); assemblyOrder = 4; frontFace = '+X';
@@ -6244,7 +6245,7 @@ function buildPgsGeometryModel(pack) {
     } else if (p.orient === 'FRENTE') {
       id = 'P_FRONT_BAFFLE';
       const fX = +((F - p.w) / 2).toFixed(1);
-      const fY = +(E - p.h - (p.w < F ? t : 0)).toFixed(1);
+      const fY = (ac.boxType === 'free-air') ? 0 : +(E - t - p.h).toFixed(1);
       const fZ = (ac.boxType === 'free-air') ? 0 : (ac.planarGeom ? +(t + C_med).toFixed(1) : +(D_ext - t).toFixed(1));
       origin = [fX, Math.max(0, fY), fZ];
       size = [p.w, p.h, t];
