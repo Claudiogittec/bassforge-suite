@@ -738,6 +738,69 @@ runSuite('15. PGS Geometry Core (G01-G12, Nesting 2D 2750x1830, 3D Explosão 0%-
   vm.runInContext('loadPreset()', ctx);
 });
 
+// SUITE 16: Módulos 5 & 6 — Planar Horn (Quadrado & Triângulo), Travamentos 6-Eixos e Baffle Infinito (Free-Air)
+runSuite('16. Planar Horn (Quadrado/Triângulo), Bracing 6-Eixos & Free-Air (PGS G01-G12)', () => {
+  // 16A. Baffle Infinito (Free-Air): alpha=0, Fc=Fs, Qtc=Qts, 1 painel único, aviso FREE_AIR_ISOLATION, PGS 12/12
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+  vm.runInContext("selectTopology('free-air'); updateWoodlock();", ctx);
+  const faPack = vm.runInContext('lastBuildPack', ctx);
+  const faCurves = vm.runInContext('currentCurves', ctx);
+  assert.strictEqual(faPack.acoustics.boxType, 'free-air', 'boxType deve ser free-air');
+  assert.strictEqual(elements.get('kpiAlfaVal').textContent, '0.00', `Free-Air alpha deve ser 0.00 (obtido ${elements.get('kpiAlfaVal').textContent})`);
+  assert(Math.abs(faCurves.meta.fc - faPack.driver.Fs) < 0.05, `Free-Air Fc deve igualar Fs (${faCurves.meta.fc} vs ${faPack.driver.Fs})`);
+  const qtsExp = (faPack.driver.Qms * faPack.driver.Qes) / (faPack.driver.Qms + faPack.driver.Qes);
+  assert(Math.abs(parseFloat(elements.get('kpi1Val').textContent) - qtsExp) < 0.005, `Free-Air Qtc deve igualar Qts (${elements.get('kpi1Val').textContent} vs ${qtsExp.toFixed(3)})`);
+  assert.strictEqual(faPack.pieces.length, 1, `Free-Air deve gerar exatamente 1 painel (obtido ${faPack.pieces.length})`);
+  assert(faPack.validation.issues.some(i => i.code === 'FREE_AIR_ISOLATION'), 'Free-Air deve emitir aviso FREE_AIR_ISOLATION');
+  const faFail = faPack.geometry.validation.filter(v => !v.pass);
+  assert.strictEqual(faFail.length, 0, `Free-Air PGS falhou: ${JSON.stringify(faFail)}`);
+
+  // 16B. Planar Horn Quadrado: CG > C, Baffle A×C4 e Divisória Boca Planar A4×R, PGS 12/12
+  elements.get('wlPlanarStyle').value = 'square';
+  vm.runInContext("selectTopology('planar'); updateWoodlock();", ctx);
+  const sqPack = vm.runInContext('lastBuildPack', ctx);
+  assert(sqPack.acoustics.planarGeom && sqPack.acoustics.planarGeom.style === 'square', 'planarGeom.style deve ser square');
+  assert(sqPack.dimensions.CG > sqPack.dimensions.C_top, `Planar Quadrado deve ter CG (${sqPack.dimensions.CG}) > C (${sqPack.dimensions.C_top})`);
+  assert(sqPack.pieces.some(p => /Baffle Planar Recuado/.test(p.name)), 'Planar Quadrado deve ter Baffle Recuado A×C4');
+  assert(sqPack.pieces.some(p => /Divisória Boca Planar/.test(p.name)), 'Planar Quadrado deve ter Divisória A4×R');
+  const sqFail = sqPack.geometry.validation.filter(v => !v.pass);
+  assert.strictEqual(sqFail.length, 0, `Planar Quadrado PGS falhou: ${JSON.stringify(sqFail)}`);
+
+  // 16C. Planar Horn Triângulo: Baffle Octogonal 4×45° + 4× Parede Triangular Chanfrada V×Z, PGS 12/12
+  elements.get('wlPlanarStyle').value = 'triangle';
+  vm.runInContext('updateWoodlock();', ctx);
+  const triPack = vm.runInContext('lastBuildPack', ctx);
+  assert(triPack.acoustics.planarGeom && triPack.acoustics.planarGeom.style === 'triangle', 'planarGeom.style deve ser triangle');
+  assert(triPack.pieces.some(p => /Baffle Octogonal Planar/.test(p.name) && p.bev === 45), 'Planar Triângulo deve ter Baffle Octogonal 45°');
+  const triWall = triPack.pieces.find(p => /Parede Triangular Chanfrada/.test(p.name));
+  assert(triWall && triWall.qty === 4 && triWall.bev === 45, 'Planar Triângulo deve ter 4× Parede Triangular Chanfrada 45°');
+  const triFail = triPack.geometry.validation.filter(v => !v.pass);
+  assert.strictEqual(triFail.length, 0, `Planar Triângulo PGS falhou: ${JSON.stringify(triFail)}`);
+
+  // 16D. Travamentos Estruturais 6-Eixos: ativa FF, TB e LR, verifica peças individuais e fechamento G07
+  vm.runInContext("selectTopology('bass-reflex');", ctx);
+  elements.get('wlBraceFF').checked = true;
+  elements.get('wlBraceTB').checked = true;
+  elements.get('wlBraceLR').checked = true;
+  vm.runInContext('onWoodlockBracingChange();', ctx);
+  const brPack = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(elements.get('wlBattens').value, '3', 'wlBattens deve sincronizar para 3 com 3 eixos marcados');
+  const battenPieces = brPack.pieces.filter(p => p.kind === 'batten');
+  assert.strictEqual(battenPieces.length, 3, 'Devem existir 3 peças individuais de sarrafo por eixo');
+  assert(battenPieces.some(p => p.orient === 'TRAVA_FF') && battenPieces.some(p => p.orient === 'TRAVA_LR'), 'Eixos FF e LR devem estar no BOM');
+  const brFail = brPack.geometry.validation.filter(v => !v.pass);
+  assert.strictEqual(brFail.length, 0, `Bracing 6-eixos PGS falhou: ${JSON.stringify(brFail)}`);
+
+  // Limpa checkboxes e restaura Oversound padrão
+  elements.get('wlBraceFF').checked = false;
+  elements.get('wlBraceTB').checked = false;
+  elements.get('wlBraceLR').checked = false;
+  elements.get('wlPlanarStyle').value = 'square';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

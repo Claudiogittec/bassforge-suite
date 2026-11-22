@@ -1038,6 +1038,7 @@
       <button type="button" class="topo-pill" data-topo="bp4" onclick="selectTopology('bp4')"><span class="topo-dot">●</span>BP4</button>
       <button type="button" class="topo-pill" data-topo="bp6" onclick="selectTopology('bp6')"><span class="topo-dot">●</span>BP6</button>
       <button type="button" class="topo-pill" data-topo="planar" onclick="selectTopology('planar')"><span class="topo-dot">●</span>Planar</button>
+      <button type="button" class="topo-pill" data-topo="free-air" onclick="selectTopology('free-air')"><span class="topo-dot">●</span>Free-Air</button>
     </div>
 
     <!-- MINIATURA VETORIAL DA TOPOLOGIA -->
@@ -1061,6 +1062,7 @@
             <option value="bp4">Band-Pass 4ª (BP4)</option>
             <option value="bp6">Band-Pass 6ª (BP6)</option>
             <option value="planar">Planar Horn</option>
+            <option value="free-air">Baffle Infinito (Free-Air)</option>
           </select>
         </div>
         <div class="prop-row">
@@ -1345,6 +1347,26 @@
                 <option value="horizontal" selected>Horizontal (Base · Baffle A×C4)</option>
                 <option value="vertical">Vertical (Lateral · Baffle Reduzido)</option>
               </select>
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="wlPlanarStyle">Geometria Planar Horn</label>
+              <select id="wlPlanarStyle" onchange="updateWoodlock()">
+                <option value="square" selected>Planar Quadrado (CG, Baffle A×C4, Div. A4×R)</option>
+                <option value="triangle">Planar Triângulo (Octogonal + 4× 45° V×Z)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Travamento Estrutural (6 Eixos)</label>
+              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:4px; font-size:10.5px; color:#cbd5e1; padding-top:3px;">
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceFF" onchange="onWoodlockBracingChange()">F–F</label>
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceTB" onchange="onWoodlockBracingChange()">T–B</label>
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceLR" onchange="onWoodlockBracingChange()">E–D</label>
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceCross" onchange="onWoodlockBracingChange()">Cruz</label>
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceBaffle" onchange="onWoodlockBracingChange()">Baffle</label>
+                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceRear" onchange="onWoodlockBracingChange()">Trás</label>
+              </div>
             </div>
           </div>
           <div class="input-row" style="margin-bottom:10px;">
@@ -2328,7 +2350,7 @@ const PROJECT_FIELD_IDS = [
   'cabinLen', 'hpfCutoff', 'thermalDeltaT',
   'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
   'tsLe', 'tsZnom', 'tsDia', 'tsCoils', 'tsMmsCat', 'tsBlCat',
-  'wlShape', 'wlMountMode', 'wlSlotOrient', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD',
+  'wlShape', 'wlMountMode', 'wlSlotOrient', 'wlPlanarStyle', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD',
   'elNumSpk', 'elCoils', 'elZCoil', 'elCoilMode', 'elSpkMode',
   'elAmpPower', 'elVbat', 'elPwrLen', 'elPwrGauge', 'elSpkLen', 'elSpkGauge',
   'elPreoutV', 'elLimProfile', 'elXoverHz', 'elLeMh', 'elMeasV'
@@ -3007,7 +3029,13 @@ function computeTopologySuitability({ EBP, Qts, dia }) {
     'bass-reflex': { level: 'ok', reason: 'Compatível com dutada.' },
     bp4: { level: 'ok', reason: 'Compatível com Band-Pass 4ª ordem.' },
     bp6: { level: 'ok', reason: 'Compatível com Band-Pass 6ª ordem.' },
-    planar: { level: 'ok', reason: 'Compatível com Planar Horn.' }
+    planar: { level: 'ok', reason: 'Compatível com Planar Horn.' },
+    'free-air': {
+      level: Qts >= 0.50 ? 'ideal' : (Qts >= 0.40 ? 'ok' : 'avoid'),
+      reason: Qts >= 0.50
+        ? `Qts elevado (${Qts.toFixed(2)}): excelente em Baffle Infinito (Free-Air).`
+        : (Qts >= 0.40 ? 'Compatível em Free-Air com controle de excursão / HPF.' : `Qts baixo (${Qts.toFixed(2)}): Free-Air exige alto controle mecânico / HPF.`)
+    }
   };
 
   if (EBP < 50 || Qts > 0.55) {
@@ -3563,14 +3591,20 @@ function recalculate() {
       document.getElementById('kpiVelSub').textContent = `Ar: ${airVel.toFixed(1)} m/s (${machPct.toFixed(1)}% Mach · f₁=${fPipe1.toFixed(0)}Hz)`;
     }
   } else {
-    // Caixa Selada ou Planar Horn (câmara traseira selada)
+    // Caixa Selada, Planar Horn (câmara traseira selada) ou Baffle Infinito (Free-Air, Vb → ∞)
     const tuningModeCont = document.getElementById('tuningModeContainer');
     if (tuningModeCont) tuningModeCont.style.display = 'none';
     const fbGroup = document.getElementById('fbControlGroup');
     if (fbGroup) fbGroup.style.display = 'none';
 
-    qtc = Qts * Math.sqrt(alpha + 1.0);
-    fc = Fs * Math.sqrt(alpha + 1.0);
+    if (boxType === 'free-air') {
+      alpha = 0.0;
+      qtc = Qts;
+      fc = Fs;
+    } else {
+      qtc = Qts * Math.sqrt(alpha + 1.0);
+      fc = Fs * Math.sqrt(alpha + 1.0);
+    }
     const term1 = (1.0 / (2.0 * (qtc ** 2))) - 1.0;
     const term2 = Math.sqrt((term1 ** 2) + 1.0);
     F3 = fc * Math.sqrt(term1 + term2);
@@ -3584,7 +3618,13 @@ function recalculate() {
       ripple = 0; fgmax = null; fxmax = null;
     }
 
-    if (boxType === 'planar') {
+    if (boxType === 'free-air') {
+      alignLabel = 'Baffle Infinito';
+      alignName = 'Free-Air (Vb → ∞)';
+      alignSub = `Qtc = Qts = ${qtc.toFixed(2)} · Fc = Fs = ${fc.toFixed(1)} Hz`;
+      if (qtc < 0.40) alignColor = '#f59e0b';
+      kpi2SubTxt = `F3/Fs = ${(F3 / Fs).toFixed(3)} · Isolamento Frente/Trás`;
+    } else if (boxType === 'planar') {
       const plEval = analyzeTransferAlignment({ boxType, Fs, fc, qtc });
       if (plEval.f3Exact > 0) F3 = plEval.f3Exact;
       alignLabel = 'Alinhamento Planar';
@@ -3635,9 +3675,9 @@ function recalculate() {
       document.getElementById('kpiAlignSub').textContent = alignSub;
     }
 
-    Vtot = (boxType === 'planar') ? (Vb * 1.45 + Vsub) : (Vb + Vsub);
+    Vtot = (boxType === 'free-air') ? 0.0 : ((boxType === 'planar') ? (Vb * 1.45 + Vsub) : (Vb + Vsub));
 
-    document.getElementById('kpi1Label').textContent = boxType === 'planar' ? 'Planar Qtc' : 'Fator Q (Qtc)';
+    document.getElementById('kpi1Label').textContent = boxType === 'free-air' ? 'Free-Air Qts' : (boxType === 'planar' ? 'Planar Qtc' : 'Fator Q (Qtc)');
     document.getElementById('kpi1Val').textContent = qtc.toFixed(3);
     document.getElementById('kpi1Sub').textContent = 'Fc = ' + fc.toFixed(2) + ' Hz' + (nDrivers > 1 ? ` · ${nDrivers}x` : '');
     document.getElementById('kpi2Label').textContent = 'Corte F3 (-3dB)';
@@ -3648,7 +3688,9 @@ function recalculate() {
   }
 
   document.getElementById('kpiAlfaVal').textContent = alpha.toFixed(2);
-  document.getElementById('kpiAlfaSub').textContent = 'Vb = ' + Vb.toFixed(1) + ' L' + (nDrivers > 1 ? ` (${(Vb/nDrivers).toFixed(1)}L/un)` : '');
+  document.getElementById('kpiAlfaSub').textContent = boxType === 'free-air'
+    ? 'Vb → ∞ (Baffle Infinito)'
+    : ('Vb = ' + Vb.toFixed(1) + ' L' + (nDrivers > 1 ? ` (${(Vb/nDrivers).toFixed(1)}L/un)` : ''));
   document.getElementById('kpiVtotVal').textContent = Vtot.toFixed(2) + ' L';
   document.getElementById('kpiF100Val').textContent = F100.toFixed(2) + ' Hz';
 
@@ -4181,7 +4223,7 @@ function computeYAxisScale(freqs, seriesList, cfg, meta, fMin, fMax, isExpanded)
       if (cfg.id === 'G8' && meta && meta.Xmax > 0 && dMax < meta.Xmax * 1.4) {
         dMax = Math.max(dMax, meta.Xmax);
       }
-      if (cfg.id === 'G9' && meta && (meta.boxType === 'sealed' || meta.boxType === 'planar') && dMax === 0) {
+      if (cfg.id === 'G9' && meta && (meta.boxType === 'sealed' || meta.boxType === 'planar' || meta.boxType === 'free-air') && dMax === 0) {
         dMax = 10;
       }
       dMin = cfg.nonNeg ? 0 : dMin;
@@ -5423,7 +5465,14 @@ function validateBuildGeometry(opts) {
     }
   }
 
-  // 7. Aviso documentado de flange estimado
+  // 7. Aviso documentado de flange estimado e isolamento Free-Air
+  if (boxType === 'free-air') {
+    issues.push({
+      level: 'ok',
+      code: 'FREE_AIR_ISOLATION',
+      msg: 'Baffle Infinito (Free-Air): garanta vedação hermética entre a face frontal e traseira do painel (porta-malas/parede) para evitar curto-circuito acústico.'
+    });
+  }
   issues.push({
     level: 'ok',
     code: 'FLANGE_ESTIMATED',
@@ -5445,6 +5494,14 @@ function validateBuildGeometry(opts) {
   };
 }
 
+function onWoodlockBracingChange() {
+  const ids = ['wlBraceFF', 'wlBraceTB', 'wlBraceLR', 'wlBraceCross', 'wlBraceBaffle', 'wlBraceRear'];
+  const activeCount = ids.reduce((acc, id) => acc + (document.getElementById(id)?.checked ? 1 : 0), 0);
+  const batEl = document.getElementById('wlBattens');
+  if (batEl) batEl.value = String(activeCount);
+  updateWoodlock();
+}
+
 function updateWoodlock() {
   const shapeEl = document.getElementById('wlShape');
   if (!shapeEl) return;
@@ -5452,6 +5509,7 @@ function updateWoodlock() {
   const shape = shapeEl.value;
   const mountMode = document.getElementById('wlMountMode')?.value || 'normal';
   const slotOrient = document.getElementById('wlSlotOrient')?.value || 'horizontal';
+  const planarStyle = document.getElementById('wlPlanarStyle')?.value || 'square';
   const t = parseFloat(document.getElementById('wlThickness').value) || 18.0;
   const A = parseFloat(document.getElementById('wlWidthA').value) || 800.0;
   const B = parseFloat(document.getElementById('wlHeightB').value) || 450.0;
@@ -5459,14 +5517,16 @@ function updateWoodlock() {
   const battens = parseInt(document.getElementById('wlBattens').value) || 0;
 
   const boxType = document.getElementById('boxType').value;
+  const isFreeAir = (boxType === 'free-air');
+  const isPlanar = (boxType === 'planar');
   const isVented = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6');
   const isBp = (boxType === 'bp4' || boxType === 'bp6');
   const bp6Mode = document.getElementById('bp6Mode')?.value || 'parallel';
   const isBp6Parallel = (boxType === 'bp6' && bp6Mode === 'parallel');
   const nDrivers = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
-  const Vb = parseFloat(document.getElementById('vbInput').value) || 130.0;
+  const Vb = isFreeAir ? 0.0 : (parseFloat(document.getElementById('vbInput').value) || 130.0);
   const VsubRaw = (parseFloat(document.getElementById('tsVsub').value) || 9.0) * nDrivers;
-  const Vsub = (mountMode === 'inverted') ? 0.0 : VsubRaw;
+  const Vsub = (isFreeAir || mountMode === 'inverted') ? 0.0 : VsubRaw;
   const tempC = parseFloat(document.getElementById('tempInput').value) || 20.0;
   const cVal = 20.0547605 * Math.sqrt(273.15 + tempC);
   const portType = document.getElementById('portType')?.value || 'round';
@@ -5503,13 +5563,43 @@ function updateWoodlock() {
   }
   const lvRearMmCanon = portGeomRear ? Math.round(Math.max(0, portGeomRear.LvCm * 10.0)) : 0;
 
-  // Volume dos sarrafos (50mm x t x B) + câmara traseira se BP4/BP6 + divisória interna
-  const Vbracing = (battens * 50.0 * t * B) / 1e6;
-  const Vbruto = Vb + VbpRear + Vsub + Vduto + VdutoRear + Vbracing;
+  // Travamento Estrutural em 6 Eixos (ou modo legado por quantidade de sarrafos)
+  const braceDefs = [
+    { id: 'wlBraceFF', code: 'FF', label: 'Sarrafo Frente–Fundo (Eixo Z)', lenFn: (a, b, c) => c },
+    { id: 'wlBraceTB', code: 'TB', label: 'Sarrafo Topo–Base (Eixo Y)', lenFn: (a, b) => b },
+    { id: 'wlBraceLR', code: 'LR', label: 'Sarrafo Esq–Dir (Eixo X)', lenFn: (a) => a },
+    { id: 'wlBraceCross', code: 'CROSS', label: 'Travamento Cruzado (X–Y)', lenFn: (a, b) => 0.5 * (a + b) },
+    { id: 'wlBraceBaffle', code: 'BAFFLE', label: 'Reforço Interno do Baffle', lenFn: (a) => a },
+    { id: 'wlBraceRear', code: 'REAR', label: 'Reforço Interno Traseiro', lenFn: (a) => a }
+  ];
+  const activeBraces = isFreeAir ? [] : braceDefs.filter(d => !!document.getElementById(d.id)?.checked);
 
   // Em BP4/BP6, A útil desconta a espessura t da divisória interna separando Câmara Traseira (A_rear) e Frontal (A_front / G)
   const A_net_vol = isBp ? Math.max(100.0, A - t) : A;
-  const C_med = (Vbruto * 1e6) / Math.max(1.0, A_net_vol * B);
+  // Estimativa inicial de C_med para comprimento de sarrafo Frente-Fundo (iterada 1× para fechar exatamente Vbracing)
+  const baseVolNoBrace = Vb + VbpRear + Vsub + Vduto + VdutoRear;
+  const cEst = isFreeAir ? t : ((baseVolNoBrace * 1e6) / Math.max(1.0, A_net_vol * B));
+  const Vbracing = isFreeAir
+    ? 0.0
+    : (activeBraces.length > 0
+        ? activeBraces.reduce((acc, d) => acc + (50.0 * t * Math.max(50.0, d.lenFn(A, B, cEst))) / 1e6, 0.0)
+        : ((battens * 50.0 * t * B) / 1e6));
+  const Vbruto = isFreeAir ? 0.0 : (baseVolNoBrace + Vbracing);
+  const C_med = isFreeAir ? t : ((Vbruto * 1e6) / Math.max(1.0, A_net_vol * B));
+
+  // Recalcula Vbracing final com C_med exato se houver eixo Frente-Fundo para fechamento perfeito G07
+  const finalBraces = activeBraces.map(d => ({
+    ...d,
+    lenMm: +Math.max(50.0, d.lenFn(A, B, C_med)).toFixed(1)
+  }));
+  const VbracingExact = isFreeAir
+    ? 0.0
+    : (finalBraces.length > 0
+        ? finalBraces.reduce((acc, d) => acc + (50.0 * t * d.lenMm) / 1e6, 0.0)
+        : Vbracing);
+  const VbrutoExact = isFreeAir ? 0.0 : (baseVolNoBrace + VbracingExact);
+  const C_medExact = isFreeAir ? t : ((VbrutoExact * 1e6) / Math.max(1.0, A_net_vol * B));
+
   let bpChambers = null;
   if (isBp) {
     const vRearTot = Math.max(1.0, VbpRear + Vsub + VdutoRear);
@@ -5518,19 +5608,37 @@ function updateWoodlock() {
     const A_front = +(A_net_vol - A_rear).toFixed(1);
     bpChambers = { A_rear, A_front, t, isBp: true, isBp6Parallel, lvRearMm: lvRearMmCanon, bp6Mode };
   }
-  let C_top = C_med;
-  let D_bot = C_med;
-  if (shape === 'trapezoidal') {
+  let C_top = C_medExact;
+  let D_bot = C_medExact;
+  if (!isFreeAir && !isPlanar && shape === 'trapezoidal') {
     const thetaRad = (Math.min(45.0, Math.max(0.0, angle)) * Math.PI) / 180.0;
     const deltaC = B * Math.tan(thetaRad);
-    C_top = Math.max(50.0, C_med - deltaC / 2.0);
-    D_bot = (C_top <= 50.001) ? (2.0 * C_med - C_top) : (C_med + deltaC / 2.0);
+    C_top = Math.max(50.0, C_medExact - deltaC / 2.0);
+    D_bot = (C_top <= 50.001) ? (2.0 * C_medExact - C_top) : (C_medExact + deltaC / 2.0);
+  }
+
+  // Geometria Planar Horn (Quadrado: CG, Baffle A×C4, Div. A4×R | Triângulo: Octogonal + 4× 45° V×Z)
+  let planarGeom = null;
+  if (isPlanar) {
+    const recuoG = Math.round(Math.max(120, Math.min(280, B * 0.42)));
+    const CG = +(C_medExact + recuoG).toFixed(1);
+    if (planarStyle === 'triangle') {
+      const Z_leg = Math.round(Math.min(A, B) * 0.22);
+      const S_side = Math.round(Math.max(40, B - 2 * Z_leg));
+      const Z_hyp = Math.round(Z_leg * Math.SQRT2);
+      planarGeom = { style: 'triangle', recuoG, CG, C_chamber: +C_medExact.toFixed(1), C4: null, Z_leg, Z: Z_hyp, S: S_side };
+    } else {
+      const C4 = Math.max(50.0, Math.round(B - Math.min(110, B * 0.18) - t));
+      planarGeom = { style: 'square', recuoG, CG, C_chamber: +C_medExact.toFixed(1), C4, Z_leg: null, Z: null, S: null };
+    }
   }
 
   const F_ext = A + 2.0 * t;
   const E_ext = B + 2.0 * t;
-  const C_ext_top = C_top + 2.0 * t;
-  const D_ext_bot = D_bot + 2.0 * t;
+  const depthForShellTop = isPlanar ? planarGeom.CG : C_top;
+  const depthForShellBot = isPlanar ? planarGeom.CG : D_bot;
+  const C_ext_top = isFreeAir ? t : (depthForShellTop + 2.0 * t);
+  const D_ext_bot = isFreeAir ? t : (depthForShellBot + 2.0 * t);
   const V_ext = (F_ext * E_ext * 0.5 * (C_ext_top + D_ext_bot)) / 1e6;
 
   // Rigidez de Placa Kirchhoff-Love (E=3.5 GPa, rho=750 kg/m3, nu=0.25)
@@ -5540,34 +5648,68 @@ function updateWoodlock() {
   const a_m = A / 1000.0;
   const b_m = B / 1000.0;
   const f11_unbraced = (Math.PI / 2.0) * Math.sqrt(D_rig / (750.0 * h_m)) * ((1.0 / (a_m*a_m)) + (1.0 / (b_m*b_m)));
-  const subdiv = 1 + Math.floor(battens / 2);
+  const effBattenCount = finalBraces.length > 0 ? finalBraces.length : battens;
+  const subdiv = 1 + Math.floor(effBattenCount / 2);
   const a_eff = a_m / subdiv;
   const f11_braced = (Math.PI / 2.0) * Math.sqrt(D_rig / (750.0 * h_m)) * ((1.0 / (a_eff*a_eff)) + (1.0 / (b_m*b_m)));
 
-  const isTrap = (shape === 'trapezoidal');
+  const isTrap = (!isFreeAir && !isPlanar && shape === 'trapezoidal');
   const bev = isTrap ? angle : 0.0;
   const rearH = isTrap ? (E_ext / Math.cos((angle * Math.PI) / 180.0)) : E_ext;
 
   const isSlotFrontReduced = (isVented && !isBp && portGeom && portGeom.isSlot);
   const slotC4 = Math.max(50.0, B - (slotH * 10.0) - slotWallThick);
   const slotAbaffle = Math.max(50.0, A - (slotH * 10.0) - slotWallThick);
-  const frontW = isSlotFrontReduced ? (slotOrient === 'horizontal' ? A : slotAbaffle) : F_ext;
-  const frontH = isSlotFrontReduced ? (slotOrient === 'horizontal' ? slotC4 : B) : E_ext;
+  const frontW = isSlotFrontReduced ? (slotOrient === 'horizontal' ? A : slotAbaffle) : (isPlanar ? A : F_ext);
+  const frontH = isSlotFrontReduced
+    ? (slotOrient === 'horizontal' ? slotC4 : B)
+    : (isPlanar ? (planarGeom.style === 'square' ? planarGeom.C4 : B) : E_ext);
   const frontNote = isSlotFrontReduced
     ? (slotOrient === 'horizontal'
         ? `Baffle reduzido embutido (A=${A.toFixed(0)} × C4=${slotC4.toFixed(0)} mm) — abre boca do duto régua horizontal na base`
         : `Baffle reduzido embutido (${slotAbaffle.toFixed(0)} × B=${B.toFixed(0)} mm) — abre boca do duto régua vertical à direita`)
-    : (isBp
-        ? `Painel frontal fechado sobre as 2 câmaras (furar apenas os dutos conforme gabarito)`
-        : `Corte reto 90° — furar conforme gabarito abaixo${mountMode === 'inverted' ? ' (Montagem Invertida: ímã p/ fora)' : ''}`);
+    : (isPlanar
+        ? (planarGeom.style === 'square'
+            ? `Baffle Planar recuado G=${planarGeom.recuoG} mm (A=${A.toFixed(0)} × C4=${planarGeom.C4} mm) — forma garganta da boca quadrada`
+            : `Baffle Octogonal Planar recuado G=${planarGeom.recuoG} mm — chanfrar os 4 cantos em 45° (cateto=${planarGeom.Z_leg} mm, lado S=${planarGeom.S} mm)`)
+        : (isBp
+            ? `Painel frontal fechado sobre as 2 câmaras (furar apenas os dutos conforme gabarito)`
+            : `Corte reto 90° — furar conforme gabarito abaixo${mountMode === 'inverted' ? ' (Montagem Invertida: ímã p/ fora)' : ''}`));
 
-  const pieces = [
-    { kind: 'mdf', orient: 'CIMA', name: "Tampo Superior [CIMA]", qty: 1, w: F_ext, h: C_ext_top, t, bev: bev, area: (F_ext * C_ext_top) / 1e6, note: "Sobrepõe laterais, frente e trás (F × C_ext)" },
-    { kind: 'mdf', orient: 'BASE', name: "Base Inferior [BASE]", qty: 1, w: F_ext, h: D_ext_bot, t, bev: bev, area: (F_ext * D_ext_bot) / 1e6, note: "Base estrutural completa (F × D_ext)" },
-    { kind: 'mdf', orient: 'FRENTE', name: isSlotFrontReduced ? "Painel Frontal Reduzido [Baffle A×C4]" : "Painel Frontal [FRENTE / Baffle]", qty: 1, w: frontW, h: frontH, t, bev: 0.0, area: (frontW * frontH) / 1e6, note: frontNote },
-    { kind: 'mdf', orient: 'TRÁS', name: "Painel Traseiro [TRÁS]", qty: 1, w: F_ext, h: rearH, t, bev: bev, area: (F_ext * rearH) / 1e6, note: isTrap ? "Inclinado com chanfro superior/inferior" : "Corte reto 90° (F × E)" },
-    { kind: 'mdf', orient: 'LADO ESQ/DIR', name: "Laterais Embutidas [ESQ + DIR]", qty: 2, w: B, h: 0.5*(C_top + D_bot), t, bev: bev, area: 2.0 * (B * 0.5 * (C_top + D_bot)) / 1e6, note: `Embutidas entre tampo/base e frente/trás (B=${B.toFixed(0)} × C=${C_top.toFixed(0)}/D=${D_bot.toFixed(0)} mm)` }
-  ];
+  const pieces = isFreeAir
+    ? [
+        {
+          kind: 'mdf', orient: 'FRENTE', name: "Painel Baffle Infinito [FRENTE / Tampão]",
+          qty: 1, w: F_ext, h: E_ext, t, bev: 0.0, area: (F_ext * E_ext) / 1e6,
+          note: `Painel único plano (F=${F_ext.toFixed(0)} × E=${E_ext.toFixed(0)} mm) — vedar 100% frente/trás contra curto-circuito acústico`
+        }
+      ]
+    : [
+        { kind: 'mdf', orient: 'CIMA', name: "Tampo Superior [CIMA]", qty: 1, w: F_ext, h: C_ext_top, t, bev: bev, area: (F_ext * C_ext_top) / 1e6, note: isPlanar ? `Cobre câmara + boca planar (F × CG_ext=${C_ext_top.toFixed(0)} mm)` : "Sobrepõe laterais, frente e trás (F × C_ext)" },
+        { kind: 'mdf', orient: 'BASE', name: "Base Inferior [BASE]", qty: 1, w: F_ext, h: D_ext_bot, t, bev: bev, area: (F_ext * D_ext_bot) / 1e6, note: isPlanar ? `Base completa câmara + boca planar (F × CG_ext=${D_ext_bot.toFixed(0)} mm)` : "Base estrutural completa (F × D_ext)" },
+        { kind: 'mdf', orient: 'FRENTE', name: isSlotFrontReduced ? "Painel Frontal Reduzido [Baffle A×C4]" : (isPlanar ? (planarGeom.style === 'triangle' ? "Baffle Octogonal Planar [4×45°]" : "Baffle Planar Recuado [A×C4]") : "Painel Frontal [FRENTE / Baffle]"), qty: 1, w: frontW, h: frontH, t, bev: (isPlanar && planarGeom.style === 'triangle') ? 45.0 : 0.0, area: (frontW * frontH) / 1e6, note: frontNote },
+        { kind: 'mdf', orient: 'TRÁS', name: "Painel Traseiro [TRÁS]", qty: 1, w: F_ext, h: rearH, t, bev: bev, area: (F_ext * rearH) / 1e6, note: isTrap ? "Inclinado com chanfro superior/inferior" : "Corte reto 90° (F × E)" },
+        { kind: 'mdf', orient: 'LADO ESQ/DIR', name: isPlanar ? "Laterais Embutidas Planar [B×CG]" : "Laterais Embutidas [ESQ + DIR]", qty: 2, w: B, h: 0.5*(depthForShellTop + depthForShellBot), t, bev: bev, area: 2.0 * (B * 0.5 * (depthForShellTop + depthForShellBot)) / 1e6, note: isPlanar ? `Profundidade total CG=${planarGeom.CG} mm (Câmara ${planarGeom.C_chamber} + Boca G=${planarGeom.recuoG} mm)` : `Embutidas entre tampo/base e frente/trás (B=${B.toFixed(0)} × C=${C_top.toFixed(0)}/D=${D_bot.toFixed(0)} mm)` }
+      ];
+
+  // Em Planar Horn: adiciona peças exclusivas da boca (Divisória A4×R no Quadrado ou 4× Paredes Triangulares V×Z no Triângulo)
+  if (isPlanar && planarGeom) {
+    if (planarGeom.style === 'square') {
+      pieces.push({
+        kind: 'divider', orient: 'PLANAR_DIV', name: "Divisória Boca Planar [A4×R]",
+        qty: 1, w: A, h: planarGeom.recuoG, t, bev: 0.0,
+        area: (A * planarGeom.recuoG) / 1e6,
+        note: `Guia de garganta/boca planar (A4=${A.toFixed(0)} × R=G=${planarGeom.recuoG} mm)`
+      });
+    } else {
+      pieces.push({
+        kind: 'divider', orient: 'PLANAR_TRI', name: "Parede Triangular Chanfrada [V×Z]",
+        qty: 4, w: planarGeom.recuoG, h: planarGeom.Z, t, bev: 45.0,
+        area: (4.0 * planarGeom.recuoG * planarGeom.Z) / 1e6,
+        note: `4× paredes em 45° na boca octogonal (V=${planarGeom.recuoG} × Z=${planarGeom.Z} mm · lado S=${planarGeom.S} mm · CG=${planarGeom.CG} mm)`
+      });
+    }
+  }
 
   // Em BP4 / BP6: adiciona Divisória Interna do Falante separando VR (esquerda) e VF (direita)
   if (isBp && bpChambers) {
@@ -5579,14 +5721,25 @@ function updateWoodlock() {
     });
   }
 
-  // Sarrafos de travamento como peças reais de BOM
-  if (battens > 0) {
-    pieces.push({
-      kind: 'batten', orient: 'INTERNO',
-      name: `Sarrafo de Travamento (MDF ${t}mm)`, qty: battens, w: 50.0, h: B, t, bev: 0.0,
-      area: (battens * 50.0 * B) / 1e6,
-      note: `Colar verticalmente nas paredes internas (50 × ${B.toFixed(0)} × ${t} mm)`
-    });
+  // Sarrafos de travamento como peças reais de BOM (6 eixos individuais ou legado)
+  if (!isFreeAir) {
+    if (finalBraces.length > 0) {
+      finalBraces.forEach(br => {
+        pieces.push({
+          kind: 'batten', orient: `TRAVA_${br.code}`,
+          name: `${br.label} (MDF ${t}mm)`, qty: 1, w: 50.0, h: br.lenMm, t, bev: 0.0,
+          area: (50.0 * br.lenMm) / 1e6,
+          note: `Travamento eixo ${br.code}: 50 × ${br.lenMm.toFixed(0)} × ${t} mm`
+        });
+      });
+    } else if (battens > 0) {
+      pieces.push({
+        kind: 'batten', orient: 'INTERNO',
+        name: `Sarrafo de Travamento (MDF ${t}mm)`, qty: battens, w: 50.0, h: B, t, bev: 0.0,
+        area: (battens * 50.0 * B) / 1e6,
+        note: `Colar verticalmente nas paredes internas (50 × ${B.toFixed(0)} × ${t} mm)`
+      });
+    }
   }
 
   // Dutos como peça real de BOM (com Lv cortado canônico unificado em mm inteiros)
@@ -5705,6 +5858,8 @@ function updateWoodlock() {
       mountMode,
       slotOrient,
       bpChambers,
+      planarGeom,
+      activeBraces: finalBraces.map(b => b.code),
       band: [chartOpts.fMin || 10, chartOpts.fMax || 1000],
       lvMm: lvMmCanon,
       lvRearMm: lvRearMmCanon,
@@ -5712,13 +5867,14 @@ function updateWoodlock() {
       SpCm2: portGeom ? +(portGeom.Sp * 10000).toFixed(1) : 0,
       Vsub: +Vsub.toFixed(2),
       Vduto: +(Vduto + VdutoRear).toFixed(2),
-      Vbracing: +Vbracing.toFixed(2),
+      Vbracing: +VbracingExact.toFixed(2),
       VtotSim: +(Vb + VbpRear + Vsub + Vduto + VdutoRear).toFixed(2),
-      Vbruto: +Vbruto.toFixed(2),
+      Vbruto: +VbrutoExact.toFixed(2),
       constraints: simConstraints
     },
     dimensions: {
       shape, t, A, B, C_top: +C_top.toFixed(1), D_bot: +D_bot.toFixed(1),
+      CG: planarGeom ? planarGeom.CG : null,
       F_ext: +F_ext.toFixed(1), E_ext: +E_ext.toFixed(1),
       C_ext_top: +C_ext_top.toFixed(1), D_ext_bot: +D_ext_bot.toFixed(1),
       V_ext: +V_ext.toFixed(1), totalAreaM2: +totalArea.toFixed(3),
@@ -5734,8 +5890,8 @@ function updateWoodlock() {
   const summaryBox = document.getElementById('wlSummaryBox');
   if (summaryBox) {
     summaryBox.innerHTML = `
-      <div><b>Balanço Volumétrico:</b> Vb=${Vb.toFixed(1)}L${VbpRear > 0 ? ` + VR=${VbpRear.toFixed(1)}L` : ''} + Vsub=${Vsub.toFixed(1)}L + Vduto=${Vduto.toFixed(2)}L + Vtravas=${Vbracing.toFixed(2)}L = <span style="color:var(--accent);font-weight:700;">${Vbruto.toFixed(2)} L Brutos</span></div>
-      <div><b>Cotas Internas [A×B×C/D]:</b> A=${A.toFixed(0)} mm | B=${B.toFixed(0)} mm | C=${C_top.toFixed(1)} mm | D=${D_bot.toFixed(1)} mm</div>
+      <div><b>Balanço Volumétrico:</b> ${isFreeAir ? '<span style="color:var(--accent);font-weight:700;">Baffle Infinito (Vb → ∞ · Painel Único)</span>' : `Vb=${Vb.toFixed(1)}L${VbpRear > 0 ? ` + VR=${VbpRear.toFixed(1)}L` : ''} + Vsub=${Vsub.toFixed(1)}L + Vduto=${(Vduto + VdutoRear).toFixed(2)}L + Vtravas=${VbracingExact.toFixed(2)}L = <span style="color:var(--accent);font-weight:700;">${VbrutoExact.toFixed(2)} L Brutos</span>`}</div>
+      <div><b>Cotas Internas [A×B×C/D]:</b> A=${A.toFixed(0)} mm | B=${B.toFixed(0)} mm | C=${C_top.toFixed(1)} mm | D=${D_bot.toFixed(1)} mm${planarGeom ? ` | <span style="color:#38bdf8;">CG=${planarGeom.CG} mm (Boca G=${planarGeom.recuoG} mm)</span>` : ''}</div>
       <div><b>Cotas Externas [F×E]:</b> F=${F_ext.toFixed(0)} mm | E=${E_ext.toFixed(0)} mm | Vol. Externo=${V_ext.toFixed(1)} L</div>
       <div><b>Modo Fundamental Painel (f₁₁):</b> s/ travas=${f11_unbraced.toFixed(0)} Hz ➔ <span style="color:#10b981;font-weight:700;">c/ travas=${f11_braced.toFixed(0)} Hz</span></div>
       <div><b>Chapa MDF &amp; Orçamento:</b> Área=${totalArea.toFixed(3)} m² (${sheetsNeeded.toFixed(2)} chapa 2750×1830) | Peso=<b>${woodWeightKg.toFixed(1)} kg</b> | Custo Est.: <span style="color:#fbbf24;font-weight:700;">R$ ${estCost.toFixed(2)}</span></div>
@@ -5957,8 +6113,9 @@ function validatePgsGeometry(model, p0Validation) {
   checks.push({ code: 'G03', label: 'Espessura real dos painéis', pass: g03Pass, detail: `MDF ${t} mm consistente em todos os painéis estruturais` });
 
   // G04: Volume líquido reconstruído vs alvo
-  const g04Pass = Math.abs(model.volumes.deltaL) <= 0.35;
-  checks.push({ code: 'G04', label: 'Volume líquido verificado', pass: g04Pass, detail: `Alvo=${(model.volumes.VbTarget + model.volumes.VrTarget).toFixed(1)}L | Reconstruído=${model.volumes.VnetVerified.toFixed(1)}L (Δ=${model.volumes.deltaL.toFixed(2)}L)` });
+  const isFreeAirModel = (model.topology === 'free-air');
+  const g04Pass = isFreeAirModel || Math.abs(model.volumes.deltaL) <= 0.35;
+  checks.push({ code: 'G04', label: 'Volume líquido verificado', pass: g04Pass, detail: isFreeAirModel ? 'Baffle Infinito (Vb → ∞ · painel plano)' : `Alvo=${(model.volumes.VbTarget + model.volumes.VrTarget).toFixed(1)}L | Reconstruído=${model.volumes.VnetVerified.toFixed(1)}L (Δ=${model.volumes.deltaL.toFixed(2)}L)` });
 
   // G05: Volume driver
   const g05Pass = model.volumes.Vsub >= 0;
@@ -6029,11 +6186,17 @@ function buildPgsGeometryModel(pack) {
       // Gera referência espacial da lateral esquerda (e segunda instância em X = F - t)
       id = 'P_SIDES'; origin = [0, t, t]; size = [t, B, C_med]; explodeDir = [-1, 0, 0]; explodeDist = +(expBase * 0.9).toFixed(1); assemblyOrder = 3; frontFace = '+X';
     } else if (p.kind === 'divider') {
-      const divX = (ac.bpChambers && ac.bpChambers.A_rear) ? (t + ac.bpChambers.A_rear) : (F / 2 - t / 2);
-      id = 'P_BP_DIVIDER'; origin = [+divX.toFixed(1), t, t]; size = [t, B, C_med]; explodeDir = [0, 0.35, 0]; explodeDist = +(expBase * 0.6).toFixed(1); assemblyOrder = 4; frontFace = '+X';
+      if (p.orient === 'PLANAR_DIV') {
+        id = 'P_PLANAR_DIV'; origin = [t, +(t + B * 0.18).toFixed(1), +(t + C_med).toFixed(1)]; size = [A, t, p.h]; explodeDir = [0, -0.35, 0.7]; explodeDist = +(expBase * 0.7).toFixed(1); assemblyOrder = 5; frontFace = '+Y';
+      } else if (p.orient === 'PLANAR_TRI') {
+        id = 'P_PLANAR_CHAMFER'; origin = [t, t, +(t + C_med).toFixed(1)]; size = [t, p.h, p.w]; explodeDir = [-0.6, 0.3, 0.6]; explodeDist = +(expBase * 0.75).toFixed(1); assemblyOrder = 5; frontFace = '+X';
+      } else {
+        const divX = (ac.bpChambers && ac.bpChambers.A_rear) ? (t + ac.bpChambers.A_rear) : (F / 2 - t / 2);
+        id = 'P_BP_DIVIDER'; origin = [+divX.toFixed(1), t, t]; size = [t, B, C_med]; explodeDir = [0, 0.35, 0]; explodeDist = +(expBase * 0.6).toFixed(1); assemblyOrder = 4; frontFace = '+X';
+      }
     } else if (p.kind === 'batten') {
       battenIdx++;
-      id = `P_BATTEN_${battenIdx}`; origin = [+(F * 0.5 - 25).toFixed(1), t, +(t + C_med * 0.5).toFixed(1)]; size = [50, B, t]; explodeDir = [0, 0.5, 0]; explodeDist = +(expBase * 0.5).toFixed(1); assemblyOrder = 4; frontFace = '+Z';
+      id = `P_BATTEN_${battenIdx}`; origin = [+(F * 0.5 - 25).toFixed(1), t, +(t + C_med * 0.5).toFixed(1)]; size = [50, p.h, t]; explodeDir = [0, 0.5, 0]; explodeDist = +(expBase * 0.5).toFixed(1); assemblyOrder = 4; frontFace = '+Z';
     } else if (p.kind === 'port') {
       portIdx++;
       const isSlotP = /Régua/.test(p.name);
@@ -6059,7 +6222,8 @@ function buildPgsGeometryModel(pack) {
       id = 'P_FRONT_BAFFLE';
       const fX = +((F - p.w) / 2).toFixed(1);
       const fY = +(E - p.h - (p.w < F ? t : 0)).toFixed(1);
-      origin = [fX, Math.max(0, fY), +(D_ext - t).toFixed(1)];
+      const fZ = (ac.boxType === 'free-air') ? 0 : (ac.planarGeom ? +(t + C_med).toFixed(1) : +(D_ext - t).toFixed(1));
+      origin = [fX, Math.max(0, fY), fZ];
       size = [p.w, p.h, t];
       explodeDir = [0, 0, 1];
       assemblyOrder = 7;
@@ -6103,12 +6267,15 @@ function buildPgsGeometryModel(pack) {
   addJoint('J_FRONT_BASE', 'P_FRONT_BAFFLE', 'P_BASE', 'butt_glue_screw');
   addJoint('J_FRONT_TOP', 'P_FRONT_BAFFLE', 'P_TOP', 'butt_glue_screw');
   if (partById.P_BP_DIVIDER) addJoint('J_DIV_BASE', 'P_BP_DIVIDER', 'P_BASE', 'internal_divider');
+  if (partById.P_PLANAR_DIV) addJoint('J_PLANAR_DIV_BASE', 'P_PLANAR_DIV', 'P_BASE', 'planar_throat');
+  if (partById.P_PLANAR_CHAMFER) addJoint('J_PLANAR_CHAMFER_FRONT', 'P_PLANAR_CHAMFER', 'P_FRONT_BAFFLE', 'miter_45');
 
+  const isFreeAirModel = (ac.boxType === 'free-air');
   const isBp = !!(ac.bpChambers && ac.bpChambers.isBp);
   const A_net = isBp ? Math.max(100, A - t) : A;
-  const VgrossFromParts = +((A_net * B * C_med) / 1e6).toFixed(2);
-  const VnetVerified = +(VgrossFromParts - ac.Vsub - ac.Vduto - ac.Vbracing).toFixed(2);
-  const targetNet = +(ac.Vb + (ac.Vr || 0)).toFixed(2);
+  const VgrossFromParts = isFreeAirModel ? 0 : +((A_net * B * C_med) / 1e6).toFixed(2);
+  const VnetVerified = isFreeAirModel ? 0 : +(VgrossFromParts - ac.Vsub - ac.Vduto - ac.Vbracing).toFixed(2);
+  const targetNet = isFreeAirModel ? 0 : +(ac.Vb + (ac.Vr || 0)).toFixed(2);
 
   const sheetLayout = computeSheetNesting2D(parts, 2750, 1830, 3);
   const assemblySequence = buildAssemblySequence(parts);
@@ -6614,7 +6781,7 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl, explodedDataUr
     ? ` &nbsp;|&nbsp; <b>Câmaras BP:</b> Traseira A = ${ac.bpChambers.A_rear.toFixed(0)} mm (VR) · Frontal G = ${ac.bpChambers.A_front.toFixed(0)} mm (VF)`
     : '';
   const bandArr = Array.isArray(ac.band) ? ac.band : [10, 1000];
-  const isSealedLike = (ac.boxType === 'sealed' || ac.boxType === 'planar');
+  const isSealedLike = (ac.boxType === 'sealed' || ac.boxType === 'planar' || ac.boxType === 'free-air');
   const tuneLabel = isSealedLike ? 'Ressonância Fc / Corte F3' : 'Sintonia Fb / Corte F3';
   const tuneValue = isSealedLike
     ? `${(ac.fc || 0).toFixed(2)} Hz / ${ac.F3.toFixed(2)} Hz`
@@ -6768,7 +6935,7 @@ function generateBuildPackHtml() {
   }
   const ac = lastBuildPack.acoustics;
   const profile = getAnalysisProfile(ac.analysisEnv || getAnalysisEnv());
-  const isSealedLike = (ac.boxType === 'sealed' || ac.boxType === 'planar');
+  const isSealedLike = (ac.boxType === 'sealed' || ac.boxType === 'planar' || ac.boxType === 'free-air');
   const targetCount = (profile.id === 'automotive') ? 8 : 6;
   const selectedSlots = [];
   for (let i = 0; i < profile.order.length && selectedSlots.length < targetCount; i++) {
@@ -7096,12 +7263,13 @@ function updateDesktopStatusBar(s) {
     else if (s.boxType === 'bp4') sbBox.textContent = `📦 BP4 VR=${(s.Vr||0).toFixed(0)}L / VF=${s.Vb.toFixed(0)}L @ ${s.Fb.toFixed(1)}Hz`;
     else if (s.boxType === 'bp6') sbBox.textContent = `📦 BP6 ${(s.bp6Mode==='series'?'Série':'Paral.')} ${(s.FbVr||35).toFixed(0)}/${s.Fb.toFixed(0)}Hz`;
     else if (s.boxType === 'planar') sbBox.textContent = `📦 Planar ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
+    else if (s.boxType === 'free-air') sbBox.textContent = `📦 Free-Air (Vb→∞) · Fc ${s.fc.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
     else sbBox.textContent = `📦 Selada ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
   }
   if (sbPort) {
     sbPort.textContent = (s.boxType === 'bass-reflex' || s.boxType === 'bp4' || s.boxType === 'bp6')
       ? `💨 Lv ${s.LvCm.toFixed(1)}cm · ${s.airVel.toFixed(1)} m/s · f₁ ${s.fPipe1.toFixed(0)}Hz`
-      : (s.boxType === 'planar' ? `💨 Boca Planar Refletora` : `💨 Caixa Selada (sem duto)`);
+      : (s.boxType === 'planar' ? `💨 Boca Planar Refletora` : (s.boxType === 'free-air' ? `💨 Baffle Infinito (Isolamento Frente/Trás)` : `💨 Caixa Selada (sem duto)`));
   }
   if (sbEpdr && currentCurves && currentCurves.meta) {
     sbEpdr.textContent = `⚡ EPDR ${currentCurves.meta.minEpdrVal.toFixed(2)}Ω @ ${currentCurves.meta.minEpdrFreq.toFixed(0)}Hz`;
@@ -7129,7 +7297,8 @@ function updateDesktopStatusBar(s) {
       'sealed': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="4" y="2" width="34" height="28" rx="3" fill="#080d16" stroke="#a855f7" stroke-width="1.4"/><circle cx="21" cy="16" r="9" stroke="#c084fc" stroke-width="1.4"/><circle cx="21" cy="16" r="3.2" fill="#a855f7" fill-opacity="0.35"/></svg>`,
       'bp4': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#f59e0b" stroke-width="1.4"/><line x1="20" y1="2" x2="20" y2="30" stroke="#f59e0b" stroke-width="1.2"/><circle cx="20" cy="16" r="6" fill="#080d16" stroke="#38bdf8" stroke-width="1.3"/><rect x="31" y="7" width="5" height="18" rx="1" fill="#10b981" fill-opacity="0.3" stroke="#10b981" stroke-width="1.1"/></svg>`,
       'bp6': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#ef4444" stroke-width="1.4"/><line x1="21" y1="2" x2="21" y2="30" stroke="#ef4444" stroke-width="1.2"/><circle cx="21" cy="16" r="5.5" fill="#080d16" stroke="#38bdf8" stroke-width="1.3"/><rect x="5" y="8" width="4.5" height="16" rx="1" fill="#f59e0b" fill-opacity="0.3" stroke="#f59e0b" stroke-width="1"/><rect x="32" y="7" width="4.5" height="18" rx="1" fill="#10b981" fill-opacity="0.3" stroke="#10b981" stroke-width="1"/></svg>`,
-      'planar': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#14b8a6" stroke-width="1.4"/><line x1="15" y1="2" x2="15" y2="30" stroke="#14b8a6" stroke-width="1.2"/><path d="M15 11 L38 4 M15 21 L38 28" stroke="#38bdf8" stroke-width="1.2"/></svg>`
+      'planar': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="2" y="2" width="38" height="28" rx="3" fill="#080d16" stroke="#14b8a6" stroke-width="1.4"/><line x1="15" y1="2" x2="15" y2="30" stroke="#14b8a6" stroke-width="1.2"/><path d="M15 11 L38 4 M15 21 L38 28" stroke="#38bdf8" stroke-width="1.2"/></svg>`,
+      'free-air': `<svg width="42" height="32" viewBox="0 0 42 32" fill="none"><rect x="18" y="2" width="6" height="28" rx="1.5" fill="#080d16" stroke="#38bdf8" stroke-width="1.4"/><circle cx="21" cy="16" r="7" stroke="#10b981" stroke-width="1.3"/><path d="M6 16 H13 M29 16 H36" stroke="#94a3b8" stroke-width="1.2" stroke-dasharray="2 2"/></svg>`
     };
     thumbSvg.innerHTML = svgMap[s.boxType] || svgMap['bass-reflex'];
   }
@@ -7138,13 +7307,15 @@ function updateDesktopStatusBar(s) {
     'sealed': 'Caixa Selada (2ª Ordem)',
     'bp4': 'Band-Pass 4ª (BP4)',
     'bp6': `Band-Pass 6ª (${s.bp6Mode === 'series' ? 'Série' : 'Paralela'})`,
-    'planar': 'Planar Horn (Refletora)'
+    'planar': 'Planar Horn (Refletora)',
+    'free-air': 'Baffle Infinito (Free-Air)'
   };
   setTxt('thumbBoxTitle', titleMap[s.boxType] || s.boxType);
   setTxt('thumbBoxSub',
     s.boxType === 'bass-reflex' ? `Vb ${s.Vb.toFixed(1)}L · Fb ${s.Fb.toFixed(1)}Hz` :
     s.boxType === 'bp4' ? `VR ${(s.Vr||0).toFixed(0)}L · VF ${s.Vb.toFixed(0)}L @ ${s.Fb.toFixed(0)}Hz` :
     s.boxType === 'bp6' ? `VR ${(s.Vr||0).toFixed(0)}L@${(s.FbVr||35).toFixed(0)} · VF ${s.Vb.toFixed(0)}L@${s.Fb.toFixed(0)}` :
+    s.boxType === 'free-air' ? `Vb → ∞ · Qtc=Qts · Fc ${s.fc.toFixed(1)}Hz` :
     `Vb ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz`
   );
 
