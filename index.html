@@ -1366,13 +1366,13 @@
             </div>
             <div class="form-group">
               <label>Travamento Estrutural (6 Eixos)</label>
-              <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:4px; font-size:10.5px; color:#cbd5e1; padding-top:3px;">
-                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceFF" onchange="onWoodlockBracingChange()">F–F</label>
-                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceTB" onchange="onWoodlockBracingChange()">T–B</label>
-                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceLR" onchange="onWoodlockBracingChange()">E–D</label>
-                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceCross" onchange="onWoodlockBracingChange()">Cruz</label>
-                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceBaffle" onchange="onWoodlockBracingChange()">Baffle</label>
-                <label style="display:flex;align-items:center;gap:3px;cursor:pointer;"><input type="checkbox" id="wlBraceRear" onchange="onWoodlockBracingChange()">Trás</label>
+              <div style="display:grid; grid-template-columns:repeat(3,auto); justify-content:start; gap:6px 14px; font-size:11px; color:#cbd5e1; padding-top:4px;">
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceFF" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">F–F</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceTB" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">T–B</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceLR" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">E–D</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceCross" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">Cruz</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceBaffle" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">Baffle</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceRear" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">Trás</label>
               </div>
             </div>
           </div>
@@ -1393,7 +1393,7 @@
             </div>
             <div class="form-group">
               <label for="wlBattens">Travamentos Internos (Nº Sarrafos)</label>
-              <input type="number" id="wlBattens" value="4" min="0" max="16" step="1" onchange="updateWoodlock()">
+              <input type="number" id="wlBattens" value="0" min="0" max="16" step="1" onchange="updateWoodlock()">
             </div>
           </div>
           <div class="input-row" style="margin-bottom:10px;">
@@ -1424,7 +1424,7 @@
         </div>
 
         <!-- Desenho Técnico CAD 2D/Isométrico -->
-        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px; display:flex; flex-direction:column;">
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px; display:flex; flex-direction:column; align-self:start; position:sticky; top:10px;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
             <h3 id="wlCanvasTitle" style="font-size:14px; color:var(--accent); margin:0;">📐 Blueprint Técnico Lateral (Lv vs C) &amp; Frontal</h3>
             <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
@@ -1441,7 +1441,7 @@
               </span>
             </div>
           </div>
-          <canvas id="woodlockCanvas" style="width:100%; height:350px; background:#060911; border-radius:6px; cursor:grab;"></canvas>
+          <canvas id="woodlockCanvas" style="width:100%; height:520px; background:#060911; border-radius:6px; cursor:grab;"></canvas>
         </div>
       </div>
 
@@ -1496,8 +1496,8 @@
             <div class="form-group"><label for="wlMatrixCols">Grade Colunas (DIV)</label><input type="number" id="wlMatrixCols" value="1" min="1" max="6" step="1" onchange="updateWoodlock()"></div>
             <div class="form-group"><label for="wlMatrixRows">Grade Linhas (DIV)</label><input type="number" id="wlMatrixRows" value="1" min="1" max="6" step="1" onchange="updateWoodlock()"></div>
             <div class="form-group" style="display:flex;flex-direction:column;justify-content:center;gap:4px;font-size:11px;color:#cbd5e1;">
-              <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="wlWheelArch" onchange="updateWoodlock()">Cx. Rodas</label>
-              <label style="display:flex;align-items:center;gap:4px;cursor:pointer;"><input type="checkbox" id="wlProtectBar" onchange="updateWoodlock()">Barra Prot.</label>
+              <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlWheelArch" style="width:auto;flex-shrink:0;margin:0;" onchange="updateWoodlock()">Cx. Rodas</label>
+              <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlProtectBar" style="width:auto;flex-shrink:0;margin:0;" onchange="updateWoodlock()">Barra Prot.</label>
             </div>
           </div>
           <div class="grid-3" style="margin-bottom:8px;">
@@ -3108,6 +3108,18 @@ function selectTopology(topo) {
     }
   }
   recalculate();
+  // Em BP4/BP6 com Auto-Tune, se Lv <= 1.0 cm (Fb alto p/ área do duto), aumenta numDucts (Lv ∝ Sp) para garantir tubo físico positivo
+  if ((topo === 'bp4' || topo === 'bp6') && isAutoTune && lastBuildPack && lastBuildPack.acoustics && lastBuildPack.acoustics.LvCm <= 1.0) {
+    const nEl = document.getElementById('numDucts');
+    const pEl = document.getElementById('portType');
+    if (pEl && pEl.value === 'round' && nEl) {
+      for (const tryN of [3, 4]) {
+        if (lastBuildPack && lastBuildPack.acoustics && lastBuildPack.acoustics.LvCm > 1.0) break;
+        nEl.value = String(tryN);
+        recalculate();
+      }
+    }
+  }
   autofixWoodlockGeometry(`topologia ${topo}`);
 }
 
@@ -6983,6 +6995,10 @@ function setWoodlockExplode(ratio) {
   document.querySelectorAll('[data-wl-exp]').forEach(b => {
     b.classList.toggle('active', Math.abs(parseFloat(b.getAttribute('data-wl-exp')) - wlExplodeRatio) < 0.05);
   });
+  const titleEl = document.getElementById('wlCanvasTitle');
+  if (titleEl && wlViewMode === 'exploded') {
+    titleEl.textContent = `🧊 Vista 3D ${wlExplodeRatio < 0.05 ? 'Montada (0%)' : `Explodida (${Math.round(wlExplodeRatio * 100)}%)`} — PGS Fonte Única`;
+  }
   renderActiveWoodlockCanvas();
 }
 
@@ -7310,6 +7326,12 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
       for (let j = 1; j < rm; j++) {
         pushBoxFaces(oxP, t + j * (env.B / rm) - t / 2 + ey, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
       }
+    } else if (p.kind === 'batten' && !p.braceMeta && p.qty > 1) {
+      const q = Math.max(1, parseInt(p.qty) || 1);
+      for (let i = 0; i < q; i++) {
+        const bx = t + ((i + 1) / (q + 1)) * env.A - p.size[0] / 2 + ex;
+        pushBoxFaces(bx, t + ey, t + ez, p.size[0], Math.min(p.size[1], env.B), t, rgb, scCol, alpha, p.id);
+      }
     } else if ((p.id.startsWith('P_BP_DIVIDER') || p.id === 'P_CENTER_DIV') && isTrap3d) {
       pushTrapSideFaces(oxP, oyP, ozP + p.size[2], p.size[1], p.size[0], rgb, scCol, alpha);
     } else {
@@ -7335,6 +7357,53 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
       ctx.stroke();
     });
   };
+  const drawDividerAndTopCutouts = () => {
+    // Furos circulares nas divisórias BP (plano YZ)
+    (geom.cutouts || []).filter(c => c.partId && c.partId.startsWith('P_BP_DIVIDER') && c.dia).forEach(c => {
+      const host = (geom.parts || []).find(pp => pp.id === c.partId);
+      if (!host) return;
+      const hx = host.origin[0] + host.size[0] + host.explodeDir[0] * host.explodeDist * er + 0.6;
+      const hyOff = host.explodeDir[1] * host.explodeDist * er;
+      const hzOff = host.explodeDir[2] * host.explodeDist * er;
+      const cz = (isTrap3d ? zRt3d : t) + c.xInt + hzOff;
+      const cy = t + c.yInt + hyOff;
+      ctx.beginPath();
+      for (let i = 0; i <= 32; i++) {
+        const ang = (i / 32) * Math.PI * 2;
+        const pt = project(hx, cy + Math.sin(ang) * (c.dia / 2), cz + Math.cos(ang) * (c.dia / 2));
+        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(6, 9, 17, 0.78)';
+      ctx.fill();
+      ctx.strokeStyle = c.kind === 'driver' ? '#f87171' : '#fb923c';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    });
+    // Furos circulares no tampo superior P_TOP (plano XZ em BP4/BP6 Redondo)
+    const topPart = (geom.parts || []).find(pp => pp.id === 'P_TOP');
+    if (topPart) {
+      const ty = topPart.origin[1] + topPart.size[1] + topPart.explodeDir[1] * topPart.explodeDist * er + 0.6;
+      const txOff = topPart.explodeDir[0] * topPart.explodeDist * er;
+      const tzOff = topPart.explodeDir[2] * topPart.explodeDist * er;
+      (geom.cutouts || []).filter(c => c.partId === 'P_TOP' && c.shape === 'round' && c.dia).forEach(c => {
+        const cx = t + c.xInt + txOff;
+        const cz = (isTrap3d ? zRt3d : t) + c.yInt + tzOff;
+        ctx.beginPath();
+        for (let i = 0; i <= 32; i++) {
+          const ang = (i / 32) * Math.PI * 2;
+          const pt = project(cx + Math.cos(ang) * (c.dia / 2), ty, cz + Math.sin(ang) * (c.dia / 2));
+          if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+        }
+        ctx.closePath();
+        ctx.fillStyle = 'rgba(6, 9, 17, 0.85)';
+        ctx.fill();
+        ctx.strokeStyle = '#fb923c';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+      });
+    }
+  };
 
   faces.forEach(fc => {
     ctx.beginPath();
@@ -7348,6 +7417,7 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
     ctx.stroke();
     if (fc.isFront) drawFrontCutouts(frontOz + frontDz);
   });
+  drawDividerAndTopCutouts();
 
   const gPassCount = (geom.validation || []).filter(v => v.pass).length;
   ctx.fillStyle = '#e2e8f0';
