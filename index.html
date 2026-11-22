@@ -1270,12 +1270,12 @@
           </div>
           <div class="input-row" style="margin-bottom:10px;">
             <div class="form-group">
-              <label for="wlWidthA">Cota [A] Largura Interna Livre (mm)</label>
-              <input type="number" id="wlWidthA" value="800" min="150" max="2000" step="10" onchange="updateWoodlock()">
+              <label for="wlWidthA">Cota [A] Largura Interna Livre (mm) <small id="wlMinALabel" style="color:var(--accent);"></small></label>
+              <input type="number" id="wlWidthA" value="800" min="150" max="2000" step="10" onchange="onWoodlockDimChange('A')">
             </div>
             <div class="form-group">
-              <label for="wlHeightB">Cota [B] Altura Interna Livre (mm)</label>
-              <input type="number" id="wlHeightB" value="450" min="150" max="1500" step="10" onchange="updateWoodlock()">
+              <label for="wlHeightB">Cota [B] Altura Interna Livre (mm) <small id="wlMinBLabel" style="color:var(--accent);"></small></label>
+              <input type="number" id="wlHeightB" value="490" min="150" max="1500" step="10" onchange="onWoodlockDimChange('B')">
             </div>
           </div>
           <div class="input-row" style="margin-bottom:10px;">
@@ -1301,6 +1301,7 @@
           <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:12px; font-size:12px; line-height:1.6;" id="wlSummaryBox">
             <!-- Resumo Volumétrico e Modal injetado via JS -->
           </div>
+          <div id="wlAutofixBanner" style="display:none; margin-top:8px; background:rgba(0,212,255,0.10); border:1px solid rgba(0,212,255,0.40); border-radius:6px; padding:8px 11px; font-size:11.5px; color:#bae6fd; line-height:1.45;"></div>
           <div id="wlValidationBox" style="margin-top:10px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:11.5px; line-height:1.5;">
             <!-- Validador Geométrico P0 injetado via JS -->
           </div>
@@ -1909,6 +1910,7 @@ function onSimNumDriversChange() {
   if (elSpk && parseInt(elSpk.value) !== n) elSpk.value = n;
   updateFbLockButtonUI();
   recalculate();
+  autofixWoodlockGeometry(`alteração para ${n}× drivers`);
 }
 
 const PROJECT_FIELD_IDS = [
@@ -1955,7 +1957,7 @@ function exportProjectJson() {
   setTimeout(() => URL.revokeObjectURL(a.href), 1500);
 }
 
-function applyProjectData(proj) {
+function applyProjectData(proj, opts = {}) {
   if (!proj || !proj.fields) return false;
   PROJECT_FIELD_IDS.forEach(id => {
     const el = document.getElementById(id);
@@ -1977,6 +1979,7 @@ function applyProjectData(proj) {
   }
   if (typeof proj.isHpfEnabled === 'boolean') setHpfEnabled(proj.isHpfEnabled, false);
   setTuningMode(proj.isAutoTune !== false);
+  if (!opts.skipAutofix) autofixWoodlockGeometry('abertura de projeto');
   return true;
 }
 
@@ -2331,6 +2334,7 @@ function applyDbDriver(drv) {
   }
   isAutoTune = true;
   setTuningMode(true);
+  autofixWoodlockGeometry('driver do Banco DB');
 }
 
 function importDriversJsonFile(input) {
@@ -2552,6 +2556,7 @@ function loadPreset() {
   const useAuto = !p.manualTune;
   isAutoTune = useAuto;
   setTuningMode(useAuto);
+  autofixWoodlockGeometry(`preset ${p.name}`);
 }
 
 function switchTab(tabId) {
@@ -2642,6 +2647,7 @@ function selectTopology(topo) {
     }
   }
   recalculate();
+  autofixWoodlockGeometry(`topologia ${topo}`);
 }
 
 function computePortGeometry(opts) {
@@ -4438,9 +4444,195 @@ function populateAuditTable() {
 }
 
 // ============================================================================
-// MOTOR WOODLOCK CAD + VALIDADOR GEOMÉTRICO P0 + PACOTE DE CONSTRUÇÃO (OBRA)
+// MOTOR WOODLOCK CAD + VALIDADOR GEOMÉTRICO P0 + AUTOFIX + PACOTE DE CONSTRUÇÃO
 // ============================================================================
 let lastBuildPack = null;
+let lastWoodlockFloors = { minA: 150, minB: 150, diaIn: 12, flangeOD: 315, cutoutDia: 282 };
+
+function computeWoodlockFloors(opts) {
+  const nDrivers = Math.max(1, parseInt(opts.nDrivers) || 1);
+  const tsDia = parseFloat(opts.tsDia) || 12;
+  const Sd_cm2 = parseFloat(opts.Sd_cm2) || 500;
+  const driverName = String(opts.driverName || '');
+  const boxType = opts.boxType || 'bass-reflex';
+  const isVented = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6');
+  const portType = opts.portType || 'round';
+  const isSlot = (portType === 'slot' || portType === 'slot_wall');
+  const isTri = (portType === 'triangle');
+  const numDucts = Math.max(1, parseInt(opts.numDucts) || 1);
+  const ductHoleDia = (parseFloat(opts.ductDia) || 4.0) * 25.4 + 2.0 * (parseFloat(opts.ductThick) || 1.5);
+  const slotWmm = (parseFloat(opts.slotW) || 35.0) * 10.0;
+  const slotHmm = (parseFloat(opts.slotH) || 6.0) * 10.0;
+
+  const pistonDiaCm = 2.0 * Math.sqrt(Math.max(1, Sd_cm2) / Math.PI);
+  const diaRatio = pistonDiaCm / (tsDia * 2.54);
+  const estDiaFromSd = Math.round(pistonDiaCm / (2.54 * 0.84));
+  let effectiveDiaIn = tsDia;
+  if (diaRatio < 0.65 || diaRatio > 0.94) effectiveDiaIn = Math.max(tsDia, estDiaFromSd);
+  const nameMatch = driverName.match(/(?:^|[\s\-_])(6\.5|8|10|12|15|18|21)(?:"|″|\s*pol|\s*SUB|\s*W\d|\s*SWT)/i);
+  if (nameMatch) {
+    const nd = parseFloat(nameMatch[1]);
+    if (Number.isFinite(nd) && Math.abs(nd - tsDia) >= 1.5) effectiveDiaIn = Math.max(effectiveDiaIn, nd);
+  }
+
+  const drvGeom = estimateDriverCutoutAndFlange(effectiveDiaIn);
+  const flangeOD = drvGeom.flangeOD;
+  const cols = nDrivers <= 2 ? nDrivers : Math.ceil(nDrivers / 2);
+  const rows = nDrivers <= 2 ? 1 : 2;
+  const edgeMargin = 16;
+  const minGap = 18;
+
+  let minB = rows * flangeOD + (rows - 1) * minGap + 20;
+  let minA = cols * flangeOD + (cols - 1) * minGap + 20;
+
+  if (isVented && !isTri) {
+    if (isSlot) {
+      minA = Math.max(minA, cols * flangeOD + slotHmm + 2 * edgeMargin + minGap + 10);
+      minB = Math.max(minB, Math.min(slotWmm, rows * flangeOD + slotHmm + minGap + 2 * edgeMargin));
+    } else if (nDrivers === 1) {
+      minA = Math.max(minA, flangeOD + ductHoleDia + 2 * edgeMargin + minGap + 12);
+      const minBPortStack = numDucts * ductHoleDia + (numDucts - 1) * minGap + 2 * edgeMargin;
+      minB = Math.max(minB, minBPortStack);
+    } else {
+      minA = Math.max(minA, numDucts * ductHoleDia + (numDucts + 1) * edgeMargin);
+      minB = Math.max(minB, rows * flangeOD + ductHoleDia + minGap + 2 * edgeMargin);
+    }
+  }
+
+  return {
+    minA: Math.ceil(Math.max(150, minA)),
+    minB: Math.ceil(Math.max(150, minB)),
+    diaIn: effectiveDiaIn,
+    flangeOD,
+    cutoutDia: drvGeom.cutoutDia
+  };
+}
+
+function showWlAutofixBanner(msg, isGuard = false) {
+  const el = document.getElementById('wlAutofixBanner');
+  if (!el) return;
+  if (!msg) { el.style.display = 'none'; el.innerHTML = ''; return; }
+  el.style.display = 'block';
+  el.style.borderColor = isGuard ? 'rgba(245,158,11,0.55)' : 'rgba(0,212,255,0.45)';
+  el.style.background = isGuard ? 'rgba(245,158,11,0.12)' : 'rgba(0,212,255,0.10)';
+  el.style.color = isGuard ? '#fde68a' : '#bae6fd';
+  el.innerHTML = msg;
+}
+
+function autofixWoodlockGeometry(reason = '') {
+  const elA = document.getElementById('wlWidthA');
+  const elB = document.getElementById('wlHeightB');
+  if (!elA || !elB) return { fixed: false, changes: [] };
+
+  updateWoodlock();
+  if (!lastBuildPack) return { fixed: false, changes: [] };
+
+  const floors = lastWoodlockFloors;
+  const changes = [];
+  let A = parseFloat(elA.value) || 800;
+  let B = parseFloat(elB.value) || 490;
+  const origA = A, origB = B;
+
+  // 0. Corrige tsDia se inconsistente com Sd / nome (sem alterar parâmetros acústicos)
+  const tsDiaEl = document.getElementById('tsDia');
+  if (tsDiaEl) {
+    const curDia = parseFloat(tsDiaEl.value) || 12;
+    if (Math.abs(curDia - floors.diaIn) >= 1.5) {
+      tsDiaEl.value = floors.diaIn;
+      changes.push(`Ø nominal ${curDia}″→${floors.diaIn}″`);
+    }
+  }
+
+  // 1. Sobe B até o piso do flange + margem (arredondando em múltiplos de 5 mm)
+  const roundUp5 = v => Math.ceil(v / 5) * 5;
+  if (B < floors.minB) {
+    B = roundUp5(floors.minB);
+    elB.value = B;
+    changes.push(`B ${origB.toFixed(0)}→${B} mm`);
+  }
+
+  // 2. Sobe A até o piso de drivers + dutos + gaps
+  if (A < floors.minA) {
+    A = roundUp5(floors.minA);
+    elA.value = A;
+    changes.push(`A ${origA.toFixed(0)}→${A} mm`);
+  }
+
+  // 3. Revalida; se profundidade C ficar curta para Lv + 40 mm, reduz A e B até os pisos preservando Vb/Fb
+  updateWoodlock();
+  if (lastBuildPack && !lastBuildPack.validation.valid) {
+    let hasDepthErr = lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION');
+    if (hasDepthErr && A > floors.minA) {
+      const targetA = roundUp5(floors.minA);
+      if (targetA < A) {
+        const prevA = A;
+        A = targetA;
+        elA.value = A;
+        changes.push(`A ${prevA.toFixed(0)}→${A} mm (profundidade C p/ Lv)`);
+        updateWoodlock();
+        hasDepthErr = lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION');
+      }
+    }
+    if (hasDepthErr && B > floors.minB) {
+      const targetB = roundUp5(floors.minB);
+      if (targetB < B) {
+        const prevB = B;
+        B = targetB;
+        elB.value = B;
+        changes.push(`B ${prevB.toFixed(0)}→${B} mm (profundidade C p/ Lv)`);
+        updateWoodlock();
+      }
+    }
+  }
+
+  // 4. Se ainda houver colisão residual de borda/furos, dá um passo de segurança em A e B
+  if (lastBuildPack && !lastBuildPack.validation.valid) {
+    const hasBaffleErr = lastBuildPack.validation.issues.some(i => i.code === 'BAFFLE_BORDER_OVERFLOW' || i.code === 'BAFFLE_HOLE_COLLISION');
+    if (hasBaffleErr) {
+      const prevA = A, prevB = B;
+      A = Math.max(A, roundUp5(floors.minA + 25));
+      B = Math.max(B, roundUp5(floors.minB + 15));
+      elA.value = A;
+      elB.value = B;
+      if (A !== prevA) changes.push(`A ${prevA.toFixed(0)}→${A} mm`);
+      if (B !== prevB) changes.push(`B ${prevB.toFixed(0)}→${B} mm`);
+      updateWoodlock();
+    }
+  }
+
+  if (changes.length > 0) {
+    const rTxt = reason ? ` (${escapeHtmlStr(reason)})` : '';
+    showWlAutofixBanner(`🔧 <b>Projeto ajustado automaticamente${rTxt}:</b> ${escapeHtmlStr(changes.join(' · '))}. Motivo: flange ${floors.diaIn}″ (${floors.flangeOD} mm) e folga de dutos. Vb/Fb mantidos intactos.`);
+  } else {
+    showWlAutofixBanner('');
+  }
+  return { fixed: changes.length > 0, changes, valid: lastBuildPack ? lastBuildPack.validation.valid : false };
+}
+
+function onWoodlockDimChange(axis) {
+  const elA = document.getElementById('wlWidthA');
+  const elB = document.getElementById('wlHeightB');
+  if (!elA || !elB) return;
+  const floors = lastWoodlockFloors;
+  if (axis === 'A') {
+    const val = parseFloat(elA.value);
+    if (!Number.isFinite(val) || val < floors.minA) {
+      elA.value = floors.minA;
+      showWlAutofixBanner(`🛡️ <b>Piso mínimo aplicado:</b> largura A ajustada para <b>${floors.minA} mm</b> (mínimo físico para driver ${floors.diaIn}″ + dutos).`, true);
+    } else {
+      showWlAutofixBanner('');
+    }
+  } else if (axis === 'B') {
+    const val = parseFloat(elB.value);
+    if (!Number.isFinite(val) || val < floors.minB) {
+      elB.value = floors.minB;
+      showWlAutofixBanner(`🛡️ <b>Piso mínimo aplicado:</b> altura B ajustada para <b>${floors.minB} mm</b> (mínimo físico para flange ${floors.diaIn}″ ≈ ${floors.flangeOD} mm).`, true);
+    } else {
+      showWlAutofixBanner('');
+    }
+  }
+  updateWoodlock();
+}
 
 function escapeHtmlStr(str) {
   return String(str == null ? '' : str)
@@ -4641,11 +4833,12 @@ function validateBuildGeometry(opts) {
         let xInt, yInt;
         if (nDrivers === 1) {
           xInt = pX;
-          const stepY = B / (numDucts + 1);
-          yInt = stepY * (i + 1);
-          // Otimiza espaçamento vertical para 2 dutos (canto superior e inferior com margem)
-          if (numDucts === 2 && B >= 2 * ductHoleDia + 2 * edgeMargin + minGap) {
-            yInt = (i === 0) ? (edgeMargin + ductHoleDia / 2 + 10) : (B - edgeMargin - ductHoleDia / 2 - 10);
+          if (numDucts === 1) {
+            yInt = B / 2;
+          } else {
+            const yMin = edgeMargin + ductHoleDia / 2;
+            const yMax = B - edgeMargin - ductHoleDia / 2;
+            yInt = yMin + (i / (numDucts - 1)) * (yMax - yMin);
           }
         } else {
           xInt = ((i + 1) / (numDucts + 1)) * A;
@@ -4872,16 +5065,17 @@ function updateWoodlock() {
     });
   }
 
-  // Dutos como peça real de BOM (com Lv cortado)
+  // Dutos como peça real de BOM (com Lv cortado unificado)
   const portBom = [];
   if (isVented && portGeom) {
-    const lvMm = Math.max(0, portGeom.LvCm * 10.0);
+    const lvMm = Math.round(Math.max(0, portGeom.LvCm * 10.0));
+    const lvCmStr = (lvMm / 10.0).toFixed(1);
     if (portGeom.isTri) {
       const hypMm = portGeom.hypCm * 10.0;
       const pLine = {
         kind: 'port', orient: 'DUTO', name: `Parede Duto Triângulo (${triA}×${triB} cm)`,
         qty: triCount, w: hypMm, h: lvMm, t, bev: 45.0, area: (triCount * hypMm * lvMm) / 1e6,
-        note: `MDF ${t}mm em 45° nos cantos — comprimento cortado Lv = ${lvMm.toFixed(0)} mm (${portGeom.LvCm.toFixed(1)} cm)`
+        note: `MDF ${t}mm em 45° nos cantos — comprimento cortado Lv = ${lvMm} mm (${lvCmStr} cm)`
       };
       pieces.push(pLine);
       portBom.push(pLine);
@@ -4889,7 +5083,7 @@ function updateWoodlock() {
       const pLine = {
         kind: 'port', orient: 'DUTO', name: `Divisória Duto Régua (${slotW}×${slotH} cm)`,
         qty: 1, w: slotW * 10.0, h: lvMm, t: slotWallThick, bev: 0.0, area: ((slotW * 10.0) * lvMm) / 1e6,
-        note: `MDF ${slotWallThick}mm — comprimento cortado Lv = ${lvMm.toFixed(0)} mm (${portGeom.LvCm.toFixed(1)} cm)`
+        note: `MDF ${slotWallThick}mm — comprimento cortado Lv = ${lvMm} mm (${lvCmStr} cm)`
       };
       pieces.push(pLine);
       portBom.push(pLine);
@@ -4899,7 +5093,7 @@ function updateWoodlock() {
       const pLine = {
         kind: 'port', orient: 'DUTO', name: `Tubo PVC/ABS Ø ${ductDia}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`,
         qty: numDucts, w: odMm, h: lvMm, t: ductThick, bev: 0.0, area: 0.0,
-        note: `Cortar ${numDucts}× tubo(s) com comprimento exato Lv = ${lvMm.toFixed(0)} mm (${portGeom.LvCm.toFixed(2)} cm)`
+        note: `Cortar ${numDucts}× tubo(s) com comprimento exato Lv = ${lvMm} mm (${lvCmStr} cm)`
       };
       pieces.push(pLine);
       portBom.push(pLine);
@@ -4913,16 +5107,32 @@ function updateWoodlock() {
   const sheetsNeeded = Math.max(0.25, (totalArea * 1.12) / sheetArea);
   const estCost = sheetsNeeded * sheetPrice;
 
-  // Validação Geométrica P0
+  // Pisos mínimos dinâmicos & Validação Geométrica P0
   const drvSel = document.getElementById('driverPreset');
-  const driverName = drvSel && drvSel.selectedIndex >= 0 ? drvSel.options[drvSel.selectedIndex].text : 'Driver Atual';
+  const drvKey = drvSel ? drvSel.value : '';
+  const driverName = (PRESETS[drvKey] && PRESETS[drvKey].name)
+    || (DB_DRIVERS_MAP[drvKey] && (DB_DRIVERS_MAP[drvKey].name || `${DB_DRIVERS_MAP[drvKey].brand || ''} ${DB_DRIVERS_MAP[drvKey].model || ''}`.trim()))
+    || (drvSel && drvSel.selectedIndex >= 0 && drvSel.options[drvSel.selectedIndex] ? drvSel.options[drvSel.selectedIndex].text : 'Driver Atual');
   const tsDiaVal = parseFloat(document.getElementById('tsDia')?.value) || 12;
   const sdVal = parseFloat(document.getElementById('tsSd')?.value) || 500;
+  lastWoodlockFloors = computeWoodlockFloors({
+    driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType,
+    portType, numDucts, ductDia, ductThick, slotW, slotH, triCount, triA, triB
+  });
+  const wlAEl = document.getElementById('wlWidthA');
+  const wlBEl = document.getElementById('wlHeightB');
+  if (wlAEl) wlAEl.min = lastWoodlockFloors.minA;
+  if (wlBEl) wlBEl.min = lastWoodlockFloors.minB;
+  const minALbl = document.getElementById('wlMinALabel');
+  const minBLbl = document.getElementById('wlMinBLabel');
+  if (minALbl) minALbl.textContent = `(mín. ${lastWoodlockFloors.minA} mm)`;
+  if (minBLbl) minBLbl.textContent = `(mín. ${lastWoodlockFloors.minB} mm)`;
+
   const validation = validateBuildGeometry({
     driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType,
     A, B, C_top, D_bot, t, F_ext, E_ext, portGeom,
     portType, numDucts, ductDia, ductThick, slotW, slotH, triCount, triA, triB,
-    LvCm: portGeom ? portGeom.LvCm : 0
+    LvCm: portGeom ? (Math.round(portGeom.LvCm * 10.0) / 10.0) : 0
   });
 
   // Congela snapshot de construção (bassforge-buildpack/v1)

@@ -410,9 +410,9 @@ runSuite('10. Build Pack P0 Validator & HTML Export (Oversound 18" Fixture)', ()
   assert(fs.existsSync(fixturePath), 'Missing regression fixture oversound_18_invalid.json');
   const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
 
-  // Apply invalid Oversound 18" fixture (tsDia=15, A=800, B=450)
+  // Apply invalid Oversound 18" fixture with skipAutofix to verify P0 raw blocker
   ctx.__fixture = fixture;
-  vm.runInContext('applyProjectData(__fixture); updateWoodlock();', ctx);
+  vm.runInContext('applyProjectData(__fixture, { skipAutofix: true }); updateWoodlock();', ctx);
   const badRes = vm.runInContext('generateBuildPackHtml()', ctx);
   assert.strictEqual(badRes.ok, false, 'Invalid Oversound 18" fixture MUST block Build Pack export');
   const badCodes = badRes.validation.issues.filter(i => i.level === 'critical').map(i => i.code);
@@ -432,6 +432,37 @@ runSuite('10. Build Pack P0 Validator & HTML Export (Oversound 18" Fixture)', ()
   assert.strictEqual(okRes.pack.baffleHoles.length, 3, 'Expected 1 driver + 2 round port holes');
   assert(okRes.html.includes('Pacote de Construção') && okRes.html.includes('Gabarito de Furação'), 'Exported HTML missing required build sections');
   assert(!okRes.html.includes('Lei de Ohm'), 'Exported HTML must stay out of electrical scope');
+});
+
+// SUITE 11: Autofix Geométrico na Carga & Piso Mínimo Dinâmico na Edição
+runSuite('11. Geometric Autofix on Load & Dynamic Minimum Floor Guard', () => {
+  const fixturePath = path.join(ROOT, 'tests', 'fixtures', 'oversound_18_invalid.json');
+  const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'));
+  ctx.__fixture = fixture;
+
+  // 1. Load invalid Oversound 18" (tsDia=15, B=450) WITH autofix -> auto-sanitizes without changing Vb/Fb
+  vm.runInContext('applyProjectData(__fixture);', ctx);
+  const packAfter = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(packAfter.validation.valid, true, `Autofix should make Oversound 18" valid, got: ${JSON.stringify(packAfter.validation.issues)}`);
+  assert(parseFloat(elements.get('wlHeightB').value) >= 488, `Expected B >= 488 after autofix, got ${elements.get('wlHeightB').value}`);
+  assert.strictEqual(parseFloat(elements.get('tsDia').value), 18, 'Autofix should correct tsDia 15 -> 18');
+  approx(parseFloat(elements.get('vbInput').value), 130, 0.01, 'Autofix must preserve Vb');
+  approx(parseFloat(elements.get('fbInput').value), 44.62, 0.05, 'Autofix must preserve Fb');
+
+  // 2. User tries to lower B below floor -> bounces back to minB
+  elements.get('wlHeightB').value = '380';
+  vm.runInContext("onWoodlockDimChange('B')", ctx);
+  const bouncedB = parseFloat(elements.get('wlHeightB').value);
+  assert(bouncedB >= 488, `Floor guard failed: B stayed at ${bouncedB} instead of rebounding >= 488`);
+  assert(elements.get('wlAutofixBanner').innerHTML.includes('Piso mínimo'), 'Floor guard should explain minimum in banner');
+
+  // 3. Switch presets (12" dayton & 15" jbl) -> always re-sanitizes to valid geometry
+  for (const preset of ['dayton', 'jbl', 'oversound']) {
+    elements.get('driverPreset').value = preset;
+    vm.runInContext('loadPreset()', ctx);
+    const pk = vm.runInContext('lastBuildPack', ctx);
+    assert.strictEqual(pk.validation.valid, true, `Preset ${preset} failed autofix validity: ${JSON.stringify(pk.validation.issues)}`);
+  }
 });
 
 console.log('\n---------------------------------------------------------------');
