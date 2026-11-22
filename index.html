@@ -5304,7 +5304,8 @@ function validateBuildGeometry(opts) {
   const drvZoneH = Math.max(flangeOD, B - portReserveBottom - portReserveTop);
   const cellW = drvZoneW / cols;
   const cellH = drvZoneH / rows;
-  for (let i = 0; i < nDrivers; i++) {
+  const isMatrixDiv = (parseInt(opts.matrixCols) || 1) > 1 || (parseInt(opts.matrixRows) || 1) > 1;
+  for (let i = 0; i < (isMatrixDiv ? 0 : nDrivers); i++) {
     const col = i % cols;
     const row = Math.floor(i / cols);
     let xInt, yInt;
@@ -6222,7 +6223,7 @@ function updateWoodlock() {
     driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType,
     A, B, C_top, D_bot, t, F_ext, E_ext, portGeom, planarGeom,
     portType, numDucts, ductDia, ductThick, slotW, slotH, slotWallThick, slotOrient, portLayout,
-    bpChambers, triCount, triA, triB,
+    bpChambers, triCount, triA, triB, matrixCols, matrixRows,
     LvCm: lvCmCanon
   });
 
@@ -7178,39 +7179,139 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
     return [[203, 174, 134], '#38bdf8']; // MDF madeira natural clara com aresta ciano
   };
 
+  const isTrap3d = (env.shape === 'trapezoidal' && Math.abs((env.D || 0) - (env.C || 0)) > 0.5);
+  const zRb3d = t;
+  const zRt3d = t + Math.max(0, (env.D || (D - 2 * t)) - (env.C || (D - 2 * t)));
+
+  const pushTrapSideFaces = (x0, y0, zFront, dy, thick, baseRgb, strokeCol, alpha) => {
+    const pts = [
+      project(x0, y0, zRb3d), project(x0 + thick, y0, zRb3d), project(x0 + thick, y0, zFront), project(x0, y0, zFront),
+      project(x0, y0 + dy, zRt3d), project(x0 + thick, y0 + dy, zRt3d), project(x0 + thick, y0 + dy, zFront), project(x0, y0 + dy, zFront)
+    ];
+    const quads = [
+      { idxs: [0, 1, 2, 3], n: [0, -1, 0] }, { idxs: [4, 7, 6, 5], n: [0, 1, 0] },
+      { idxs: [0, 4, 5, 1], n: [0, 0, -1] }, { idxs: [3, 2, 6, 7], n: [0, 0, 1] },
+      { idxs: [0, 3, 7, 4], n: [-1, 0, 0] }, { idxs: [1, 5, 6, 2], n: [1, 0, 0] }
+    ];
+    quads.forEach(q => {
+      const avgZ = (pts[q.idxs[0]].z + pts[q.idxs[1]].z + pts[q.idxs[2]].z + pts[q.idxs[3]].z) * 0.25;
+      faces.push({ depth: avgZ, pts: q.idxs.map(i => pts[i]), fill: shadeRgb(baseRgb, q.n[0], q.n[1], q.n[2], alpha), stroke: strokeCol });
+    });
+  };
+
+  const pushCylinderFaces = (cx, cy0, cz0, r, len, axis, baseRgb, strokeCol, alpha) => {
+    const segs = 12;
+    for (let i = 0; i < segs; i++) {
+      const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
+      const ca0 = Math.cos(a0) * r, sa0 = Math.sin(a0) * r, ca1 = Math.cos(a1) * r, sa1 = Math.sin(a1) * r;
+      let p0, p1, p2, p3;
+      if (axis === '-Y') {
+        p0 = project(cx + ca0, cy0, cz0 + sa0); p1 = project(cx + ca1, cy0, cz0 + sa1);
+        p2 = project(cx + ca1, cy0 + len, cz0 + sa1); p3 = project(cx + ca0, cy0 + len, cz0 + sa0);
+      } else if (axis === '-X') {
+        p0 = project(cx, cy0 + ca0, cz0 + sa0); p1 = project(cx, cy0 + ca1, cz0 + sa1);
+        p2 = project(cx + len, cy0 + ca1, cz0 + sa1); p3 = project(cx + len, cy0 + ca0, cz0 + sa0);
+      } else {
+        p0 = project(cx + ca0, cy0 + sa0, cz0); p1 = project(cx + ca1, cy0 + sa1, cz0);
+        p2 = project(cx + ca1, cy0 + sa1, cz0 + len); p3 = project(cx + ca0, cy0 + sa0, cz0 + len);
+      }
+      const am = 0.5 * (a0 + a1);
+      faces.push({
+        depth: (p0.z + p1.z + p2.z + p3.z) * 0.25,
+        pts: [p0, p1, p2, p3],
+        fill: shadeRgb(baseRgb, Math.cos(am), Math.sin(am), 0, alpha),
+        stroke: strokeCol
+      });
+    }
+  };
+
   let frontOz = D - t, frontDz = t;
   (geom.parts || []).forEach(p => {
+    const [rgb, scCol] = partColors(p);
+    const alpha = xray ? (p.kind === 'mdf' ? 0.34 : 0.78) : 0.96;
+    const ex = p.explodeDir[0] * p.explodeDist * er;
+    const ey = p.explodeDir[1] * p.explodeDist * er;
+    const ez = p.explodeDir[2] * p.explodeDist * er;
+    const oxP = p.origin[0] + ex, oyP = p.origin[1] + ey, ozP = p.origin[2] + ez;
+
     if (p.kind === 'port' && p.area <= 0) {
-      // Tubo PVC cilíndrico em 3D (8 faces)
-      const oxP = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
-      const oyP = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
-      const ozP = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
-      const r = p.size[0] / 2, len = p.size[2], cx = oxP + r, cy0 = oyP + r, segs = 12;
-      for (let i = 0; i < segs; i++) {
-        const a0 = (i / segs) * Math.PI * 2, a1 = ((i + 1) / segs) * Math.PI * 2;
-        const p0 = project(cx + Math.cos(a0) * r, cy0 + Math.sin(a0) * r, ozP);
-        const p1 = project(cx + Math.cos(a1) * r, cy0 + Math.sin(a1) * r, ozP);
-        const p2 = project(cx + Math.cos(a1) * r, cy0 + Math.sin(a1) * r, ozP + len);
-        const p3 = project(cx + Math.cos(a0) * r, cy0 + Math.sin(a0) * r, ozP + len);
-        const am = 0.5 * (a0 + a1);
-        faces.push({
-          depth: (p0.z + p1.z + p2.z + p3.z) * 0.25,
-          pts: [p0, p1, p2, p3],
-          fill: shadeRgb([251, 146, 60], Math.cos(am), Math.sin(am), 0, xray ? 0.65 : 0.95),
-          stroke: '#fdba74'
+      const pAlpha = xray ? 0.65 : 0.95;
+      if (p.bpTopRound) {
+        const r = p.size[0] / 2;
+        const isRear = (p.id === 'P_PORT_REAR');
+        const holes = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_TOP' && ((/Traseir/.test(c.label || '')) === isRear));
+        const list = holes.length ? holes : (isRear ? [] : (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_TOP'));
+        list.forEach(ch => {
+          const lv = Math.min(env.B - 20, ch.lvMm || p.size[1]);
+          const cz = (isTrap3d ? zRt3d : t) + ch.yInt + ez;
+          pushCylinderFaces(t + ch.xInt + ex, E - t - lv + ey, cz, r, lv, '-Y', [251, 146, 60], '#fdba74', pAlpha);
         });
+      } else if (p.id === 'P_PORT_SERIES') {
+        const r = p.size[1] / 2;
+        pushCylinderFaces(oxP, oyP + r, ozP + r, r, p.size[0], '-X', [251, 146, 60], '#fdba74', pAlpha);
+      } else {
+        const r = p.size[0] / 2;
+        const holes = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_FRONT_BAFFLE');
+        if (holes.length) {
+          holes.forEach(ch => {
+            const lv = ch.lvMm || p.size[2];
+            pushCylinderFaces(t + ch.xInt + ex, t + ch.yInt + ey, Math.max(t, D - t - lv) + ez, r, lv, '+Z', [251, 146, 60], '#fdba74', pAlpha);
+          });
+        } else {
+          pushCylinderFaces(oxP + r, oyP + r, ozP, r, p.size[2], '+Z', [251, 146, 60], '#fdba74', pAlpha);
+        }
       }
       return;
     }
-    const [rgb, scCol] = partColors(p);
-    const alpha = xray ? (p.kind === 'mdf' ? 0.34 : 0.78) : 0.96;
-    const oxP = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
-    const oyP = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
-    const ozP = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
-    if (p.id === 'P_FRONT_BAFFLE') { frontOz = ozP; frontDz = p.size[2]; }
-    if (p.id === 'P_SIDES') {
-      pushBoxFaces(F - t + p.explodeDist * er, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
-      pushBoxFaces(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+
+    if (p.id === 'P_FRONT_BAFFLE') {
+      frontOz = ozP; frontDz = p.size[2];
+      if (p.frontSplit) {
+        pushBoxFaces(p.frontSplit.xLeft + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+        pushBoxFaces(p.frontSplit.xRight + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+      } else {
+        pushBoxFaces(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+      }
+    } else if (p.id === 'P_TOP' && p.topSplit) {
+      pushBoxFaces(p.topSplit.xLeft + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+      pushBoxFaces(p.topSplit.xRight + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+    } else if (p.id === 'P_SIDES') {
+      const dyL = p.leftTopExtend ? (p.size[1] + t) : p.size[1];
+      const dyR = p.rightTopExtend ? (p.size[1] + t) : p.size[1];
+      if (isTrap3d) {
+        pushTrapSideFaces(oxP, oyP, ozP + p.size[2], dyL, p.size[0], rgb, scCol, alpha);
+        pushTrapSideFaces(F - t + p.explodeDist * er, oyP, ozP + p.size[2], dyR, p.size[0], rgb, scCol, alpha);
+      } else {
+        pushBoxFaces(F - t + p.explodeDist * er, oyP, ozP, p.size[0], dyR, p.size[2], rgb, scCol, alpha, p.id);
+        pushBoxFaces(oxP, oyP, ozP, p.size[0], dyL, p.size[2], rgb, scCol, alpha, p.id);
+      }
+    } else if (p.id === 'P_REAR' && isTrap3d) {
+      const pts = [
+        project(0, t, zRb3d - t + ez), project(F, t, zRb3d - t + ez), project(F, t, zRb3d + ez), project(0, t, zRb3d + ez),
+        project(0, t + env.B, zRt3d - t + ez), project(F, t + env.B, zRt3d - t + ez), project(F, t + env.B, zRt3d + ez), project(0, t + env.B, zRt3d + ez)
+      ];
+      [[0,1,5,4],[3,2,6,7],[0,3,7,4],[1,5,6,2]].forEach(idxs => {
+        const avgZ = (pts[idxs[0]].z + pts[idxs[1]].z + pts[idxs[2]].z + pts[idxs[3]].z) * 0.25;
+        faces.push({ depth: avgZ, pts: idxs.map(i => pts[i]), fill: shadeRgb(rgb, 0, 0, -1, alpha), stroke: scCol });
+      });
+    } else if (p.sharedCenterSlot) {
+      pushBoxFaces(p.sharedCenterSlot.xLeft + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+      pushBoxFaces(p.sharedCenterSlot.xRight + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+    } else if (p.splitByCenterDiv) {
+      pushBoxFaces(p.splitByCenterDiv.xLeft + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+      pushBoxFaces(p.splitByCenterDiv.xRight + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+    } else if (p.id === 'P_MATRIX_V' && p.matrixMeta) {
+      const cm = Math.max(2, p.matrixMeta.cols || 2);
+      for (let k = 1; k < cm; k++) {
+        pushBoxFaces(t + k * (env.A / cm) - t / 2 + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+      }
+    } else if (p.id === 'P_MATRIX_H' && p.matrixMeta) {
+      const rm = Math.max(2, p.matrixMeta.rows || 2);
+      for (let j = 1; j < rm; j++) {
+        pushBoxFaces(oxP, t + j * (env.B / rm) - t / 2 + ey, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
+      }
+    } else if ((p.id.startsWith('P_BP_DIVIDER') || p.id === 'P_CENTER_DIV') && isTrap3d) {
+      pushTrapSideFaces(oxP, oyP, ozP + p.size[2], p.size[1], p.size[0], rgb, scCol, alpha);
     } else {
       pushBoxFaces(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
     }
@@ -7422,20 +7523,31 @@ function drawWoodlockBlueprint(g, targetCanvas) {
   ctx.fill();
   ctx.stroke();
 
-  // Desenha duto real na vista lateral (Lv vs C)
+  // Desenha duto real na vista lateral (Lv vs C na frente, ou Lv vs B no tampo em BP4/BP6)
   if (g.isVented && g.lvMm > 0) {
-    const lvPx = Math.min(wTopPx - tSidePx, g.lvMm * scaleSide);
-    const pHpx = Math.max(12, Math.min(hExtPx * 0.28, 120 * scaleSide));
-    const pY = sideY0 + hExtPx - tSidePx - pHpx - 6;
     const portColl = g.validation && g.validation.clearanceMm < 40;
     ctx.fillStyle = portColl ? 'rgba(239,68,68,0.35)' : 'rgba(249,115,22,0.28)';
     ctx.strokeStyle = portColl ? '#ef4444' : '#f97316';
     ctx.lineWidth = 1.6;
-    ctx.fillRect(sideX0 + tSidePx, pY, lvPx, pHpx);
-    ctx.strokeRect(sideX0 + tSidePx, pY, lvPx, pHpx);
-    ctx.fillStyle = portColl ? '#fca5a5' : '#fdba74';
-    ctx.font = 'bold 9.5px var(--mono)';
-    ctx.fillText(`Lv=${g.lvMm.toFixed(0)}mm`, sideX0 + tSidePx + 4, pY + pHpx / 2 + 3);
+    if (g.bpChambers && g.bpChambers.isBp) {
+      const lvPx = Math.min(hExtPx - 2 * tSidePx, g.lvMm * scaleSide);
+      const pWpx = Math.max(12, Math.min(wTopPx * 0.30, 100 * scaleSide));
+      const pX = sideX0 + (wTopPx - pWpx) * 0.5;
+      ctx.fillRect(pX, sideY0 + tSidePx, pWpx, lvPx);
+      ctx.strokeRect(pX, sideY0 + tSidePx, pWpx, lvPx);
+      ctx.fillStyle = portColl ? '#fca5a5' : '#fdba74';
+      ctx.font = 'bold 9.5px var(--mono)';
+      ctx.fillText(`Lv=${g.lvMm.toFixed(0)}mm`, pX + 2, sideY0 + tSidePx + lvPx / 2 + 3);
+    } else {
+      const lvPx = Math.min(wTopPx - tSidePx, g.lvMm * scaleSide);
+      const pHpx = Math.max(12, Math.min(hExtPx * 0.28, 120 * scaleSide));
+      const pY = sideY0 + hExtPx - tSidePx - pHpx - 6;
+      ctx.fillRect(sideX0 + tSidePx, pY, lvPx, pHpx);
+      ctx.strokeRect(sideX0 + tSidePx, pY, lvPx, pHpx);
+      ctx.fillStyle = portColl ? '#fca5a5' : '#fdba74';
+      ctx.font = 'bold 9.5px var(--mono)';
+      ctx.fillText(`Lv=${g.lvMm.toFixed(0)}mm`, sideX0 + tSidePx + 4, pY + pHpx / 2 + 3);
+    }
   }
 
   ctx.fillStyle = '#e5e7eb';
@@ -8454,7 +8566,16 @@ def build_all():
     z_rb, z_rt = t, t + max(0.0, float(env.get("D", D_ext - 2 * t)) - float(env.get("C", D_ext - 2 * t)))
     has_cross = any((pp.get("braceMeta") or {}).get("code") == "CROSS" for pp in parts)
     has_tb = any((pp.get("braceMeta") or {}).get("code") == "TB" for pp in parts)
-    cx0, tbx0 = F / 2.0 - t / 2.0, t + A * 0.22 - 25.0
+    cx0 = F / 2.0 - t / 2.0
+    for dc in cutouts:
+        if dc.get("kind") == "driver" and dc.get("partId") == "P_FRONT_BAFFLE" and dc.get("dia"):
+            dcx, rm = t + float(dc["xInt"]), float(dc["dia"]) * 0.45 + 15.0
+            if abs((cx0 + t / 2.0) - dcx) < rm:
+                if dcx - rm - t >= t + 35.0: cx0 = dcx - rm - t
+                elif dcx + rm + t <= F - t - 35.0: cx0 = dcx + rm
+    tbx0 = t + A * 0.14 - 25.0
+    if has_cross and abs((tbx0 + 25.0) - (cx0 + t / 2.0)) < 45.0:
+        tbx0 = F - t - A * 0.14 - 25.0
     z_ry = lambda ya: z_rb + max(0.0, min(1.0, (ya - t) / max(1.0, B))) * (z_rt - z_rb)
     wa_cfg = (ac.get("vehicleFit") or {}).get("wheelArch")
     wa_cuts, wa_p = [], None

@@ -199,7 +199,20 @@ def build_freecad_from_buildpack(json_path, out_dir, explode_ratio=0.0):
     has_cross_brace = any((pp.get("braceMeta") or {}).get("code") == "CROSS" for pp in parts)
     has_tb_brace = any((pp.get("braceMeta") or {}).get("code") == "TB" for pp in parts)
     cross_x0 = F / 2.0 - t / 2.0
-    tb_x0 = t + A * 0.22 - 25.0
+    for dc in cutouts:
+        if dc.get("kind") == "driver" and dc.get("partId") == "P_FRONT_BAFFLE" and dc.get("dia"):
+            dcx = t + float(dc["xInt"])
+            r_mag = float(dc["dia"]) * 0.45 + 15.0
+            if abs((cross_x0 + t / 2.0) - dcx) < r_mag:
+                cand_l = dcx - r_mag - t
+                cand_r = dcx + r_mag
+                if cand_l >= t + 35.0:
+                    cross_x0 = cand_l
+                elif cand_r + t <= F - t - 35.0:
+                    cross_x0 = cand_r
+    tb_x0 = t + A * 0.14 - 25.0
+    if has_cross_brace and abs((tb_x0 + 25.0) - (cross_x0 + t / 2.0)) < 45.0:
+        tb_x0 = F - t - A * 0.14 - 25.0
 
     def z_rear_at_y(y_abs):
         frac = max(0.0, min(1.0, (y_abs - t) / max(1.0, B)))
