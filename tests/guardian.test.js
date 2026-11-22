@@ -825,6 +825,8 @@ runSuite('17. Exportador CAD DXF R12 1:1 (Camadas, Nesting, Baffle & Corte Later
     assert(dxf.includes('\r\nDIMENSION\r\n'), `${topo}/${pStyle}: DXF deve conter cotas lineares DIMENSION nativas`);
     const dxf3d = vm.runInContext('buildPgs3dDxfString(lastBuildPack, 0.5)', ctx);
     assert(dxf3d.includes('\r\n3DFACE\r\n') && dxf3d.includes('PAINEIS_3D') && !dxf3d.includes('NaN'), `${topo}/${pStyle}: DXF 3D deve gerar 3DFACE válido sem NaN`);
+    const obj3d = vm.runInContext('buildPgsObjString(lastBuildPack, 0.0)', ctx);
+    assert(obj3d.includes('o P_FRONT_BAFFLE') && obj3d.includes('\nv ') && obj3d.includes('\nf ') && !obj3d.includes('NaN'), `${topo}/${pStyle}: OBJ 3D sólido deve gerar vértices e faces válidos sem NaN`);
   }
   elements.get('wlPlanarStyle').value = 'square';
   elements.get('driverPreset').value = 'oversound';

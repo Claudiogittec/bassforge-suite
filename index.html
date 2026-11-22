@@ -1411,6 +1411,7 @@
             <button type="button" id="btnExportBuildJson" class="tb-btn" onclick="exportBuildPackJson()" style="padding:7px 12px; font-size:11.5px;">🧾 Exportar BuildPack (.json)</button>
             <button type="button" id="btnExportBuildDxf" class="tb-btn" onclick="exportBuildPackDxf()" style="padding:7px 12px; font-size:11.5px;">📐 Exportar CAD 2D (.dxf)</button>
             <button type="button" id="btnExportBuildDxf3d" class="tb-btn" onclick="exportBuildPackDxf3d()" style="padding:7px 12px; font-size:11.5px;">🧊 Exportar CAD 3D (.dxf)</button>
+            <button type="button" id="btnExportBuildObj" class="tb-btn" onclick="exportBuildPackObj()" style="padding:7px 12px; font-size:11.5px;">🧊 Exportar 3D Sólido (.obj)</button>
           </div>
         </div>
 
@@ -5920,6 +5921,7 @@ function updateWoodlock() {
   const btnExpJson = document.getElementById('btnExportBuildJson');
   const btnExpDxf = document.getElementById('btnExportBuildDxf');
   const btnExpDxf3d = document.getElementById('btnExportBuildDxf3d');
+  const btnExpObj = document.getElementById('btnExportBuildObj');
   if (btnExpHtml) {
     btnExpHtml.disabled = !validation.valid;
     btnExpHtml.style.opacity = validation.valid ? '1' : '0.45';
@@ -5937,7 +5939,12 @@ function updateWoodlock() {
   if (btnExpDxf3d) {
     btnExpDxf3d.disabled = !validation.valid;
     btnExpDxf3d.style.opacity = validation.valid ? '1' : '0.45';
-    btnExpDxf3d.title = validation.valid ? 'Exportar modelo 3D real em 3DFACE (mm) para visualizar com Orbit 3D no CAD' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
+    btnExpDxf3d.title = validation.valid ? 'Exportar modelo 3D wireframe/3DFACE (.dxf) para CAD' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
+  }
+  if (btnExpObj) {
+    btnExpObj.disabled = !validation.valid;
+    btnExpObj.style.opacity = validation.valid ? '1' : '0.45';
+    btnExpObj.title = validation.valid ? 'Exportar modelo 3D sólido (.obj em mm) para SketchUp, Blender, FreeCAD ou Visualizador 3D' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
   }
 
   // Verificador de Alojamento no Veículo
@@ -7399,6 +7406,120 @@ function exportBuildPackDxf3d() {
   const blob = new Blob([dxf], { type: 'application/dxf' });
   const a = document.createElement('a');
   a.download = `BassForge_CAD_3D_${safe}.dxf`;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  return true;
+}
+
+/**
+ * Gera malha 3D sólida Wavefront OBJ em milímetros (Y = altura, padrão SketchUp / Blender / Windows 3D Viewer)
+ * lendo EXCLUSIVAMENTE pack.geometry.parts (Fonte Única PGS), com objetos separados por peça e aros de furação.
+ */
+function buildPgsObjString(pack, explodeRatio = 0.0) {
+  if (!pack) return '';
+  const geom = pack.geometry || buildPgsGeometryModel(pack);
+  const env = geom.envelope;
+  const F = env.F, t = geom.material.thickness;
+  const er = Math.max(0, Math.min(1, Number.isFinite(explodeRatio) ? explodeRatio : 0.0));
+  const out = [
+    '# BassForge SUITE — Wavefront OBJ 3D Solido (unidades: mm, Y-up)',
+    `# Driver: ${pack.driver.name} | Topologia: ${pack.acoustics.boxType.toUpperCase()} | Explosao: ${Math.round(er * 100)}%`,
+    `# Externo: F=${env.F} x E=${env.E} x D_ext=${env.D_ext} mm | MDF ${t} mm`,
+    ''
+  ];
+  let vCount = 0;
+  const f = n => (Number.isFinite(n) ? n.toFixed(2) : '0.00');
+  const addV = (x, y, z) => {
+    out.push(`v ${f(x)} ${f(y)} ${f(z)}`);
+    return ++vCount;
+  };
+  const addQuad = (a, b, c, d) => {
+    out.push(`f ${a} ${b} ${c}`);
+    out.push(`f ${a} ${c} ${d}`);
+  };
+  const addBox = (objName, x0, y0, z0, dx, dy, dz) => {
+    out.push(`o ${objName}`);
+    const v1 = addV(x0, y0, z0);
+    const v2 = addV(x0 + dx, y0, z0);
+    const v3 = addV(x0 + dx, y0, z0 + dz);
+    const v4 = addV(x0, y0, z0 + dz);
+    const v5 = addV(x0, y0 + dy, z0);
+    const v6 = addV(x0 + dx, y0 + dy, z0);
+    const v7 = addV(x0 + dx, y0 + dy, z0 + dz);
+    const v8 = addV(x0, y0 + dy, z0 + dz);
+    // Normais apontando para fora (CCW)
+    addQuad(v4, v3, v7, v8); // +Z frente
+    addQuad(v2, v1, v5, v6); // -Z tras
+    addQuad(v5, v8, v7, v6); // +Y topo
+    addQuad(v1, v2, v3, v4); // -Y base
+    addQuad(v3, v2, v6, v7); // +X dir
+    addQuad(v1, v4, v8, v5); // -X esq
+  };
+  const addTubeZ = (objName, cx, cy, z0, rOuter, rInner, len, segs = 28) => {
+    if (!(rOuter > 0 && len > 0)) return;
+    const ri = Math.max(1, Math.min(rOuter - 1, rInner));
+    out.push(`o ${objName}`);
+    const oFront = [], oBack = [], iFront = [], iBack = [];
+    for (let i = 0; i < segs; i++) {
+      const ang = (i / segs) * Math.PI * 2;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      oBack.push(addV(cx + ca * rOuter, cy + sa * rOuter, z0));
+      oFront.push(addV(cx + ca * rOuter, cy + sa * rOuter, z0 + len));
+      iBack.push(addV(cx + ca * ri, cy + sa * ri, z0));
+      iFront.push(addV(cx + ca * ri, cy + sa * ri, z0 + len));
+    }
+    for (let i = 0; i < segs; i++) {
+      const n = (i + 1) % segs;
+      addQuad(oBack[i], oBack[n], oFront[n], oFront[i]); // parede externa
+      addQuad(iBack[n], iBack[i], iFront[i], iFront[n]); // parede interna
+      addQuad(oFront[i], oFront[n], iFront[n], iFront[i]); // tampa frontal
+      addQuad(iBack[i], iBack[n], oBack[n], oBack[i]); // tampa traseira
+    }
+  };
+
+  (geom.parts || []).forEach(p => {
+    const ox = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
+    const oy = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
+    const oz = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
+    const [dx, dy, dz] = p.size;
+
+    if (p.id === 'P_SIDES') {
+      addBox('P_SIDE_LEFT', ox, oy, oz, dx, dy, dz);
+      addBox('P_SIDE_RIGHT', F - t + p.explodeDist * er, oy, oz, dx, dy, dz);
+    } else if (p.kind === 'port' && p.area <= 0) {
+      addTubeZ(p.id, ox + dx / 2, oy + dy / 2, oz, dx / 2, dx / 2 - Math.max(2, p.thickness || 2), dz, 28);
+    } else {
+      addBox(p.id, ox, oy, oz, dx, dy, dz);
+    }
+
+    // Aros 3D dos alto-falantes e dutos na face frontal do baffle
+    if (p.id === 'P_FRONT_BAFFLE') {
+      const zFace = oz + dz;
+      (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE').forEach((c, idx) => {
+        if (c.shape === 'round') {
+          const rOut = (c.kind === 'driver' && c.flangeDia) ? (c.flangeDia / 2) : (c.dia / 2 + 8);
+          const rIn = c.dia / 2;
+          addTubeZ(`RING_${c.kind.toUpperCase()}_${idx + 1}`, t + c.xInt, t + c.yInt, zFace, rOut, rIn, c.kind === 'driver' ? 8 : 5, 36);
+        }
+      });
+    }
+  });
+
+  return out.join('\n') + '\n';
+}
+
+function exportBuildPackObj() {
+  if (!lastBuildPack) updateWoodlock();
+  if (!lastBuildPack || !lastBuildPack.validation.valid) {
+    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+    return false;
+  }
+  const obj = buildPgsObjString(lastBuildPack, wlViewMode === 'exploded' ? wlExplodeRatio : 0.0);
+  const safe = (lastBuildPack.driver.name || 'Projeto').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36);
+  const blob = new Blob([obj], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.download = `BassForge_3D_${safe}.obj`;
   a.href = URL.createObjectURL(blob);
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1500);
