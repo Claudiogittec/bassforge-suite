@@ -818,10 +818,11 @@ runSuite('17. Exportador CAD DXF R12 1:1 (Camadas, Nesting, Baffle & Corte Later
     const dxf = vm.runInContext('buildPgsDxfString(lastBuildPack)', ctx);
     assert(dxf.includes('AC1009') && dxf.trim().endsWith('EOF'), `${topo}/${pStyle}: DXF deve ter header AC1009 e EOF`);
     assert(!dxf.includes('NaN'), `${topo}/${pStyle}: DXF não pode conter NaN`);
-    for (const lyr of ['CHAPA_MDF', 'PECAS_CORTE', 'BAFFLE_FURACAO', 'VISTA_LATERAL', 'TEXTO_COTAS']) {
+    for (const lyr of ['CHAPA_MDF', 'PECAS_CORTE', 'BAFFLE_FURACAO', 'VISTA_LATERAL', 'TEXTO_COTAS', 'COTAS_DIM']) {
       assert(dxf.includes(lyr), `${topo}/${pStyle}: camada ${lyr} ausente no DXF`);
     }
     assert(dxf.includes('\r\nCIRCLE\r\n'), `${topo}/${pStyle}: DXF deve conter CIRCLE de furação do driver`);
+    assert(dxf.includes('\r\nDIMENSION\r\n'), `${topo}/${pStyle}: DXF deve conter cotas lineares DIMENSION nativas`);
   }
   elements.get('wlPlanarStyle').value = 'square';
   elements.get('driverPreset').value = 'oversound';

@@ -7071,9 +7071,35 @@ function buildPgsDxfString(pack) {
     push(0, 'TEXT', 8, layer, 10, f(x), 20, f(y), 30, '0.00', 40, f(height), 1, ascii(txt));
     if (rotDeg) push(50, f(rotDeg));
   };
+  const addLinearDim = (layer, x1, y1, x2, y2, dimX, dimY, angleDeg = 0, overrideTxt = '') => {
+    const midX = (angleDeg === 90) ? dimX : (0.5 * (x1 + x2));
+    const midY = (angleDeg === 90) ? (0.5 * (y1 + y2)) : dimY;
+    push(
+      0, 'DIMENSION', 8, layer,
+      10, f(dimX), 20, f(dimY), 30, '0.00',
+      11, f(midX), 21, f(midY), 31, '0.00',
+      70, 0,
+      3, 'Standard',
+      13, f(x1), 23, f(y1), 33, '0.00',
+      14, f(x2), 24, f(y2), 34, '0.00',
+      50, f(angleDeg)
+    );
+    if (overrideTxt) push(1, ascii(overrideTxt));
+  };
 
-  // HEADER (R12 AC1009, mm)
-  push(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$INSUNITS', 70, 4, 9, '$MEASUREMENT', 70, 1, 0, 'ENDSEC');
+  // HEADER (R12 AC1009, mm + estilo de cota em mm)
+  push(
+    0, 'SECTION', 2, 'HEADER',
+    9, '$ACADVER', 1, 'AC1009',
+    9, '$INSUNITS', 70, 4,
+    9, '$MEASUREMENT', 70, 1,
+    9, '$DIMTXT', 40, '20.0',
+    9, '$DIMASZ', 40, '14.0',
+    9, '$DIMEXE', 40, '10.0',
+    9, '$DIMEXO', 40, '8.0',
+    9, '$DIMGAP', 40, '6.0',
+    0, 'ENDSEC'
+  );
 
   // TABLES: LAYER
   const layers = [
@@ -7081,7 +7107,8 @@ function buildPgsDxfString(pack) {
     ['PECAS_CORTE', 4],
     ['BAFFLE_FURACAO', 1],
     ['VISTA_LATERAL', 3],
-    ['TEXTO_COTAS', 2]
+    ['TEXTO_COTAS', 2],
+    ['COTAS_DIM', 6]
   ];
   push(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LAYER', 70, layers.length);
   layers.forEach(([name, color]) => {
@@ -7167,6 +7194,9 @@ function buildPgsDxfString(pack) {
     `VISTA FRONTAL 1:1 — ${pack.driver.name.slice(0, 26)} (${ac.boxType.toUpperCase()})`);
   addText('TEXTO_COTAS', bx0, by0 + E + 22, 18,
     `Ext: F=${F.toFixed(0)} x E=${E.toFixed(0)} mm | Int: A=${A.toFixed(0)} x B=${B.toFixed(0)} mm`);
+  // Cotas lineares nativas (DIMENSION) da Vista Frontal: F (base) e E (lateral esquerda)
+  addLinearDim('COTAS_DIM', bx0, by0, bx0 + F, by0, bx0 + F / 2, by0 - 55, 0, `F=${F.toFixed(0)} mm`);
+  addLinearDim('COTAS_DIM', bx0, by0, bx0, by0 + E, bx0 - 65, by0 + E / 2, 90, `E=${E.toFixed(0)} mm`);
 
   // 3. Vista Lateral 1:1 (Corte Lateral) à direita do Baffle
   const sx0 = bx0 + Math.max(F + 320, 1280);
@@ -7179,12 +7209,13 @@ function buildPgsDxfString(pack) {
     // Linha do baffle recuado dentro do gabinete Planar (profundidade CG = C + G)
     const zBaf = sx0 + t + ac.planarGeom.C_chamber;
     addLine('BAFFLE_FURACAO', zBaf, sy0 + t, zBaf, sy0 + E - t);
-    addText('TEXTO_COTAS', sx0, sy0 - 40, 20, `PLANAR ${ac.planarGeom.style.toUpperCase()} | CG=${ac.planarGeom.CG} mm (C=${ac.planarGeom.C_chamber} + G=${ac.planarGeom.recuoG} mm)`);
+    addText('TEXTO_COTAS', sx0, sy0 - 95, 20, `PLANAR ${ac.planarGeom.style.toUpperCase()} | CG=${ac.planarGeom.CG} mm (C=${ac.planarGeom.C_chamber} + G=${ac.planarGeom.recuoG} mm)`);
   } else if (ac.lvMm > 0) {
     const pH = Math.min(B * 0.25, 110);
     addRect('BAFFLE_FURACAO', sx0 + D_ext - t - ac.lvMm, sy0 + t + 10, ac.lvMm, pH);
     addText('TEXTO_COTAS', sx0 + D_ext - t - ac.lvMm, sy0 + t + pH + 18, 18, `DUTO Lv=${ac.lvMm} mm`);
   }
+  addLinearDim('COTAS_DIM', sx0, sy0, sx0 + D_ext, sy0, sx0 + D_ext / 2, sy0 - 55, 0, `D_ext=${D_ext.toFixed(0)} mm`);
   addText('TEXTO_COTAS', sx0, sy0 + E + 56, 22,
     `CORTE LATERAL 1:1 | MDF ${t} mm`);
   addText('TEXTO_COTAS', sx0, sy0 + E + 22, 18,
