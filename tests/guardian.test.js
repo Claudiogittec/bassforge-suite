@@ -291,18 +291,21 @@ runSuite('5. Energy Conservation G2_VentSPL (h^2) & G10_ConeSPL (+HPF)', () => {
   const deltaG2G6 = Math.abs(curves.G2_VentSPL[idxFb] - curves.G6_SPLThermic[idxFb]);
   assert(deltaG2G6 < 0.25, `G2_VentSPL vs G6_SPLThermic at Fb (h=0.5) diverged by ${deltaG2G6.toFixed(2)} dB`);
 
-  // Check G10 HPF attenuation at 12 Hz with HPF = 38 Hz
+  // Default HPF must be OFF
+  assert.strictEqual(vm.runInContext('isHpfEnabled', ctx), false, 'HPF must default to OFF');
+
+  // Check G10 HPF attenuation at 12 Hz with HPF ON at 38 Hz
   elements.get('fbInput').value = '44.62';
   elements.get('hpfCutoff').value = '38';
-  vm.runInContext('recalculate()', ctx);
+  vm.runInContext('setHpfEnabled(true)', ctx);
   curves = vm.runInContext('currentCurves', ctx);
   const idx12 = curves.frequencies.reduce((best, f, i) => (Math.abs(f - 12) < Math.abs(curves.frequencies[best] - 12) ? i : best), 0);
   const diffG10G2 = Math.abs(curves.G10_ConeSPL[idx12] - curves.G2_VentSPL[idx12]);
   assert(diffG10G2 < 3.0, `G10_ConeSPL omitted HPF at 12 Hz: G10=${curves.G10_ConeSPL[idx12].toFixed(1)}, G2=${curves.G2_VentSPL[idx12].toFixed(1)}`);
 
-  // Restore Golden Master state
+  // Restore Golden Master state (HPF OFF)
   elements.get('hpfCutoff').value = '36';
-  vm.runInContext('setTuningMode(true)', ctx);
+  vm.runInContext('setHpfEnabled(false, false); setTuningMode(true);', ctx);
 });
 
 // SUITE 6: All 5 Topologies (0 NaN / Infinity across all 13 curves)

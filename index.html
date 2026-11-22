@@ -1083,7 +1083,10 @@
       <div class="prop-body">
         <div class="prop-row">
           <label for="hpfCutoff">HPF LR4 (Hz):</label>
-          <input type="number" id="hpfCutoff" value="36.0" step="1" oninput="recalculate()">
+          <div style="display:flex; gap:4px; align-items:center;">
+            <input type="number" id="hpfCutoff" value="36.0" step="1" oninput="recalculate()" style="opacity:0.45;" title="Frequência de corte do filtro subsônico LR4 (24 dB/oit)">
+            <button type="button" id="hpfToggleBtn" class="fb-lock-btn" onclick="toggleHpfEnabled()" title="Ativar/Desativar filtro subsônico HPF LR4" style="width:36px; font-family:var(--mono); font-size:9.5px; font-weight:700; color:#94a3b8;">OFF</button>
+          </div>
         </div>
         <div class="prop-row">
           <label for="thermalDeltaT">Bobina ΔT:</label>
@@ -1906,6 +1909,7 @@ function exportProjectJson() {
     savedAt: new Date().toISOString(),
     name: driverLabel,
     isAutoTune,
+    isHpfEnabled,
     chartOpts: { ...chartOpts },
     fields
   };
@@ -1938,6 +1942,7 @@ function applyProjectData(proj) {
     if (fb < parseFloat(fbR.min)) fbR.min = Math.max(10, Math.floor(fb * 0.7));
     fbR.value = fb;
   }
+  if (typeof proj.isHpfEnabled === 'boolean') setHpfEnabled(proj.isHpfEnabled, false);
   setTuningMode(proj.isAutoTune !== false);
   return true;
 }
@@ -2009,6 +2014,26 @@ function updateFbLockButtonUI(boxTypeOverride) {
   lockBtn.title = isAutoTune
     ? `Sintonia Automática (${formulaHint}) — clique para travar em Manual`
     : `Sintonia Manual — clique para voltar ao Automático (${formulaHint})`;
+}
+
+let isHpfEnabled = false;
+
+function setHpfEnabled(enabled, shouldRecalc = true) {
+  isHpfEnabled = !!enabled;
+  const btn = document.getElementById('hpfToggleBtn');
+  const inp = document.getElementById('hpfCutoff');
+  if (btn) {
+    btn.textContent = isHpfEnabled ? 'ON' : 'OFF';
+    btn.style.color = isHpfEnabled ? '#4ade80' : '#94a3b8';
+    btn.style.borderColor = isHpfEnabled ? 'rgba(74, 222, 128, 0.45)' : 'var(--border)';
+    btn.style.background = isHpfEnabled ? 'rgba(34, 197, 94, 0.14)' : 'var(--bg-input)';
+  }
+  if (inp) inp.style.opacity = isHpfEnabled ? '1' : '0.45';
+  if (shouldRecalc) recalculate();
+}
+
+function toggleHpfEnabled() {
+  setHpfEnabled(!isHpfEnabled);
 }
 
 function setTuningMode(auto) {
@@ -2874,7 +2899,8 @@ function recalculate() {
   const QL = parseFloat(document.getElementById('qlInput').value);
   const tempC = parseFloat(document.getElementById('tempInput').value);
   const cabinM = parseFloat(document.getElementById('cabinLen').value);
-  const hpfHz = parseFloat(document.getElementById('hpfCutoff').value);
+  const hpfRaw = parseFloat(document.getElementById('hpfCutoff').value);
+  const hpfHz = isHpfEnabled ? (Number.isFinite(hpfRaw) ? hpfRaw : 0) : 0;
 
   const numD = parseInt(document.getElementById('numDucts').value) || 1;
   const dDia = parseFloat(document.getElementById('ductDia').value) || 4.0;
