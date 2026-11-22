@@ -7067,8 +7067,9 @@ function buildPgsDxfString(pack) {
     if (!(r > 0)) return;
     push(0, 'CIRCLE', 8, layer, 10, f(cx), 20, f(cy), 30, '0.00', 40, f(r));
   };
-  const addText = (layer, x, y, height, txt) => {
+  const addText = (layer, x, y, height, txt, rotDeg = 0) => {
     push(0, 'TEXT', 8, layer, 10, f(x), 20, f(y), 30, '0.00', 40, f(height), 1, ascii(txt));
+    if (rotDeg) push(50, f(rotDeg));
   };
 
   // HEADER (R12 AC1009, mm)
@@ -7105,10 +7106,16 @@ function buildPgsDxfString(pack) {
     const ox = pl.sheetIdx * (shW + shGap) + pl.x;
     const oy = pl.y;
     addRect('PECAS_CORTE', ox, oy, pl.w, pl.h);
-    const lblH = Math.max(12, Math.min(26, Math.min(pl.w, pl.h) * 0.14));
-    const shortN = ascii(pl.name.replace(/\s*\[.*?\]/g, '')).slice(0, 22);
-    addText('TEXTO_COTAS', ox + 8, oy + Math.max(8, pl.h * 0.55), lblH, `${shortN}`);
-    addText('TEXTO_COTAS', ox + 8, oy + Math.max(6, pl.h * 0.25), lblH * 0.85, `${pl.w.toFixed(0)}x${pl.h.toFixed(0)} mm${pl.rotated ? ' (R90)' : ''}`);
+    const shortN = ascii(pl.name.replace(/\s*\[.*?\]/g, '')).slice(0, 18);
+    const dimTxt = `${pl.w.toFixed(0)}x${pl.h.toFixed(0)}mm${pl.rotated ? ' R90' : ''}`;
+    if (pl.w < 120 && pl.h > pl.w * 2) {
+      const lblH = Math.max(8, Math.min(14, pl.w * 0.28));
+      addText('TEXTO_COTAS', ox + pl.w * 0.65, oy + 12, lblH, `${shortN} ${dimTxt}`, 90);
+    } else {
+      const lblH = Math.max(10, Math.min(24, Math.min(pl.w / 14, pl.h * 0.16)));
+      addText('TEXTO_COTAS', ox + 8, oy + Math.max(8, pl.h * 0.56), lblH, shortN);
+      addText('TEXTO_COTAS', ox + 8, oy + Math.max(6, pl.h * 0.24), lblH * 0.85, dimTxt);
+    }
   });
 
   // 2. Vista Frontal 1:1 (Baffle + Furação Real) posicionada acima da chapa 0
@@ -7156,11 +7163,13 @@ function buildPgsDxfString(pack) {
       addLine('BAFFLE_FURACAO', pts[2][0], pts[2][1], pts[0][0], pts[0][1]);
     }
   });
-  addText('TEXTO_COTAS', bx0, by0 + E + 30, 28,
-    `VISTA FRONTAL 1:1 — ${pack.driver.name} (${ac.boxType.toUpperCase()}) | F=${F.toFixed(0)} x E=${E.toFixed(0)} mm | A=${A.toFixed(0)} x B=${B.toFixed(0)} mm`);
+  addText('TEXTO_COTAS', bx0, by0 + E + 56, 22,
+    `VISTA FRONTAL 1:1 — ${pack.driver.name.slice(0, 26)} (${ac.boxType.toUpperCase()})`);
+  addText('TEXTO_COTAS', bx0, by0 + E + 22, 18,
+    `Ext: F=${F.toFixed(0)} x E=${E.toFixed(0)} mm | Int: A=${A.toFixed(0)} x B=${B.toFixed(0)} mm`);
 
   // 3. Vista Lateral 1:1 (Corte Lateral) à direita do Baffle
-  const sx0 = bx0 + F + 260;
+  const sx0 = bx0 + Math.max(F + 320, 1280);
   const sy0 = by0;
   addLine('VISTA_LATERAL', sx0, sy0, sx0 + D_ext, sy0);
   addLine('VISTA_LATERAL', sx0 + D_ext, sy0, sx0 + C_ext, sy0 + E);
@@ -7170,14 +7179,16 @@ function buildPgsDxfString(pack) {
     // Linha do baffle recuado dentro do gabinete Planar (profundidade CG = C + G)
     const zBaf = sx0 + t + ac.planarGeom.C_chamber;
     addLine('BAFFLE_FURACAO', zBaf, sy0 + t, zBaf, sy0 + E - t);
-    addText('TEXTO_COTAS', sx0, sy0 - 40, 22, `PLANAR ${ac.planarGeom.style.toUpperCase()} | CG=${ac.planarGeom.CG} mm (C=${ac.planarGeom.C_chamber} + G=${ac.planarGeom.recuoG} mm)`);
+    addText('TEXTO_COTAS', sx0, sy0 - 40, 20, `PLANAR ${ac.planarGeom.style.toUpperCase()} | CG=${ac.planarGeom.CG} mm (C=${ac.planarGeom.C_chamber} + G=${ac.planarGeom.recuoG} mm)`);
   } else if (ac.lvMm > 0) {
     const pH = Math.min(B * 0.25, 110);
     addRect('BAFFLE_FURACAO', sx0 + D_ext - t - ac.lvMm, sy0 + t + 10, ac.lvMm, pH);
     addText('TEXTO_COTAS', sx0 + D_ext - t - ac.lvMm, sy0 + t + pH + 18, 18, `DUTO Lv=${ac.lvMm} mm`);
   }
-  addText('TEXTO_COTAS', sx0, sy0 + E + 30, 28,
-    `CORTE LATERAL 1:1 | C_ext=${C_ext.toFixed(0)} / D_ext=${D_ext.toFixed(0)} mm | E=${E.toFixed(0)} mm | MDF ${t} mm`);
+  addText('TEXTO_COTAS', sx0, sy0 + E + 56, 22,
+    `CORTE LATERAL 1:1 | MDF ${t} mm`);
+  addText('TEXTO_COTAS', sx0, sy0 + E + 22, 18,
+    `C_ext=${C_ext.toFixed(0)} / D_ext=${D_ext.toFixed(0)} mm | E=${E.toFixed(0)} mm`);
 
   push(0, 'ENDSEC', 0, 'EOF');
   return lines.join('\r\n') + '\r\n';
