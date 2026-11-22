@@ -18,7 +18,7 @@ except ImportError:
     except ImportError:
         from PySide import QtCore
 
-LOG_PATH = r"C:\Users\Dinalli\Desktop\Projetos acusticos\BassForge_FreeCAD_Validacao\live_build.log"
+LOG_PATH = r"C:\Users\Dinalli\Desktop\Projetos acusticos\BassForge_CAD_Biblioteca\06_BuildPacks_JSON\live_build.log"
 
 
 def log(msg):
@@ -68,11 +68,11 @@ def run_live_build():
         log("Iniciando BassForge Live Build no FreeCAD 1.1...")
         json_path = os.environ.get(
             "BF_LIVE_JSON",
-            r"C:\Users\Dinalli\Desktop\Projetos acusticos\BassForge_FreeCAD_Validacao\json\02_dutada_redonda.json",
+            r"C:\Users\Dinalli\Desktop\Projetos acusticos\BassForge_CAD_Biblioteca\06_BuildPacks_JSON\02_dutada_redonda.json",
         )
         out_fcstd = os.environ.get(
             "BF_LIVE_OUT",
-            r"C:\Users\Dinalli\Desktop\Projetos acusticos\BassForge_FreeCAD_Validacao\02_dutada_redonda_LIVE.FCStd",
+            r"C:\Users\Dinalli\Desktop\Projetos acusticos\BassForge_CAD_Biblioteca\01_FreeCAD_FCStd\02_dutada_redonda_LIVE.FCStd",
         )
         with open(json_path, "r", encoding="utf-8") as f:
             pack = json.load(f)
