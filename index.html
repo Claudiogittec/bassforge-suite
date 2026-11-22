@@ -1409,6 +1409,7 @@
           <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
             <button type="button" id="btnExportBuildPack" class="tb-btn accent-wiz" onclick="exportBuildPackHtml()" style="padding:7px 12px; font-size:11.5px;">📦 Exportar Pacote de Construção (HTML Imprimível)</button>
             <button type="button" id="btnExportBuildJson" class="tb-btn" onclick="exportBuildPackJson()" style="padding:7px 12px; font-size:11.5px;">🧾 Exportar BuildPack (.json)</button>
+            <button type="button" id="btnExportBuildDxf" class="tb-btn" onclick="exportBuildPackDxf()" style="padding:7px 12px; font-size:11.5px;">📐 Exportar CAD (.dxf 1:1)</button>
           </div>
         </div>
 
@@ -5916,6 +5917,7 @@ function updateWoodlock() {
   }
   const btnExpHtml = document.getElementById('btnExportBuildPack');
   const btnExpJson = document.getElementById('btnExportBuildJson');
+  const btnExpDxf = document.getElementById('btnExportBuildDxf');
   if (btnExpHtml) {
     btnExpHtml.disabled = !validation.valid;
     btnExpHtml.style.opacity = validation.valid ? '1' : '0.45';
@@ -5924,6 +5926,11 @@ function updateWoodlock() {
   if (btnExpJson) {
     btnExpJson.disabled = !validation.valid;
     btnExpJson.style.opacity = validation.valid ? '1' : '0.45';
+  }
+  if (btnExpDxf) {
+    btnExpDxf.disabled = !validation.valid;
+    btnExpDxf.style.opacity = validation.valid ? '1' : '0.45';
+    btnExpDxf.title = validation.valid ? 'Exportar desenho técnico DXF R12 em milímetros (1:1) para CAD/CNC' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
   }
 
   // Verificador de Alojamento no Veículo
@@ -7020,6 +7027,173 @@ function exportBuildPackJson() {
   const blob = new Blob([JSON.stringify(lastBuildPack, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');
   a.download = `BassForge_BuildPack_${safe}.json`;
+  a.href = URL.createObjectURL(blob);
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1500);
+  return true;
+}
+
+/**
+ * Gera desenho técnico DXF R12 ASCII em escala 1:1 (milímetros) diretamente da Fonte Única PGS.
+ * Camadas: CHAPA_MDF, PECAS_CORTE, BAFFLE_FURACAO, VISTA_LATERAL, TEXTO_COTAS.
+ */
+function buildPgsDxfString(pack) {
+  if (!pack) return '';
+  const geom = pack.geometry || buildPgsGeometryModel(pack);
+  const dm = pack.dimensions;
+  const ac = pack.acoustics;
+  const nest = geom.manufacturing.sheetLayout;
+  const t = dm.t;
+  const F = dm.F_ext, E = dm.E_ext, A = dm.A, B = dm.B;
+  const C_top = dm.C_top, D_bot = dm.D_bot;
+  const C_ext = dm.C_ext_top, D_ext = dm.D_ext_bot;
+  const lines = [];
+  const push = (...pairs) => { for (const v of pairs) lines.push(String(v)); };
+  const f = n => (Number.isFinite(n) ? n.toFixed(2) : '0.00');
+  const ascii = s => String(s || '')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^\x20-\x7E]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  const addLine = (layer, x1, y1, x2, y2) => {
+    push(0, 'LINE', 8, layer, 10, f(x1), 20, f(y1), 30, '0.00', 11, f(x2), 21, f(y2), 31, '0.00');
+  };
+  const addRect = (layer, x, y, w, h) => {
+    addLine(layer, x, y, x + w, y);
+    addLine(layer, x + w, y, x + w, y + h);
+    addLine(layer, x + w, y + h, x, y + h);
+    addLine(layer, x, y + h, x, y);
+  };
+  const addCircle = (layer, cx, cy, r) => {
+    if (!(r > 0)) return;
+    push(0, 'CIRCLE', 8, layer, 10, f(cx), 20, f(cy), 30, '0.00', 40, f(r));
+  };
+  const addText = (layer, x, y, height, txt) => {
+    push(0, 'TEXT', 8, layer, 10, f(x), 20, f(y), 30, '0.00', 40, f(height), 1, ascii(txt));
+  };
+
+  // HEADER (R12 AC1009, mm)
+  push(0, 'SECTION', 2, 'HEADER', 9, '$ACADVER', 1, 'AC1009', 9, '$INSUNITS', 70, 4, 9, '$MEASUREMENT', 70, 1, 0, 'ENDSEC');
+
+  // TABLES: LAYER
+  const layers = [
+    ['CHAPA_MDF', 8],
+    ['PECAS_CORTE', 4],
+    ['BAFFLE_FURACAO', 1],
+    ['VISTA_LATERAL', 3],
+    ['TEXTO_COTAS', 2]
+  ];
+  push(0, 'SECTION', 2, 'TABLES', 0, 'TABLE', 2, 'LAYER', 70, layers.length);
+  layers.forEach(([name, color]) => {
+    push(0, 'LAYER', 2, name, 70, 0, 62, color, 6, 'CONTINUOUS');
+  });
+  push(0, 'ENDTAB', 0, 'ENDSEC');
+
+  // ENTITIES
+  push(0, 'SECTION', 2, 'ENTITIES');
+
+  // 1. Chapas MDF 2750x1830 mm + Nesting 2D real das peças
+  const shW = nest.sheetW || 2750;
+  const shH = nest.sheetH || 1830;
+  const shGap = 200;
+  for (let s = 0; s < Math.max(1, nest.sheetsCount); s++) {
+    const sx = s * (shW + shGap);
+    addRect('CHAPA_MDF', sx, 0, shW, shH);
+    addText('TEXTO_COTAS', sx + 20, shH + 25, 32,
+      `CHAPA MDF #${s + 1} (${shW}x${shH} mm | MDF ${t} mm | Kerf ${nest.kerfMm} mm | Uso ${nest.utilizationPct}%)`);
+  }
+  (nest.placements || []).forEach(pl => {
+    const ox = pl.sheetIdx * (shW + shGap) + pl.x;
+    const oy = pl.y;
+    addRect('PECAS_CORTE', ox, oy, pl.w, pl.h);
+    const lblH = Math.max(12, Math.min(26, Math.min(pl.w, pl.h) * 0.14));
+    const shortN = ascii(pl.name.replace(/\s*\[.*?\]/g, '')).slice(0, 22);
+    addText('TEXTO_COTAS', ox + 8, oy + Math.max(8, pl.h * 0.55), lblH, `${shortN}`);
+    addText('TEXTO_COTAS', ox + 8, oy + Math.max(6, pl.h * 0.25), lblH * 0.85, `${pl.w.toFixed(0)}x${pl.h.toFixed(0)} mm${pl.rotated ? ' (R90)' : ''}`);
+  });
+
+  // 2. Vista Frontal 1:1 (Baffle + Furação Real) posicionada acima da chapa 0
+  const bx0 = 0;
+  const by0 = shH + 260;
+  addRect('BAFFLE_FURACAO', bx0, by0, F, E);
+  if (ac.boxType !== 'free-air') {
+    addRect('PECAS_CORTE', bx0 + t, by0 + t, A, B);
+  }
+  // Chanfros 45° no Baffle Octogonal Planar Triângulo
+  if (ac.planarGeom && ac.planarGeom.style === 'triangle' && ac.planarGeom.Z_leg > 0) {
+    const zl = ac.planarGeom.Z_leg;
+    addLine('BAFFLE_FURACAO', bx0 + t, by0 + t + zl, bx0 + t + zl, by0 + t);
+    addLine('BAFFLE_FURACAO', bx0 + t + A - zl, by0 + t, bx0 + t + A, by0 + t + zl);
+    addLine('BAFFLE_FURACAO', bx0 + t, by0 + t + B - zl, bx0 + t + zl, by0 + t + B);
+    addLine('BAFFLE_FURACAO', bx0 + t + A - zl, by0 + t + B, bx0 + t + A, by0 + t + B - zl);
+  }
+  // Divisória interna BP4/BP6
+  if (ac.bpChambers && ac.bpChambers.isBp) {
+    addRect('PECAS_CORTE', bx0 + t + ac.bpChambers.A_rear, by0 + t, t, B);
+  }
+  // Furos reais (drivers, flanges e dutos)
+  (pack.baffleHoles || []).filter(hl => hl.panel !== 'divisoria').forEach(hl => {
+    const cx = bx0 + hl.xExt;
+    const cy = by0 + hl.yExt;
+    if (hl.shape === 'round') {
+      addCircle('BAFFLE_FURACAO', cx, cy, hl.dia / 2);
+      if (hl.kind === 'driver' && hl.flangeDia) {
+        addCircle('PECAS_CORTE', cx, cy, hl.flangeDia / 2);
+      }
+      addText('TEXTO_COTAS', cx - 40, cy - 8, 16, `${hl.label} D=${hl.dia.toFixed(0)}mm`);
+    } else if (hl.shape === 'slot') {
+      addRect('BAFFLE_FURACAO', cx - hl.w / 2, cy - hl.h / 2, hl.w, hl.h);
+      addText('TEXTO_COTAS', cx - hl.w / 2 + 6, cy - 6, 16, `SLOT ${hl.w.toFixed(0)}x${hl.h.toFixed(0)} Lv=${(hl.lvMm || 0).toFixed(0)}`);
+    } else if (hl.shape === 'triangle') {
+      const ta = hl.triA || 100, tb = hl.triB || 100;
+      const xL = bx0 + t, xR = bx0 + F - t, yB = by0 + t, yT = by0 + E - t;
+      let pts;
+      if (hl.cornerIdx === 0) pts = [[xL, yB], [xL + ta, yB], [xL, yB + tb]];
+      else if (hl.cornerIdx === 1) pts = [[xR, yB], [xR - ta, yB], [xR, yB + tb]];
+      else if (hl.cornerIdx === 2) pts = [[xL, yT], [xL + ta, yT], [xL, yT - tb]];
+      else pts = [[xR, yT], [xR - ta, yT], [xR, yT - tb]];
+      addLine('BAFFLE_FURACAO', pts[0][0], pts[0][1], pts[1][0], pts[1][1]);
+      addLine('BAFFLE_FURACAO', pts[1][0], pts[1][1], pts[2][0], pts[2][1]);
+      addLine('BAFFLE_FURACAO', pts[2][0], pts[2][1], pts[0][0], pts[0][1]);
+    }
+  });
+  addText('TEXTO_COTAS', bx0, by0 + E + 30, 28,
+    `VISTA FRONTAL 1:1 — ${pack.driver.name} (${ac.boxType.toUpperCase()}) | F=${F.toFixed(0)} x E=${E.toFixed(0)} mm | A=${A.toFixed(0)} x B=${B.toFixed(0)} mm`);
+
+  // 3. Vista Lateral 1:1 (Corte Lateral) à direita do Baffle
+  const sx0 = bx0 + F + 260;
+  const sy0 = by0;
+  addLine('VISTA_LATERAL', sx0, sy0, sx0 + D_ext, sy0);
+  addLine('VISTA_LATERAL', sx0 + D_ext, sy0, sx0 + C_ext, sy0 + E);
+  addLine('VISTA_LATERAL', sx0 + C_ext, sy0 + E, sx0, sy0 + E);
+  addLine('VISTA_LATERAL', sx0, sy0 + E, sx0, sy0);
+  if (ac.planarGeom) {
+    // Linha do baffle recuado dentro do gabinete Planar (profundidade CG = C + G)
+    const zBaf = sx0 + t + ac.planarGeom.C_chamber;
+    addLine('BAFFLE_FURACAO', zBaf, sy0 + t, zBaf, sy0 + E - t);
+    addText('TEXTO_COTAS', sx0, sy0 - 40, 22, `PLANAR ${ac.planarGeom.style.toUpperCase()} | CG=${ac.planarGeom.CG} mm (C=${ac.planarGeom.C_chamber} + G=${ac.planarGeom.recuoG} mm)`);
+  } else if (ac.lvMm > 0) {
+    const pH = Math.min(B * 0.25, 110);
+    addRect('BAFFLE_FURACAO', sx0 + D_ext - t - ac.lvMm, sy0 + t + 10, ac.lvMm, pH);
+    addText('TEXTO_COTAS', sx0 + D_ext - t - ac.lvMm, sy0 + t + pH + 18, 18, `DUTO Lv=${ac.lvMm} mm`);
+  }
+  addText('TEXTO_COTAS', sx0, sy0 + E + 30, 28,
+    `CORTE LATERAL 1:1 | C_ext=${C_ext.toFixed(0)} / D_ext=${D_ext.toFixed(0)} mm | E=${E.toFixed(0)} mm | MDF ${t} mm`);
+
+  push(0, 'ENDSEC', 0, 'EOF');
+  return lines.join('\r\n') + '\r\n';
+}
+
+function exportBuildPackDxf() {
+  if (!lastBuildPack) updateWoodlock();
+  if (!lastBuildPack || !lastBuildPack.validation.valid) {
+    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+    return false;
+  }
+  const dxf = buildPgsDxfString(lastBuildPack);
+  const safe = (lastBuildPack.driver.name || 'Projeto').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36);
+  const blob = new Blob([dxf], { type: 'application/dxf' });
+  const a = document.createElement('a');
+  a.download = `BassForge_CAD_${safe}.dxf`;
   a.href = URL.createObjectURL(blob);
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1500);

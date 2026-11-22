@@ -801,6 +801,33 @@ runSuite('16. Planar Horn (Quadrado/Triângulo), Bracing 6-Eixos & Free-Air (PGS
   vm.runInContext('loadPreset()', ctx);
 });
 
+// SUITE 17: Exportador CAD DXF R12 (1:1 em mm) — Todas as Topologias
+runSuite('17. Exportador CAD DXF R12 1:1 (Camadas, Nesting, Baffle & Corte Lateral)', () => {
+  const cases = [
+    ['bass-reflex', 'square'],
+    ['sealed', 'square'],
+    ['planar', 'square'],
+    ['planar', 'triangle'],
+    ['free-air', 'square']
+  ];
+  for (const [topo, pStyle] of cases) {
+    elements.get('driverPreset').value = 'oversound';
+    vm.runInContext('loadPreset()', ctx);
+    elements.get('wlPlanarStyle').value = pStyle;
+    vm.runInContext(`selectTopology('${topo}'); updateWoodlock();`, ctx);
+    const dxf = vm.runInContext('buildPgsDxfString(lastBuildPack)', ctx);
+    assert(dxf.includes('AC1009') && dxf.trim().endsWith('EOF'), `${topo}/${pStyle}: DXF deve ter header AC1009 e EOF`);
+    assert(!dxf.includes('NaN'), `${topo}/${pStyle}: DXF não pode conter NaN`);
+    for (const lyr of ['CHAPA_MDF', 'PECAS_CORTE', 'BAFFLE_FURACAO', 'VISTA_LATERAL', 'TEXTO_COTAS']) {
+      assert(dxf.includes(lyr), `${topo}/${pStyle}: camada ${lyr} ausente no DXF`);
+    }
+    assert(dxf.includes('\r\nCIRCLE\r\n'), `${topo}/${pStyle}: DXF deve conter CIRCLE de furação do driver`);
+  }
+  elements.get('wlPlanarStyle').value = 'square';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');
