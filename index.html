@@ -7431,6 +7431,24 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
     }
   };
 
+  const pushPrismFaces = (quadXY, z0, z1, baseRgb, strokeCol, alpha) => {
+    const pB = quadXY.map(([x, y]) => project(x, y, z0));
+    const pF = quadXY.map(([x, y]) => project(x, y, z1));
+    const pushQ = (pts, nx, ny, nz) => {
+      const avgZ = (pts[0].z + pts[1].z + pts[2].z + pts[3].z) * 0.25;
+      faces.push({ depth: avgZ, pts, fill: shadeRgb(baseRgb, nx, ny, nz, alpha), stroke: strokeCol });
+    };
+    pushQ([pB[0], pB[1], pB[2], pB[3]], 0, 0, -1);
+    pushQ([pF[0], pF[3], pF[2], pF[1]], 0, 0, 1);
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      const dx = quadXY[j][0] - quadXY[i][0];
+      const dy = quadXY[j][1] - quadXY[i][1];
+      const len = Math.max(1e-6, Math.hypot(dx, dy));
+      pushQ([pB[i], pB[j], pF[j], pF[i]], dy / len, -dx / len, 0);
+    }
+  };
+
   let frontOz = D - t, frontDz = t;
   (geom.parts || []).forEach(p => {
     const [rgb, scCol] = partColors(p);
@@ -7510,6 +7528,66 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         const avgZ = (pts[idxs[0]].z + pts[idxs[1]].z + pts[idxs[2]].z + pts[idxs[3]].z) * 0.25;
         faces.push({ depth: avgZ, pts: idxs.map(i => pts[i]), fill: shadeRgb(rgb, 0, 0, -1, alpha), stroke: scCol });
       });
+    } else if (p.triMeta) {
+      if (!xray && er < 0.02) return;
+      const tm = p.triMeta;
+      const ta = Math.max(10, tm.triA || 140);
+      const tb = Math.max(10, tm.triB || 140);
+      const lv = Math.max(10, tm.lvMm || p.size[2]);
+      const wT = p.thickness || t;
+      const z1 = D - t + ez;
+      const z0 = Math.max(t, D - t - lv) + ez;
+      const clampX = x => Math.max(t, Math.min(t + env.A, x));
+      const clampY = y => Math.max(t, Math.min(t + env.B, y));
+      const allCorners = [
+        [[t, t + tb], [t + ta, t], [tb, ta]],
+        [[t + env.A - ta, t], [t + env.A, t + tb], [-tb, ta]],
+        [[t, t + env.B - tb], [t + ta, t + env.B], [tb, -ta]],
+        [[t + env.A - ta, t + env.B], [t + env.A, t + env.B - tb], [-tb, -ta]]
+      ];
+      const cIdxs = (tm.corners && tm.corners.length) ? tm.corners : Array.from({ length: tm.count || 2 }, (_, k) => k % 4);
+      cIdxs.forEach(cidx => {
+        const [pt1, pt2, norm] = allCorners[Math.abs(parseInt(cidx) || 0) % 4];
+        const nlen = Math.max(1e-6, Math.hypot(norm[0], norm[1]));
+        const ux = (norm[0] / nlen) * wT;
+        const uy = (norm[1] / nlen) * wT;
+        const quadXY = [
+          [pt1[0] + ex, pt1[1] + ey],
+          [pt2[0] + ex, pt2[1] + ey],
+          [clampX(pt2[0] + ux) + ex, clampY(pt2[1] + uy) + ey],
+          [clampX(pt1[0] + ux) + ex, clampY(pt1[1] + uy) + ey]
+        ];
+        pushPrismFaces(quadXY, z0, z1, rgb, scCol, xray ? 0.72 : 0.96);
+      });
+    } else if (p.id === 'P_PLANAR_CHAMFER' && geom.planarGeom && geom.planarGeom.Z_leg) {
+      const zl = geom.planarGeom.Z_leg;
+      const wT = p.thickness || t;
+      const z0 = ozP;
+      const z1 = ozP + p.size[2];
+      const bays = p.dualPlanarTri
+        ? [[t, (env.A - t) / 2], [t + (env.A - t) / 2 + t, (env.A - t) / 2]]
+        : [[t, env.A]];
+      bays.forEach(([oxB, bayW]) => {
+        const clampX = x => Math.max(oxB, Math.min(oxB + bayW, x));
+        const clampY = y => Math.max(t, Math.min(t + env.B, y));
+        const cList = [
+          [[oxB, t + zl], [oxB + zl, t], [1, 1]],
+          [[oxB + bayW - zl, t], [oxB + bayW, t + zl], [-1, 1]],
+          [[oxB, t + env.B - zl], [oxB + zl, t + env.B], [1, -1]],
+          [[oxB + bayW - zl, t + env.B], [oxB + bayW, t + env.B - zl], [-1, -1]]
+        ];
+        cList.forEach(([pt1, pt2, norm]) => {
+          const inv = wT / Math.SQRT2;
+          const ux = norm[0] * inv, uy = norm[1] * inv;
+          const quadXY = [
+            [pt1[0] + ex, pt1[1] + ey],
+            [pt2[0] + ex, pt2[1] + ey],
+            [clampX(pt2[0] + ux) + ex, clampY(pt2[1] + uy) + ey],
+            [clampX(pt1[0] + ux) + ex, clampY(pt1[1] + uy) + ey]
+          ];
+          pushPrismFaces(quadXY, z0, z1, rgb, scCol, alpha);
+        });
+      });
     } else if (p.sharedCenterSlot) {
       pushBoxFaces(p.sharedCenterSlot.xLeft + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
       pushBoxFaces(p.sharedCenterSlot.xRight + ex, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
@@ -7553,6 +7631,28 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
       ctx.fillStyle = 'rgba(6, 9, 17, 0.88)';
       ctx.fill();
       ctx.strokeStyle = c.kind === 'driver' ? '#f87171' : '#fb923c';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    });
+    (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'triangle' && c.triA && c.triB).forEach(c => {
+      const ta = c.triA, tb = c.triB;
+      const ci = Math.abs(parseInt(c.cornerIdx) || 0) % 4;
+      const triPts = ci === 0
+        ? [[t, t], [t + ta, t], [t, t + tb]]
+        : ci === 1
+          ? [[t + env.A, t], [t + env.A - ta, t], [t + env.A, t + tb]]
+          : ci === 2
+            ? [[t, t + env.B], [t + ta, t + env.B], [t, t + env.B - tb]]
+            : [[t + env.A, t + env.B], [t + env.A - ta, t + env.B], [t + env.A, t + env.B - tb]];
+      ctx.beginPath();
+      triPts.forEach(([px, py], idx) => {
+        const pt = project(px, py, zPlane + 0.6);
+        if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      });
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(6, 9, 17, 0.88)';
+      ctx.fill();
+      ctx.strokeStyle = '#fb923c';
       ctx.lineWidth = 1.6;
       ctx.stroke();
     });
