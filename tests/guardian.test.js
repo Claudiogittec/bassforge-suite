@@ -1043,6 +1043,106 @@ runSuite('21. Módulos 09 & 10 (Bracing 6-Eixos + Window Brace, Matriz DIV Meia-
   vm.runInContext('loadPreset()', ctx);
 });
 
+// SUITE 22: Motor Físico Acoplado Band-Pass (BP4, BP6 Paralela/Série) & Parâmetros Clássicos (Q't, DF, S, Pa)
+runSuite('22. Band-Pass Coupled Physics (BP4, BP6 Parallel/Series) & Q\'t / DF / S / Pa Synthesis', () => {
+  const nearestIdx = (freqs, target) => freqs.reduce((best, f, i) => (Math.abs(f - target) < Math.abs(freqs[best] - target) ? i : best), 0);
+
+  // 22.1 BP4 Butterworth B4 (S=0.707, Pa=0dB) no Oversound 18"
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+  vm.runInContext("selectTopology('bp4')", ctx);
+  elements.get('bpAlignPreset').value = 'butterworth';
+  vm.runInContext('onBpAlignPresetChange(); applyBandPassSynthesis();', ctx);
+
+  const cB4 = vm.runInContext('currentCurves', ctx);
+  const mB4 = cB4.meta.bpMetrics;
+  assert(mB4, 'BP4 deve preencher currentCurves.meta.bpMetrics');
+  approx(mB4.sFactor, 0.707, 0.015, 'BP4 Butterworth S');
+  approx(mB4.qtPrime, 0.707, 0.015, 'BP4 Butterworth Q\'t');
+  approx(mB4.df, 1.414, 0.03, 'BP4 Butterworth DF');
+  approx(mB4.symRatio, 1.00, 0.02, 'BP4 Butterworth simetria Fb/Fc');
+  assert(mB4.paCenterDb > -1.0 && mB4.paCenterDb < 0.6, `BP4 Butterworth Pa central esperado ~0 dB, obtido ${mB4.paCenterDb.toFixed(2)} dB`);
+  assert(mB4.rippleDb < 0.6, `BP4 Butterworth ripple deve ser <0.6 dB, obtido ${mB4.rippleDb.toFixed(2)} dB`);
+
+  // Inclinações assintóticas BP4: +12 dB/oit (HP) e -12 dB/oit (LP)
+  const i10 = nearestIdx(cB4.frequencies, 10), i20 = nearestIdx(cB4.frequencies, 20);
+  const i500 = nearestIdx(cB4.frequencies, 500), i1000 = nearestIdx(cB4.frequencies, 1000);
+  const slopeLow4 = cB4.G4_NormAmp[i20] - cB4.G4_NormAmp[i10];
+  const slopeHi4 = cB4.G4_NormAmp[i1000] - cB4.G4_NormAmp[i500];
+  assert(slopeLow4 > 11.0 && slopeLow4 < 15.5, `BP4 roll-off grave esperado ~+12 dB/oit, obtido ${slopeLow4.toFixed(2)}`);
+  assert(slopeHi4 < -11.0 && slopeHi4 > -13.5, `BP4 roll-off agudo esperado ~-12 dB/oit, obtido ${slopeHi4.toFixed(2)}`);
+
+  // Impedância complexa real BP4: vale em Fb próximo a Re, flanqueado por 2 picos reais > 2*Re
+  const iFb4 = nearestIdx(cB4.frequencies, cB4.meta.Fb);
+  const zAtFb4 = cB4.G11_InBoxZ[iFb4];
+  const zPeakLow = Math.max(...cB4.G11_InBoxZ.slice(0, iFb4));
+  const zPeakHigh = Math.max(...cB4.G11_InBoxZ.slice(iFb4 + 1));
+  assert(zAtFb4 < cB4.meta.Re * 1.35, `BP4 vale de impedância em Fb (${zAtFb4.toFixed(2)}Ω) deve aproximar Re (${cB4.meta.Re}Ω)`);
+  assert(zPeakLow > cB4.meta.Re * 2.0 && zPeakHigh > cB4.meta.Re * 2.0, `BP4 deve exibir 2 picos reais de impedância (${zPeakLow.toFixed(1)}Ω / ${zPeakHigh.toFixed(1)}Ω)`);
+  assert(cB4.meta.minEpdrVal > 0 && cB4.meta.minEpdrVal <= cB4.meta.Re * 1.05, `BP4 EPDR mínimo inválido: ${cB4.meta.minEpdrVal}`);
+
+  // Proteção sub-grave real da câmara traseira selada (excursão finita e estabilizada em 10 Hz)
+  assert(cB4.G8_ConeExcursion[0] > 0 && cB4.G8_ConeExcursion[0] < 100, `BP4 excursão em 10 Hz deve estabilizar, obtido ${cB4.G8_ConeExcursion[0]}`);
+  assert(Math.max(...cB4.G9_PortAirVel) > 0.5, 'BP4 velocidade real de duto deve ser positiva');
+  assert(elements.get('bpTelemetryBox').innerHTML.includes("Q't:") && elements.get('bpTelemetryBox').innerHTML.includes('DF:'), 'UI bpTelemetryBox deve exibir Q\'t e DF');
+
+  // 22.2 BP4 Chebyshev SPL (S=0.50, Pa=+3dB): maior ganho e banda mais estreita que Butterworth
+  elements.get('bpAlignPreset').value = 'chebyshev_spl';
+  vm.runInContext('onBpAlignPresetChange(); applyBandPassSynthesis();', ctx);
+  const mCheb = vm.runInContext('currentCurves.meta.bpMetrics', ctx);
+  approx(mCheb.sFactor, 0.500, 0.015, 'BP4 Chebyshev S');
+  approx(mCheb.qtPrime, 1.000, 0.03, 'BP4 Chebyshev Q\'t');
+  approx(mCheb.df, 1.000, 0.03, 'BP4 Chebyshev DF');
+  assert(mCheb.peakDb > mB4.peakDb + 2.0, `BP4 Chebyshev pico (${mCheb.peakDb.toFixed(2)}) deve superar Butterworth (${mB4.peakDb.toFixed(2)}) em >2 dB`);
+  assert(mCheb.octaves < mB4.octaves, `BP4 Chebyshev banda (${mCheb.octaves.toFixed(2)} oit) deve ser mais estreita que Butterworth (${mB4.octaves.toFixed(2)} oit)`);
+
+  // 22.3 BP6 Paralela e BP6 Série: inclinações +24 dB/oit (HP) e -12 dB/oit (LP), respostas acopladas distintas
+  vm.runInContext("selectTopology('bp6')", ctx);
+  elements.get('bp6Mode').value = 'parallel';
+  elements.get('bpAlignPreset').value = 'bp6_flat';
+  vm.runInContext('applyBandPassSynthesis();', ctx);
+  const c6p = vm.runInContext('currentCurves', ctx);
+  const slopeLow6p = c6p.G4_NormAmp[nearestIdx(c6p.frequencies, 20)] - c6p.G4_NormAmp[nearestIdx(c6p.frequencies, 10)];
+  const slopeHi6p = c6p.G4_NormAmp[i1000] - c6p.G4_NormAmp[i500];
+  assert(slopeLow6p > 21.0 && slopeLow6p < 29.0, `BP6 Paralela roll-off grave esperado ~+24 dB/oit, obtido ${slopeLow6p.toFixed(2)}`);
+  assert(slopeHi6p < -11.0 && slopeHi6p > -13.5, `BP6 Paralela roll-off agudo esperado ~-12 dB/oit, obtido ${slopeHi6p.toFixed(2)}`);
+  assert(c6p.meta.bpMetrics && c6p.meta.bpMetrics.qtPrime > 0 && c6p.meta.bpMetrics.df > 0, 'BP6 Paralela deve expor Q\'t e DF válidos');
+
+  elements.get('bp6Mode').value = 'series';
+  elements.get('bpAlignPreset').value = 'bp6_flat';
+  vm.runInContext('applyBandPassSynthesis();', ctx);
+  const c6s = vm.runInContext('currentCurves', ctx);
+  const m6s = c6s.meta.bpMetrics;
+  const slopeLow6s = c6s.G4_NormAmp[nearestIdx(c6s.frequencies, 20)] - c6s.G4_NormAmp[nearestIdx(c6s.frequencies, 10)];
+  const slopeHi6s = c6s.G4_NormAmp[i1000] - c6s.G4_NormAmp[i500];
+  assert(slopeLow6s > 21.0 && slopeLow6s < 30.0, `BP6 Série roll-off grave esperado ~+24 dB/oit, obtido ${slopeLow6s.toFixed(2)}`);
+  assert(slopeHi6s < -11.0 && slopeHi6s > -13.5, `BP6 Série roll-off agudo esperado ~-12 dB/oit, obtido ${slopeHi6s.toFixed(2)}`);
+  assert(m6s.fL < 45.0 && m6s.octaves >= 1.05 && m6s.rippleDb < 1.0 && m6s.paCenterDb > -0.5,
+    `BP6 Série bp6_flat deve entregar banda larga plana (FL=${m6s.fL.toFixed(1)}, oct=${m6s.octaves.toFixed(2)}, rip=${m6s.rippleDb.toFixed(2)}, Pa=${m6s.paCenterDb.toFixed(2)})`);
+  const maxDiff6 = c6s.frequencies.reduce((mx, f, i) => (f >= 25 && f <= 150 ? Math.max(mx, Math.abs(c6s.G4_NormAmp[i] - c6p.G4_NormAmp[i])) : mx), 0);
+  assert(maxDiff6 > 1.0, `BP6 Série e Paralela devem produzir respostas acopladas fisicamente distintas (maxDiff=${maxDiff6.toFixed(2)} dB)`);
+
+  // 22.4 BP6 Série SPL deve superar ganho de pico do bp6_flat
+  elements.get('bpAlignPreset').value = 'bp6_spl';
+  vm.runInContext('applyBandPassSynthesis();', ctx);
+  const m6sSpl = vm.runInContext('currentCurves.meta.bpMetrics', ctx);
+  assert(m6sSpl.peakDb > m6s.peakDb + 1.5, `BP6 Série SPL (${m6sSpl.peakDb.toFixed(2)} dB) deve superar bp6_flat (${m6s.peakDb.toFixed(2)} dB)`);
+
+  // 22.5 Alerta explícito de limitação física em BP4 quando Qts > alvo (Qts=0.75, Bessel Pa=-1.5dB)
+  vm.runInContext("selectTopology('bp4')", ctx);
+  elements.get('tsQes').value = '0.85';
+  elements.get('tsQms').value = '6.5';
+  elements.get('bpAlignPreset').value = 'bessel';
+  vm.runInContext('onBpAlignPresetChange(); applyBandPassSynthesis();', ctx);
+  assert(elements.get('bpTelemetryBox').innerHTML.includes('Limitado por Qts='),
+    'BP4 síntese limitada por Qts alto deve exibir alerta explícito em bpTelemetryBox');
+
+  // Restaura estado padrão
+  elements.get('bp6Mode').value = 'parallel';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

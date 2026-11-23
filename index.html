@@ -178,7 +178,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  .prop-row input, .prop-row select {
+  .prop-row input, .prop-row select, #bp4SynthParams input {
     width: 100%;
     background: var(--bg-input);
     border: 1px solid var(--border);
@@ -190,7 +190,7 @@
     height: 24px;
     outline: none;
   }
-  .prop-row input:focus, .prop-row select:focus {
+  .prop-row input:focus, .prop-row select:focus, #bp4SynthParams input:focus {
     border-color: var(--accent);
     box-shadow: 0 0 0 2px var(--accent-glow);
   }
@@ -1105,6 +1105,34 @@
               </div>
             </div>
             <input type="range" id="fbVrRange" class="prop-slider" min="15" max="90" step="0.5" value="35" oninput="onFbVrRangeChange(this.value)">
+          </div>
+
+          <!-- SÍNTESE PARAMÉTRICA BAND-PASS (Q't, S, DF, Pa) -->
+          <div id="bpSynthSection" style="display:flex; flex-direction:column; gap:4px; margin-top:3px; padding-top:5px; border-top:1px dashed var(--border);">
+            <div class="prop-row">
+              <label for="bpAlignPreset">Síntese BP:</label>
+              <select id="bpAlignPreset" onchange="onBpAlignPresetChange()">
+                <option value="butterworth" selected>Butterworth B4 (S=0.707, 0dB)</option>
+                <option value="bessel">Bessel Fase Linear (S=0.866)</option>
+                <option value="extended">Sub-Grave Estendido (Pa -2dB)</option>
+                <option value="chebyshev_mild">Chebyshev Musical (S=0.60, +1.5dB)</option>
+                <option value="chebyshev_spl">Chebyshev SPL (S=0.50, +3dB)</option>
+                <option value="bp6_flat">BP6 Quasi-Plana (Equilibrada)</option>
+                <option value="bp6_ext">BP6 Sub-Grave Estendida</option>
+                <option value="bp6_spl">BP6 Alto Ganho (SPL)</option>
+              </select>
+            </div>
+            <div id="bp4SynthParams" style="display:flex; gap:4px; align-items:center;">
+              <label for="bpTargetS" style="font-size:10px; color:var(--text-muted); white-space:nowrap;" title="Fator de forma S = 1/(2·Q't) = DF/2">S:</label>
+              <input type="number" id="bpTargetS" value="0.707" min="0.35" max="1.20" step="0.01" style="width:54px;" title="Fator S (0.707=Butterworth, 0.50=Chebyshev, 0.866=Bessel)">
+              <label for="bpTargetPa" style="font-size:10px; color:var(--text-muted); white-space:nowrap;" title="Ganho acústico alvo Pa na banda passante (dB)">Pa:</label>
+              <input type="number" id="bpTargetPa" value="0.0" min="-6.0" max="6.0" step="0.5" style="width:48px;" title="Ganho acústico alvo Pa (dB)">
+              <button type="button" id="bpSynthApplyBtn" class="fb-lock-btn" onclick="applyBandPassSynthesis()" title="Calcular VR, VF e Fb exatos para o alinhamento Band-Pass" style="width:auto; padding:0 7px; font-size:10px; font-weight:700; color:#38bdf8;">Aplicar</button>
+            </div>
+            <div id="bp6SynthBtnRow" style="display:none; justify-content:flex-end;">
+              <button type="button" id="bp6SynthApplyBtn" class="fb-lock-btn" onclick="applyBandPassSynthesis()" title="Sintetizar VR, VF, FbVR e Fb para o perfil BP6 selecionado" style="width:100%; height:22px; font-size:10px; font-weight:700; color:#c084fc;">⚡ Sintetizar Alinhamento BP6</button>
+            </div>
+            <div id="bpTelemetryBox" style="padding:5px 7px; border-radius:4px; background:rgba(6,9,15,0.85); border:1px solid rgba(56,189,248,0.28); font-family:var(--mono); font-size:9.6px; color:#cbd5e1; line-height:1.45;"></div>
           </div>
         </div>
 
@@ -2597,6 +2625,7 @@ function resetToOptimalFb() {
 }
 
 function onVbRangeChange(val) {
+  bpSynthClampNote = '';
   const vb = parseFloat(val);
   document.getElementById('vbInput').value = vb;
   document.getElementById('vbValBadge').textContent = vb.toFixed(1) + ' L';
@@ -2605,6 +2634,7 @@ function onVbRangeChange(val) {
 }
 
 function onVbInputChange(val) {
+  bpSynthClampNote = '';
   const vb = parseFloat(val);
   if (!isNaN(vb) && vb > 0) {
     syncSliderRange('vbRange', vb, 5);
@@ -2614,6 +2644,7 @@ function onVbInputChange(val) {
 }
 
 function onFbRangeChange(val) {
+  bpSynthClampNote = '';
   const fb = parseFloat(val);
   document.getElementById('fbInput').value = fb;
   document.getElementById('fbValBadge').textContent = fb.toFixed(2) + ' Hz';
@@ -2625,6 +2656,7 @@ function onFbRangeChange(val) {
 }
 
 function onFbInputChange(val) {
+  bpSynthClampNote = '';
   const fb = parseFloat(val);
   if (!isNaN(fb) && fb > 0) {
     syncSliderRange('fbRange', fb, 10);
@@ -2638,6 +2670,7 @@ function onFbInputChange(val) {
 }
 
 function onVrRangeChange(val) {
+  bpSynthClampNote = '';
   const vr = parseFloat(val);
   if (!isNaN(vr) && vr > 0) {
     const el = document.getElementById('vrInput');
@@ -2647,6 +2680,7 @@ function onVrRangeChange(val) {
 }
 
 function onVrInputChange(val) {
+  bpSynthClampNote = '';
   const vr = parseFloat(val);
   if (!isNaN(vr) && vr > 0) {
     syncSliderRange('vrRange', vr, 5);
@@ -3146,6 +3180,7 @@ function computeTopologySuitability({ EBP, Qts, dia }) {
 }
 
 function selectTopology(topo) {
+  bpSynthClampNote = '';
   const el = document.getElementById('boxType');
   const prevTopo = el ? el.value : '';
   if (el) el.value = topo;
@@ -3303,6 +3338,346 @@ function computePortGeometry(opts) {
   return { portType, isSlot, isTri, hypCm, Sp, DeqM, DeqIn, DhCm, aspectRatio, kEnd, LeffM, LvM, LvCm, vDuto, fPipe1, velLimit };
 }
 
+// ============================================================================
+// MOTOR FÍSICO ACOPLADO BAND-PASS (BP4, BP6 PARALELA & BP6 SÉRIE)
+// Malha eletromecânico-acústica exata (impedância acústica / velocidade de volume)
+// + Parâmetros clássicos de projeto e síntese: Q't (Qbp), S, DF, Pa
+// ============================================================================
+function buildBandPassAcousticModel(p) {
+  const Fs = Math.max(1.0, p.Fs || 40.0);
+  const Qms = Math.max(0.2, p.Qms || 7.0);
+  const Qts_in = Math.max(0.05, Math.min(Qms * 0.95, p.Qts || 0.40));
+  const Qes = Math.max(0.05, p.Qes || ((Qts_in * Qms) / Math.max(0.05, Qms - Qts_in)));
+  const Qts = (Qms * Qes) / (Qms + Qes);
+  const Re = Math.max(0.2, p.Re || 4.0);
+  const Vas = Math.max(0.1, p.Vas || 50.0);
+  const Sd_m2 = Math.max(1e-4, p.Sd_m2 || 0.05);
+  const Pe = Math.max(1.0, p.Pe || 100.0);
+  const Vr = Math.max(0.5, p.Vr || (p.Vb ? p.Vb * 0.75 : 30.0));
+  const Vf = Math.max(0.5, p.Vb || 30.0);
+  const Fb = Math.max(10.0, p.Fb || 60.0);
+  const FbVr = Math.max(10.0, p.FbVr || 35.0);
+  const QL = Math.max(1.0, p.QL || 15.0);
+  const Qp = Math.max(10.0, p.Qp || 60.0);
+  const rho = Math.max(0.5, p.rho || 1.205585);
+  const c = Math.max(200.0, p.c || 343.37);
+  const boxType = p.boxType || 'bp4';
+  const bp6Mode = p.bp6Mode || 'parallel';
+
+  const ws = 2.0 * Math.PI * Fs;
+  const rhoC2 = rho * c * c;
+  const Cas = (Vas / 1000.0) / rhoC2;
+  const Mas = 1.0 / (ws * ws * Cas);
+  const Ram = (ws * Mas) / Qms;
+  const Rae = (ws * Mas) / Qes;
+  const Rat = Ram + Rae;
+  const bl2OverSd2 = Rae * Re; // (Bl / Sd)^2 = Rae * Re
+  const Pg_pk = Math.sqrt(2.0 * Pe * Rae); // Pressão acústica de pico em Pe
+
+  const Car = (Vr / 1000.0) / rhoC2;
+  const Caf = (Vf / 1000.0) / rhoC2;
+
+  const alphaR = Vas / Vr;
+  const alphaF = Vas / Vf;
+  const fcR = Fs * Math.sqrt(1.0 + alphaR);
+  const qtcR = Qts * Math.sqrt(1.0 + alphaR);
+
+  const wbf = 2.0 * Math.PI * Fb;
+  const Mapf = 1.0 / (wbf * wbf * Caf);
+  const Rapf = (wbf * Mapf) / Qp;
+  const Gaf = (wbf * Caf) / QL;
+
+  const wbr = 2.0 * Math.PI * FbVr;
+  const Mapr = 1.0 / (wbr * wbr * Car);
+  const Rapr = (wbr * Mapr) / Qp;
+  const wRefR = (boxType === 'bp4') ? (2.0 * Math.PI * fcR) : wbr;
+  const Gar = (wRefR * Car) / QL;
+
+  return {
+    boxType, bp6Mode, Fs, Qms, Qes, Qts, Re, Vas, Sd_m2, Pe,
+    Vr, Vf, Fb, FbVr, QL, Qp, rho, c,
+    Cas, Mas, Ram, Rae, Rat, bl2OverSd2, Pg_pk,
+    Car, Caf, alphaR, alphaF, fcR, qtcR,
+    Mapf, Rapf, Gaf, Mapr, Rapr, Gar,
+    SpFront: Math.max(1e-5, p.SpFront || 0.01),
+    SpRear: Math.max(1e-5, p.SpRear || 0.01)
+  };
+}
+
+function evalBandPassFrequency(m, f) {
+  const w = 2.0 * Math.PI * Math.max(1e-3, f);
+
+  // Impedância acústica do transdutor (mecânica pura e total com amortecimento elétrico)
+  const zAdmRe = m.Ram;
+  const zAdmIm = (w * m.Mas) - (1.0 / (w * m.Cas));
+  const zAdRe = m.Rat;
+  const zAdIm = zAdmIm;
+
+  // Duto frontal Zpf = Rapf + j*w*Mapf e sua admitância Ypf = 1/Zpf
+  const zPfRe = m.Rapf;
+  const zPfIm = w * m.Mapf;
+  const zPfMag2 = Math.max(1e-30, zPfRe * zPfRe + zPfIm * zPfIm);
+  const yPfRe = zPfRe / zPfMag2;
+  const yPfIm = -zPfIm / zPfMag2;
+
+  // Admitância capacitiva + perdas das câmaras
+  const yCrRe = m.Gar;
+  const yCrIm = w * m.Car;
+  const yCfRe = m.Gaf;
+  const yCfIm = w * m.Caf;
+
+  let zLoadRe = 0, zLoadIm = 0;
+  // Razões complexas U_pf / U_c, U_pr / U_c e U_out / U_c
+  let rPfRe = 0, rPfIm = 0;
+  let rPrRe = 0, rPrIm = 0;
+  let rOutRe = 0, rOutIm = 0;
+
+  if (m.boxType === 'bp4') {
+    // Câmara traseira selada: Zr = 1 / Ycr
+    const yCrMag2 = Math.max(1e-30, yCrRe * yCrRe + yCrIm * yCrIm);
+    const zRRe = yCrRe / yCrMag2;
+    const zRIm = -yCrIm / yCrMag2;
+
+    // Câmara frontal dutada: Yf = Ycf + Ypf, Zf = 1 / Yf
+    const yFRe = yCfRe + yPfRe;
+    const yFIm = yCfIm + yPfIm;
+    const yFMag2 = Math.max(1e-30, yFRe * yFRe + yFIm * yFIm);
+    const zFRe = yFRe / yFMag2;
+    const zFIm = -yFIm / yFMag2;
+
+    zLoadRe = zRRe + zFRe;
+    zLoadIm = zRIm + zFIm;
+
+    // Upf / Uc = Zf * Ypf
+    rPfRe = zFRe * yPfRe - zFIm * yPfIm;
+    rPfIm = zFRe * yPfIm + zFIm * yPfRe;
+    rOutRe = rPfRe;
+    rOutIm = rPfIm;
+  } else {
+    // Duto traseiro/acoplador Zpr = Rapr + j*w*Mapr e sua admitância Ypr = 1/Zpr
+    const zPrRe = m.Rapr;
+    const zPrIm = w * m.Mapr;
+    const zPrMag2 = Math.max(1e-30, zPrRe * zPrRe + zPrIm * zPrIm);
+    const yPrRe = zPrRe / zPrMag2;
+    const yPrIm = -zPrIm / zPrMag2;
+
+    if (m.bp6Mode === 'series') {
+      // BP6 Série: malha nodal 2x2 (VR acopla em VF via Ypr; VF radia ao exterior via Ypf)
+      // A = Ycr + Ypr, B = Ycf + Ypr + Ypf, Delta = A*B - Ypr^2
+      const aRe = yCrRe + yPrRe, aIm = yCrIm + yPrIm;
+      const bRe = yCfRe + yPrRe + yPfRe, bIm = yCfIm + yPrIm + yPfIm;
+      const abRe = aRe * bRe - aIm * bIm;
+      const abIm = aRe * bIm + aIm * bRe;
+      const c2Re = yPrRe * yPrRe - yPrIm * yPrIm;
+      const c2Im = 2.0 * yPrRe * yPrIm;
+      const detRe = abRe - c2Re;
+      const detIm = abIm - c2Im;
+      const detMag2 = Math.max(1e-30, detRe * detRe + detIm * detIm);
+
+      // Soma Ysum = Ycr + Ycf + Ypf
+      const sumRe = yCrRe + yCfRe + yPfRe;
+      const sumIm = yCrIm + yCfIm + yPfIm;
+
+      // Zload = Ysum / Delta
+      zLoadRe = (sumRe * detRe + sumIm * detIm) / detMag2;
+      zLoadIm = (sumIm * detRe - sumRe * detIm) / detMag2;
+
+      // Upf / Uc = (Ycr * Ypf) / Delta
+      const numFRe = yCrRe * yPfRe - yCrIm * yPfIm;
+      const numFIm = yCrRe * yPfIm + yCrIm * yPfRe;
+      rPfRe = (numFRe * detRe + numFIm * detIm) / detMag2;
+      rPfIm = (numFIm * detRe - numFRe * detIm) / detMag2;
+
+      // Upr / Uc = -(Ysum * Ypr) / Delta = -Zload * Ypr
+      rPrRe = -(zLoadRe * yPrRe - zLoadIm * yPrIm);
+      rPrIm = -(zLoadRe * yPrIm + zLoadIm * yPrRe);
+
+      // Radiação externa sai apenas pelo duto frontal Upf
+      rOutRe = rPfRe;
+      rOutIm = rPfIm;
+    } else {
+      // BP6 Paralela: ambas câmaras dutadas ao exterior (radiação Uout = Upf + Upr)
+      const yRRe = yCrRe + yPrRe;
+      const yRIm = yCrIm + yPrIm;
+      const yRMag2 = Math.max(1e-30, yRRe * yRRe + yRIm * yRIm);
+      const zRRe = yRRe / yRMag2;
+      const zRIm = -yRIm / yRMag2;
+
+      const yFRe = yCfRe + yPfRe;
+      const yFIm = yCfIm + yPfIm;
+      const yFMag2 = Math.max(1e-30, yFRe * yFRe + yFIm * yFIm);
+      const zFRe = yFRe / yFMag2;
+      const zFIm = -yFIm / yFMag2;
+
+      zLoadRe = zRRe + zFRe;
+      zLoadIm = zRIm + zFIm;
+
+      // Upf / Uc = +Zf * Ypf ; Upr / Uc = -Zr * Ypr (face traseira em oposição de fase)
+      rPfRe = zFRe * yPfRe - zFIm * yPfIm;
+      rPfIm = zFRe * yPfIm + zFIm * yPfRe;
+      rPrRe = -(zRRe * yPrRe - zRIm * yPrIm);
+      rPrIm = -(zRRe * yPrIm + zRIm * yPrRe);
+
+      rOutRe = rPfRe + rPrRe;
+      rOutIm = rPfIm + rPrIm;
+    }
+  }
+
+  // Uc / Pg = 1 / (Zad + Zload)
+  const zTotRe = zAdRe + zLoadRe;
+  const zTotIm = zAdIm + zLoadIm;
+  const zTotMag2 = Math.max(1e-30, zTotRe * zTotRe + zTotIm * zTotIm);
+  const ucRe = zTotRe / zTotMag2;
+  const ucIm = -zTotIm / zTotMag2;
+
+  // Uout / Pg = (Uc / Pg) * (Uout / Uc)
+  const uOutRe = ucRe * rOutRe - ucIm * rOutIm;
+  const uOutIm = ucRe * rOutIm + ucIm * rOutRe;
+
+  // Função de transferência acústica normalizada H(jw) = j*w*Mas * (Uout / Pg)
+  const wMas = w * m.Mas;
+  const H_re = -wMas * uOutIm;
+  const H_im = wMas * uOutRe;
+
+  // Magnitudes de velocidade de volume de pico em Pe (m³/s)
+  const ucNormMag = Math.hypot(ucRe, ucIm);
+  const Uc_mag = m.Pg_pk * ucNormMag;
+  const Upf_mag = Uc_mag * Math.hypot(rPfRe, rPfIm);
+  const Upr_mag = Uc_mag * Math.hypot(rPrRe, rPrIm);
+
+  // Impedância elétrica de entrada complexa real: Zin = Re + (Bl/Sd)^2 / (Zadm + Zload)
+  const zMechRe = zAdmRe + zLoadRe;
+  const zMechIm = zAdmIm + zLoadIm;
+  const zMechMag2 = Math.max(1e-30, zMechRe * zMechRe + zMechIm * zMechIm);
+  const Zin_re = m.Re + (m.bl2OverSd2 * zMechRe) / zMechMag2;
+  const Zin_im = -(m.bl2OverSd2 * zMechIm) / zMechMag2;
+
+  return { H_re, H_im, Uc_mag, Upf_mag, Upr_mag, Zin_re, Zin_im };
+}
+
+let bpSynthClampNote = '';
+
+function onBpAlignPresetChange() {
+  bpSynthClampNote = '';
+  const sel = document.getElementById('bpAlignPreset');
+  if (!sel) return;
+  const key = sel.value;
+  const bp4Presets = {
+    butterworth:    { S: 0.707, Pa: 0.0 },
+    bessel:         { S: 0.866, Pa: -1.5 },
+    extended:       { S: 0.707, Pa: -2.0 },
+    chebyshev_mild: { S: 0.600, Pa: 1.5 },
+    chebyshev_spl:  { S: 0.500, Pa: 3.0 }
+  };
+  if (bp4Presets[key]) {
+    const sEl = document.getElementById('bpTargetS');
+    const paEl = document.getElementById('bpTargetPa');
+    if (sEl) sEl.value = bp4Presets[key].S.toFixed(3);
+    if (paEl) paEl.value = bp4Presets[key].Pa.toFixed(1);
+  }
+}
+
+function applyBandPassSynthesis() {
+  const boxType = document.getElementById('boxType')?.value || 'bp4';
+  if (boxType !== 'bp4' && boxType !== 'bp6') return;
+
+  const nDrivers = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
+  const Fs = Math.max(10, parseFloat(document.getElementById('tsFs')?.value) || 40);
+  const Qes_nom = Math.max(0.05, parseFloat(document.getElementById('tsQes')?.value) || 0.44);
+  const Qms = Math.max(0.5, parseFloat(document.getElementById('tsQms')?.value) || 9.0);
+  const deltaT = Math.max(0, parseFloat(document.getElementById('thermalDeltaT')?.value) || 0);
+  const Qes = Qes_nom * (1.0 + 0.00393 * deltaT);
+  const Qts = (Qms * Qes) / (Qms + Qes);
+  const Vas = Math.max(1.0, (parseFloat(document.getElementById('tsVas')?.value) || 100) * nDrivers);
+
+  bpSynthClampNote = '';
+  let Vr, Vf, Fb, FbVr = null;
+  if (boxType === 'bp4') {
+    const S = Math.max(0.35, Math.min(1.20, parseFloat(document.getElementById('bpTargetS')?.value) || 0.707));
+    const Pa = Math.max(-6.0, Math.min(6.0, parseFloat(document.getElementById('bpTargetPa')?.value) || 0.0));
+    // Síntese canônica BP4 (Geddes 1989 / Dickason):
+    // Vf = (2 * S * Qts)^2 * Vas ; B = 10^(-Pa/40) ; Qtc = 1 / (2 * S * B) ; Vr = Vas / ((Qtc/Qts)^2 - 1) ; Fb = Fc = Fs * (Qtc/Qts)
+    const vfRaw = Math.pow(2.0 * S * Qts, 2) * Vas;
+    Vf = Math.max(2.0, vfRaw);
+    const B = Math.pow(10.0, -Pa / 40.0);
+    const qtcRaw = 1.0 / (2.0 * S * B);
+    const qtcMin = Qts * 1.12;
+    const qtcTarget = Math.max(qtcMin, qtcRaw);
+    const ratio2 = Math.pow(qtcTarget / Qts, 2);
+    const vrRaw = Vas / Math.max(0.15, ratio2 - 1.0);
+    Vr = Math.max(2.0, vrRaw);
+    Fb = Fs * Math.sqrt(1.0 + Vas / Vr);
+    if (qtcRaw < qtcMin - 1e-3) {
+      bpSynthClampNote = `⚠️ Limitado por Qts=${Qts.toFixed(2)} (Qtc mín ${qtcMin.toFixed(2)} vs alvo ${qtcRaw.toFixed(2)})`;
+    } else if (vfRaw < 2.0 || vrRaw < 2.0) {
+      bpSynthClampNote = `⚠️ Volume mínimo de 2.0 L atingido (S/Pa ajustados)`;
+    }
+  } else {
+    const preset = document.getElementById('bpAlignPreset')?.value || 'bp6_flat';
+    const bp6Mode = document.getElementById('bp6Mode')?.value || 'parallel';
+    const isSeries = (bp6Mode === 'series');
+    if (isSeries) {
+      // BP6 Série (VR acopla em VF; apenas VF radia ao exterior):
+      // Exige VF > VR para controlar o termo de acoplamento (VR/VF) e manter os polos acoplados planos
+      const qScale = Math.max(0.65, Math.min(1.45, Math.pow(Qts / 0.42, 1.4)));
+      if (preset === 'bp6_ext') {
+        Vr = Math.max(5.0, Vas * 0.65 * qScale);
+        Vf = Math.max(5.0, Vas * 1.15 * qScale);
+        FbVr = Math.max(18.0, Fs * 0.72);
+        Fb = FbVr * 1.62;
+      } else if (preset === 'bp6_spl') {
+        Vr = Math.max(5.0, Vas * 0.42 * qScale);
+        Vf = Math.max(5.0, Vas * 0.95 * qScale);
+        FbVr = Math.max(20.0, Fs * 1.05);
+        Fb = FbVr * 1.48;
+      } else {
+        // bp6_flat (Quasi-Plana Série)
+        Vr = Math.max(5.0, Vas * 0.58 * qScale);
+        Vf = Math.max(5.0, Vas * 1.00 * qScale);
+        FbVr = Math.max(18.0, Fs * 0.82);
+        Fb = FbVr * 1.58;
+      }
+    } else {
+      // BP6 Paralela (ambas câmaras radiam ao exterior: VR maior/grave, VF menor/médio-grave)
+      if (preset === 'bp6_ext') {
+        Vr = Math.max(5.0, Vas * 1.15);
+        Vf = Math.max(3.0, Vas * 0.52);
+        FbVr = Math.max(18.0, Fs * 0.76);
+        Fb = FbVr * 1.95;
+      } else if (preset === 'bp6_spl') {
+        Vr = Math.max(5.0, Vas * 0.65);
+        Vf = Math.max(3.0, Vas * 0.34);
+        FbVr = Math.max(20.0, Fs * 1.02);
+        Fb = FbVr * 1.75;
+      } else {
+        // bp6_flat (Quasi-Plana Paralela)
+        Vr = Math.max(5.0, Vas * 0.88);
+        Vf = Math.max(3.0, Vas * 0.44);
+        FbVr = Math.max(18.0, Fs * 0.86);
+        Fb = FbVr * 1.85;
+      }
+    }
+  }
+
+  const vrEl = document.getElementById('vrInput');
+  const vbEl = document.getElementById('vbInput');
+  const fbEl = document.getElementById('fbInput');
+  const fbVrEl = document.getElementById('fbVrInput');
+  if (vrEl) vrEl.value = (Math.round(Vr * 10) / 10).toFixed(1);
+  if (vbEl) vbEl.value = (Math.round(Vf * 10) / 10).toFixed(1);
+  if (fbEl) fbEl.value = (Math.round(Fb * 100) / 100).toFixed(2);
+  syncSliderRange('vrRange', Vr, 5);
+  syncSliderRange('vbRange', Vf, 5);
+  syncSliderRange('fbRange', Fb, 15);
+  if (FbVr !== null && fbVrEl) {
+    fbVrEl.value = (Math.round(FbVr * 10) / 10).toFixed(1);
+    syncSliderRange('fbVrRange', FbVr, 15);
+  }
+  isAutoTune = (boxType === 'bp4');
+  recalculate();
+  autofixWoodlockGeometry('síntese Band-Pass');
+}
+
 function analyzeTransferAlignment(p) {
   const N = 320;
   const logMin = Math.log10(10);
@@ -3348,77 +3723,78 @@ function analyzeTransferAlignment(p) {
   }
 
   if (p.boxType === 'bp4' || p.boxType === 'bp6') {
-    const Vr = Math.max(0.5, p.Vr || p.Vb * 0.75);
-    const Vf = Math.max(0.5, p.Vb);
-    const alphaR = p.Vas / Vr;
-    const alphaF = p.Vas / Vf;
-    const fcR = p.Fs * Math.sqrt(1.0 + alphaR);
-    const qtcR = p.Qts * Math.sqrt(1.0 + alphaR);
-    const fbF = Math.max(15.0, p.Fb || 60.0);
-    const gainPa = Math.max(0.4, Math.min(3.0, Math.sqrt(Vr / Vf)));
+    const bpModel = buildBandPassAcousticModel(p);
+    const hpfOn = Number.isFinite(p.hpfHz) && p.hpfHz > 0;
+    let maxUpf = 0;
+    let maxUpr = 0;
 
     for (let i = 0; i < N; i++) {
       const f = Math.pow(10, logMin + (i / (N - 1)) * (logMax - logMin));
       freqs[i] = f;
-      let bpRe = 0, bpIm = 0;
-      if (p.boxType === 'bp4') {
-        const rL = f / fcR;
-        const rH = f / fbF;
-        const drRe = 1.0 - rL * rL;
-        const drIm = rL / Math.max(0.25, qtcR);
-        const drMag2 = drRe * drRe + drIm * drIm;
-        const qf = Math.max(0.45, Math.min(2.2, 0.72 * Math.sqrt(alphaF / Math.max(0.2, alphaR))));
-        const dfRe = 1.0 - rH * rH;
-        const dfIm = rH / qf;
-        const dfMag2 = dfRe * dfRe + dfIm * dfIm;
-        const h1Re = (-rL * rL * drRe) / drMag2;
-        const h1Im = (rL * rL * drIm) / drMag2;
-        const h2Re = (gainPa * dfRe) / dfMag2;
-        const h2Im = (-gainPa * dfIm) / dfMag2;
-        bpRe = h1Re * h2Re - h1Im * h2Im;
-        bpIm = h1Re * h2Im + h1Im * h2Re;
-      } else {
-        const fbLow = Math.max(15.0, Math.min(p.FbVr || 35.0, fbF - 5.0));
-        const fbHigh = Math.max(fbLow + 8.0, fbF);
-        const rL = f / fbLow;
-        const rH = f / fbHigh;
-        const qLow = Math.max(0.55, Math.min(1.6, p.Qts * 2.1));
-        const qHigh = p.bp6Mode === 'series' ? 0.78 : 1.05;
-        const d1Re = 1.0 - rL * rL;
-        const d1Im = rL / qLow;
-        const d1Mag2 = d1Re * d1Re + d1Im * d1Im;
-        const hpRe = (Math.pow(rL, 4) * (d1Re * d1Re - d1Im * d1Im)) / (d1Mag2 * d1Mag2);
-        const hpIm = (-Math.pow(rL, 4) * (2.0 * d1Re * d1Im)) / (d1Mag2 * d1Mag2);
-        const d2Re = 1.0 - rH * rH;
-        const d2Im = rH / qHigh;
-        const d2Mag2 = d2Re * d2Re + d2Im * d2Im;
-        const bp6Gain = (p.bp6Mode === 'series' ? 1.25 : 1.45) * Math.min(1.5, gainPa);
-        const lpRe = (bp6Gain * d2Re) / d2Mag2;
-        const lpIm = (-bp6Gain * d2Im) / d2Mag2;
-        bpRe = hpRe * lpRe - hpIm * lpIm;
-        bpIm = hpRe * lpIm + hpIm * lpRe;
-      }
-      const db = 20.0 * Math.log10(Math.max(1e-6, Math.hypot(bpRe, bpIm)));
+      const ev = evalBandPassFrequency(bpModel, f);
+      const hpfLin = hpfOn ? (Math.pow(f / p.hpfHz, 4) / (Math.pow(f / p.hpfHz, 4) + 1.0)) : 1.0;
+      const db = 20.0 * Math.log10(Math.max(1e-6, Math.hypot(ev.H_re, ev.H_im)));
       dbs[i] = db;
       if (db > peakDb) { peakDb = db; fPeak = f; peakIdx = i; }
+      const upfEff = ev.Upf_mag * hpfLin;
+      const uprEff = ev.Upr_mag * hpfLin;
+      if (upfEff > maxUpf) maxUpf = upfEff;
+      if (uprEff > maxUpr) maxUpr = uprEff;
     }
+
     const thresh = peakDb - 3.0;
     let fL = freqs[0], fH = freqs[N - 1];
-    for (let i = peakIdx; i >= 1; i--) {
-      if (dbs[i] >= thresh && dbs[i - 1] < thresh) {
+    // Busca bordas externas -3 dB em relação ao pico da banda passante (robusto para 2 picos Chebyshev/BP6)
+    for (let i = 1; i < N; i++) {
+      if (dbs[i - 1] < thresh && dbs[i] >= thresh) {
         const frac = (thresh - dbs[i - 1]) / Math.max(1e-9, dbs[i] - dbs[i - 1]);
         fL = freqs[i - 1] + frac * (freqs[i] - freqs[i - 1]);
         break;
       }
     }
-    for (let i = peakIdx + 1; i < N; i++) {
+    for (let i = N - 1; i >= 1; i--) {
       if (dbs[i - 1] >= thresh && dbs[i] < thresh) {
         const frac = (dbs[i - 1] - thresh) / Math.max(1e-9, dbs[i - 1] - dbs[i]);
         fH = freqs[i - 1] + frac * (freqs[i] - freqs[i - 1]);
         break;
       }
     }
-    return { fL, fH, peakDb, fPeak };
+    if (fH <= fL) {
+      fL = Math.max(10, fPeak * 0.7);
+      fH = Math.min(2000, fPeak * 1.4);
+    }
+
+    const f0 = Math.sqrt(fL * fH);
+    const bw = Math.max(1.0, fH - fL);
+    const octaves = Math.log2(Math.max(1.01, fH / Math.max(1.0, fL)));
+    const ev0 = evalBandPassFrequency(bpModel, f0);
+    const paCenterDb = 20.0 * Math.log10(Math.max(1e-6, Math.hypot(ev0.H_re, ev0.H_im)));
+    const rippleDb = Math.max(0.0, peakDb - paCenterDb);
+
+    // Parâmetros clássicos Band-Pass: Q't (Qbp), DF, S, Pa
+    let qtPrime, df, sFactor, paTheoDb, symRatio;
+    if (p.boxType === 'bp4') {
+      // Protótipo passa-baixas equivalente: Q't = Qts * sqrt(Vas/Vf), S = 1/(2*Q't), DF = 1/Q't = 2*S
+      qtPrime = bpModel.Qts * Math.sqrt(bpModel.alphaF);
+      df = 1.0 / Math.max(1e-4, qtPrime);
+      sFactor = 0.5 * df;
+      paTheoDb = 20.0 * Math.log10(Math.max(1e-4, (1.0 + bpModel.alphaR) / Math.max(1e-4, bpModel.alphaF)));
+      symRatio = bpModel.Fb / Math.max(1.0, bpModel.fcR);
+    } else {
+      // BP6: Q't efetivo da banda passante (F0 / BW), DF = 1/Q't, S = DF/2
+      qtPrime = f0 / bw;
+      df = 1.0 / Math.max(1e-4, qtPrime);
+      sFactor = 0.5 * df;
+      paTheoDb = paCenterDb;
+      symRatio = bpModel.Fb / Math.max(1.0, bpModel.FbVr);
+    }
+
+    return {
+      fL, fH, f0, bw, octaves, peakDb, paCenterDb, rippleDb, fPeak,
+      qtPrime, df, sFactor, paTheoDb, symRatio,
+      qtcR: bpModel.qtcR, fcR: bpModel.fcR,
+      maxUpf, maxUpr
+    };
   }
 
   if (p.boxType === 'planar') {
@@ -3457,6 +3833,9 @@ function recalculate() {
 
   const bpCtrl = document.getElementById('bpControls');
   const bp6Extra = document.getElementById('bp6ExtraRow');
+  const bp4Synth = document.getElementById('bp4SynthParams');
+  const bp6Synth = document.getElementById('bp6SynthBtnRow');
+  const bpPresetSel = document.getElementById('bpAlignPreset');
   const vbLbl = document.getElementById('vbInputLabel');
   const portVfHdr = document.getElementById('portVfHeader');
   const portVrSec = document.getElementById('portVrSection');
@@ -3464,6 +3843,23 @@ function recalculate() {
   const portVrRound = document.getElementById('portVrRoundFields');
   if (bpCtrl) bpCtrl.style.display = isBP ? 'flex' : 'none';
   if (bp6Extra) bp6Extra.style.display = (boxType === 'bp6') ? 'flex' : 'none';
+  if (bp4Synth) bp4Synth.style.display = (boxType === 'bp4') ? 'flex' : 'none';
+  if (bp6Synth) bp6Synth.style.display = (boxType === 'bp6') ? 'flex' : 'none';
+  if (bpPresetSel && isBP) {
+    const opts = bpPresetSel.options ? Array.from(bpPresetSel.options) : [];
+    opts.forEach(opt => {
+      const optIsBp6 = String(opt.value || '').startsWith('bp6_');
+      const hide = (boxType === 'bp6') ? !optIsBp6 : optIsBp6;
+      opt.hidden = hide;
+      opt.disabled = hide;
+    });
+    const isBp6Val = String(bpPresetSel.value || '').startsWith('bp6_');
+    if (boxType === 'bp6' && !isBp6Val) bpPresetSel.value = 'bp6_flat';
+    else if (boxType === 'bp4' && isBp6Val) {
+      bpPresetSel.value = 'butterworth';
+      onBpAlignPresetChange();
+    }
+  }
   if (vbLbl) vbLbl.textContent = isBP ? 'Câm. Front. VF (L):' : 'Vol. Vb (L):';
   if (portVfHdr) portVfHdr.style.display = isBP ? 'block' : 'none';
   if (portVrSec) portVrSec.style.display = (boxType === 'bp6') ? 'flex' : 'none';
@@ -3569,7 +3965,7 @@ function recalculate() {
 
   let alpha = Vas / Vb;
   let Fb, F3, FH = 0, Vtot, LvCm = 0, DeqIn = 0, airVel = 0, machPct = 0, qtc, fc, fgmax, fxmax, ripple = 0, alignName = '', alignSub = '', alignLabel = 'Alinhamento 4ª Ordem', alignColor = '#38bdf8', kpi2SubTxt = '';
-  let fPipe1 = 0, velLimit = 17.0, portGeom = null;
+  let fPipe1 = 0, velLimit = 17.0, portGeom = null, portGeomVr = null, bpEval = null;
 
   const optimalFb = Fs * Math.pow(alpha, 0.31);
   const optimalF3 = Fs * Math.pow(alpha, 0.44);
@@ -3622,30 +4018,41 @@ function recalculate() {
     } else if (boxType === 'bp4') {
       alignLabel = 'Alinhamento BP4 (4ª)';
       const alphaR = Vas / Vr;
-      const alphaF = Vas / Vb;
       fc = Fs * Math.sqrt(1.0 + alphaR);
       qtc = Qts * Math.sqrt(1.0 + alphaR);
-      const fbOptBp4 = Math.max(fc * 1.25, fc * (1.15 + 0.15 * Math.pow(Math.max(0.25, alphaF), 0.31)));
+      // Sintonia simétrica exata BP4 (Geddes / Dickason): Fb = Fc = Fs * sqrt(1 + Vas/Vr)
+      const fbOptBp4 = fc;
       Fb = isAutoTune ? fbOptBp4 : (parseFloat(document.getElementById('fbInput').value) || fbOptBp4);
       if (isAutoTune) {
         document.getElementById('fbInput').value = Fb.toFixed(2);
         syncSliderRange('fbRange', parseFloat(Fb.toFixed(2)), 15);
       }
-      const bp4Eval = analyzeTransferAlignment({ boxType, Fs, Qts, Vas, Vr, Vb, Fb });
-      F3 = bp4Eval.fL;
-      FH = bp4Eval.fH;
-      const paDb = 10.0 * Math.log10(Vr / Math.max(0.5, Vb));
-      const bw = Math.max(1, FH - F3);
-      if (qtc > 1.25) {
-        alignName = `BP4 Pico Alto (Qtc=${qtc.toFixed(2)})`;
+      if (isBP) syncSliderRange('vrRange', Vr, 5);
+      bpEval = analyzeTransferAlignment({
+        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vr, Vb, Fb, QL, rho, c, hpfHz
+      });
+      F3 = bpEval.fL;
+      FH = bpEval.fH;
+      const paDb = bpEval.paCenterDb;
+      const bw = bpEval.bw;
+      const sVal = bpEval.sFactor;
+      const qtP = bpEval.qtPrime;
+      const dfVal = bpEval.df;
+      if (bpEval.rippleDb > 2.0 || sVal < 0.48) {
+        alignName = `BP4 Chebyshev SPL (S=${sVal.toFixed(2)})`;
         alignColor = '#f59e0b';
+      } else if (sVal < 0.65) {
+        alignName = `BP4 Chebyshev (S=${sVal.toFixed(2)}, +${bpEval.rippleDb.toFixed(1)}dB)`;
+        alignColor = '#38bdf8';
+      } else if (sVal <= 0.78) {
+        alignName = `BP4 Butterworth (S=${sVal.toFixed(2)})`;
+        alignColor = '#4ade80';
       } else {
-        alignName = paDb > 2.5
-          ? `BP4 Estreita (Pa +${paDb.toFixed(1)} dB)`
-          : (paDb < -1.5 ? `BP4 Larga (Pa ${paDb.toFixed(1)} dB)` : `BP4 Equilibrada (${Vr.toFixed(0)}/${Vb.toFixed(0)}L)`);
+        alignName = `BP4 Bessel / Suave (S=${sVal.toFixed(2)})`;
+        alignColor = '#38bdf8';
       }
-      alignSub = `${isAutoTune ? '⚡ Auto (VR+VF)' : '🔒 Manual'} · Qtc=${qtc.toFixed(2)} · BW=${bw.toFixed(0)}Hz`;
-      kpi2SubTxt = `BW ${bw.toFixed(0)} Hz · Pa ${paDb >= 0 ? '+' : ''}${paDb.toFixed(1)} dB`;
+      alignSub = `Q't=${qtP.toFixed(2)} · DF=${dfVal.toFixed(2)} · Qtc=${qtc.toFixed(2)}`;
+      kpi2SubTxt = `BW ${bw.toFixed(0)} Hz (${bpEval.octaves.toFixed(2)} oit) · Pa ${paDb >= 0 ? '+' : ''}${paDb.toFixed(1)} dB`;
     } else {
       // BP6 (Paralela ou Série)
       alignLabel = 'Alinhamento BP6 (6ª)';
@@ -3667,14 +4074,35 @@ function recalculate() {
         syncSliderRange('fbVrRange', parseFloat(FbVr.toFixed(1)), 15);
       }
       if (isBP) syncSliderRange('vrRange', Vr, 5);
-      const bp6Eval = analyzeTransferAlignment({ boxType, Fs, Qts, Vas, Vr, Vb, FbVr, Fb, bp6Mode });
-      F3 = bp6Eval.fL;
-      FH = bp6Eval.fH;
-      const bw = Math.max(1, FH - F3);
+      bpEval = analyzeTransferAlignment({
+        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vr, Vb, FbVr, Fb, bp6Mode, QL, rho, c, hpfHz
+      });
+      F3 = bpEval.fL;
+      FH = bpEval.fH;
+      const bw = bpEval.bw;
       const ratio6 = Fb / Math.max(1.0, FbVr);
+      const paDb = bpEval.paCenterDb;
       alignName = `BP6 ${bp6Mode === 'series' ? 'Série' : 'Paralela'} (${FbVr.toFixed(0)}/${Fb.toFixed(0)} Hz)`;
-      alignSub = `${isAutoTune ? '⚡ Auto (VR+VF)' : '🔒 Manual'} · Razão ${ratio6.toFixed(2)}×`;
-      kpi2SubTxt = `BW ${bw.toFixed(0)} Hz · Razão ${ratio6.toFixed(2)}×`;
+      alignSub = `Q't=${bpEval.qtPrime.toFixed(2)} · DF=${bpEval.df.toFixed(2)} · Razão ${ratio6.toFixed(2)}×`;
+      kpi2SubTxt = `BW ${bw.toFixed(0)} Hz (${bpEval.octaves.toFixed(2)} oit) · Pa ${paDb >= 0 ? '+' : ''}${paDb.toFixed(1)} dB`;
+    }
+
+    const bpTelBox = document.getElementById('bpTelemetryBox');
+    if (bpTelBox && isBP && bpEval) {
+      const paSign = bpEval.paCenterDb >= 0 ? '+' : '';
+      const row2 = (boxType === 'bp4')
+        ? `<div><b>Qtc:</b> ${bpEval.qtcR.toFixed(2)} | <b>Fc:</b> ${bpEval.fcR.toFixed(1)} Hz | <b>Fb/Fc:</b> ${bpEval.symRatio.toFixed(2)}</div>`
+        : `<div><b>FbR/FbF:</b> ${FbVr.toFixed(0)}/${Fb.toFixed(0)} Hz (${bpEval.symRatio.toFixed(2)}×) | <b>VR/VF:</b> ${(Vr / Math.max(0.5, Vb)).toFixed(2)}</div>`;
+      const warnLines = [];
+      if (bpSynthClampNote) warnLines.push(`<div style="color:#facc15; margin-top:2px;">${bpSynthClampNote}</div>`);
+      if (boxType === 'bp4' && Math.abs(bpEval.symRatio - 1.0) > 0.08) {
+        warnLines.push(`<div style="color:#facc15;">⚠️ Sintonia assimétrica (Fb/Fc=${bpEval.symRatio.toFixed(2)})</div>`);
+      }
+      bpTelBox.innerHTML =
+        `<div><b>Q't:</b> <span style="color:#38bdf8;font-weight:700;">${bpEval.qtPrime.toFixed(3)}</span> | <b>DF:</b> <span style="color:#4ade80;font-weight:700;">${bpEval.df.toFixed(3)}</span> | <b>S:</b> <span style="color:#facc15;font-weight:700;">${bpEval.sFactor.toFixed(3)}</span></div>` +
+        `<div><b>Pa:</b> ${paSign}${bpEval.paCenterDb.toFixed(1)} dB | <b>Pico:</b> ${bpEval.peakDb >= 0 ? '+' : ''}${bpEval.peakDb.toFixed(1)} dB | <b>Rip:</b> ${bpEval.rippleDb.toFixed(1)} dB</div>` +
+        `<div><b>F₀:</b> ${bpEval.f0.toFixed(1)} Hz | <b>BW:</b> ${bpEval.bw.toFixed(0)} Hz (${bpEval.octaves.toFixed(2)} oit)</div>` +
+        row2 + warnLines.join('');
     }
 
     const vbBadge = document.getElementById('vbValBadge');
@@ -3686,7 +4114,6 @@ function recalculate() {
       portType, numDucts: numD, ductDia: dDia, ductThick: dThick,
       slotW, slotH, slotWallThick, triCount, triA, triB, Fb, Vb, c
     });
-    let portGeomVr = null;
     let airVelVr = 0;
     if (boxType === 'bp6') {
       const vrPortType = (bp6Mode === 'parallel' && isSlot) ? portType : (portType === 'flared' ? 'flared' : 'round');
@@ -3694,7 +4121,9 @@ function recalculate() {
         portType: vrPortType, numDucts: numDVr, ductDia: dDiaVr, ductThick: dThickVr,
         slotW, slotH, slotWallThick, triCount, triA, triB, Fb: FbVr, Vb: Vr, c
       });
-      airVelVr = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeomVr.Sp) * Math.max(1.0, FbVr));
+      airVelVr = (bpEval && Number.isFinite(bpEval.maxUpr))
+        ? (bpEval.maxUpr / Math.max(1e-6, portGeomVr.Sp))
+        : (4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeomVr.Sp) * Math.max(1.0, FbVr)));
     }
     DeqIn = portGeom.DeqIn;
     LvCm = portGeom.LvCm;
@@ -3702,7 +4131,9 @@ function recalculate() {
     velLimit = portGeom.velLimit;
     Vtot = Vb + (isBP ? Vr : 0) + Vsub + portGeom.vDuto + (portGeomVr ? portGeomVr.vDuto : 0);
 
-    airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb));
+    airVel = (isBP && bpEval && Number.isFinite(bpEval.maxUpf))
+      ? (bpEval.maxUpf / Math.max(1e-6, portGeom.Sp))
+      : (4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb)));
     machPct = (airVel / c) * 100.0;
 
     const ptBox = document.getElementById('portTelemetryBox');
@@ -3877,7 +4308,10 @@ function recalculate() {
   generateSimulationData({
     boxType, Fs, Qes, Qms, Re, Sd_m2, Vas, Xmax_mm, Pe, Qts,
     Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
-    fPipe1, velLimit, nDrivers, deltaT, powerCompDb
+    fPipe1, velLimit, nDrivers, deltaT, powerCompDb,
+    SpFront: portGeom ? portGeom.Sp : 0.01,
+    SpRear: portGeomVr ? portGeomVr.Sp : 0.01,
+    bpMetrics: bpEval
   });
 
   drawAllCharts();
@@ -3956,6 +4390,11 @@ function generateSimulationData(p) {
       if (hv_val > max_hv) max_hv = hv_val;
     });
   }
+
+  // Modelo físico acoplado Band-Pass (pré-computado uma vez por varredura)
+  const bpModel = (p.boxType === 'bp4' || p.boxType === 'bp6')
+    ? buildBandPassAcousticModel(p)
+    : null;
 
   let minEpdrVal = 1e9;
   let minEpdrFreq = 40.0;
@@ -4047,101 +4486,37 @@ function generateSimulationData(p) {
       phaseRadRaw.push(phiRad);
       G12.push(phiRad * 180.0 / Math.PI);
     } else if (p.boxType === 'bp4' || p.boxType === 'bp6') {
-      // Band-Pass 4ª Ordem (BP4) e 6ª Ordem (BP6 Paralela / Série)
-      const alphaR = p.Vas / Math.max(0.5, p.Vr || p.Vb * 0.75);
-      const alphaF = p.Vas / Math.max(0.5, p.Vb);
-      const fcR = p.Fs * Math.sqrt(1.0 + alphaR);
-      const qtcR = p.Qts * Math.sqrt(1.0 + alphaR);
-      const fbF = Math.max(15.0, p.Fb || 60.0);
-      const gainPa = Math.max(0.4, Math.min(3.0, Math.sqrt(Math.max(0.5, p.Vr || p.Vb * 0.75) / Math.max(0.5, p.Vb))));
-
-      let bpRe = 0, bpIm = 0, excFactor = 1.0, zBoxVal = p.Re, zPhase = 0;
-
-      if (p.boxType === 'bp4') {
-        // Polinômio passa-faixa 4ª ordem: H(s) = (K * s_n^2) / (D_r(s) * D_f(s) acoplado)
-        const rL = f / fcR;
-        const rH = f / fbF;
-        // HPF 2ª ordem em fcR (câmara traseira selada) * LPF 2ª ordem em fbF (câmara frontal dutada)
-        const drRe = 1.0 - rL * rL;
-        const drIm = rL / Math.max(0.25, qtcR);
-        const drMag2 = drRe * drRe + drIm * drIm;
-        const qf = Math.max(0.45, Math.min(2.2, 0.72 * Math.sqrt(alphaF / Math.max(0.2, alphaR))));
-        const dfRe = 1.0 - rH * rH;
-        const dfIm = rH / qf;
-        const dfMag2 = dfRe * dfRe + dfIm * dfIm;
-
-        // Complex H = (-rL^2 / (drRe + j drIm)) * (gainPa / (dfRe + j dfIm))
-        const h1Re = (-rL * rL * drRe) / drMag2;
-        const h1Im = (rL * rL * drIm) / drMag2;
-        const h2Re = (gainPa * dfRe) / dfMag2;
-        const h2Im = (-gainPa * dfIm) / dfMag2;
-        bpRe = h1Re * h2Re - h1Im * h2Im;
-        bpIm = h1Re * h2Im + h1Im * h2Re;
-        excFactor = (1.0 / (1.0 + alphaR)) * (1.0 / Math.sqrt(drMag2)) * (0.35 + 0.65 * Math.min(1.5, Math.abs(1.0 - rH * rH) + 0.25));
-
-        const zPeak = p.Re * (1.0 + (p.Qms / p.Qes) * 0.55);
-        const peak1 = Math.exp(-Math.pow((f - fcR * 0.72) / (fcR * 0.22), 2));
-        const peak2 = Math.exp(-Math.pow((f - fbF * 1.18) / (fbF * 0.25), 2));
-        zBoxVal = p.Re + (zPeak - p.Re) * (0.85 * peak1 + 0.75 * peak2);
-        zPhase = (peak1 - peak2) * 0.75;
-      } else {
-        // BP6 (6ª Ordem: 4ª ordem passa-altas em FbVr + 2ª ordem passa-baixas em FbF)
-        const fbLow = Math.max(15.0, Math.min(p.FbVr || 35.0, fbF - 5.0));
-        const fbHigh = Math.max(fbLow + 8.0, fbF);
-        const rL = f / fbLow;
-        const rH = f / fbHigh;
-        const qLow = Math.max(0.55, Math.min(1.6, p.Qts * 2.1));
-        const qHigh = p.bp6Mode === 'series' ? 0.78 : 1.05;
-
-        const d1Re = 1.0 - rL * rL;
-        const d1Im = rL / qLow;
-        const d1Mag2 = d1Re * d1Re + d1Im * d1Im;
-        // 4ª ordem HPF aproximada por cascata (d1)^2 com ajuste de ganho
-        const hpRe = (Math.pow(rL, 4) * (d1Re * d1Re - d1Im * d1Im)) / (d1Mag2 * d1Mag2);
-        const hpIm = (-Math.pow(rL, 4) * (2.0 * d1Re * d1Im)) / (d1Mag2 * d1Mag2);
-
-        const d2Re = 1.0 - rH * rH;
-        const d2Im = rH / qHigh;
-        const d2Mag2 = d2Re * d2Re + d2Im * d2Im;
-        const bp6Gain = (p.bp6Mode === 'series' ? 1.25 : 1.45) * Math.min(1.5, gainPa);
-        const lpRe = (bp6Gain * d2Re) / d2Mag2;
-        const lpIm = (-bp6Gain * d2Im) / d2Mag2;
-
-        bpRe = hpRe * lpRe - hpIm * lpIm;
-        bpIm = hpRe * lpIm + hpIm * lpRe;
-        const notchL = Math.min(1.0, Math.abs(f - fbLow) / (fbLow * 0.25) + 0.22);
-        const notchH = Math.min(1.0, Math.abs(f - fbHigh) / (fbHigh * 0.25) + 0.25);
-        excFactor = (1.0 / (1.0 + 0.5 * alphaR)) * (1.0 / Math.sqrt(d1Mag2)) * notchL * notchH;
-
-        const zPeak = p.Re * (1.0 + (p.Qms / p.Qes) * 0.6);
-        const p1 = Math.exp(-Math.pow((f - fbLow * 0.74) / (fbLow * 0.18), 2));
-        const p2 = Math.exp(-Math.pow((f - Math.sqrt(fbLow * fbHigh)) / (fbLow * 0.28), 2));
-        const p3 = Math.exp(-Math.pow((f - fbHigh * 1.25) / (fbHigh * 0.22), 2));
-        zBoxVal = p.Re + (zPeak - p.Re) * (0.8 * p1 + 0.7 * p2 + 0.65 * p3);
-        zPhase = (p1 - p2 + 0.6 * p3) * 0.7;
-      }
-
-      const bpMag = Math.max(1e-6, Math.sqrt(bpRe * bpRe + bpIm * bpIm));
+      // Modelo físico eletromecânico-acústico acoplado exato (BP4, BP6 Paralela & BP6 Série)
+      const ev = evalBandPassFrequency(bpModel, f);
+      const bpMag = Math.max(1e-6, Math.hypot(ev.H_re, ev.H_im));
       const g_mag_db = 20.0 * Math.log10(bpMag) + hpf_db;
       G4.push(g_mag_db);
       const spl_th = p.spl_rated + g_mag_db;
       G6.push(spl_th);
       G7.push(g_mag_db + t_cabin_db);
       G5.push(spl_th + t_cabin_db);
-      G2.push(spl_th); // Em Band-Pass toda a radiação sai pelos dutos
+      G2.push(spl_th); // Em Band-Pass toda a radiação externa sai pelos dutos
       G10.push(spl_th - 24.0); // Cone confinado nas câmaras internas
 
-      const exc_mm = Math.max(0.01, x_ref_peak_mm * excFactor * hpf_lin);
+      // Excursão real de pico do cone Xpk(f) = |Uc_pk| / (w * Sd) * |H_HPF| [mm]
+      const exc_mm = Math.max(0.0, (ev.Uc_mag / Math.max(1e-12, w * bpModel.Sd_m2)) * 1000.0 * hpf_lin);
       G8.push(exc_mm);
       G1.push(exc_mm > 1e-6 ? Math.min(p.Pe, p.Pe * Math.pow(p.Xmax_mm / exc_mm, 2)) : p.Pe);
 
-      const vPeak = p.airVel || 12.0;
-      G9.push(Math.min(vPeak * 1.8, vPeak * bpMag * hpf_lin));
+      // Velocidade real de pico do ar nos dutos |Up_pk| / Sp * |H_HPF| [m/s]
+      const vFront = (ev.Upf_mag / bpModel.SpFront) * hpf_lin;
+      const vRear = (p.boxType === 'bp6') ? ((ev.Upr_mag / bpModel.SpRear) * hpf_lin) : 0.0;
+      G9.push(Math.max(vFront, vRear));
+
+      // Impedância complexa real Zin(jw) e EPDR real
+      const zBoxVal = Math.hypot(ev.Zin_re, ev.Zin_im);
       G11.push(zBoxVal);
+      const zPhase = Math.atan2(ev.Zin_im, ev.Zin_re);
       const epdr_f = zBoxVal / (1.0 + Math.abs(Math.sin(zPhase)));
       if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
 
-      const phiRad = Math.atan2(bpIm, bpRe);
+      // Fase acústica real do gabinete (unwrapped em G13 para atraso de grupo real)
+      const phiRad = Math.atan2(ev.H_im, ev.H_re);
       phaseRadRaw.push(phiRad);
       G12.push(phiRad * 180.0 / Math.PI);
     } else {
@@ -4264,7 +4639,8 @@ function generateSimulationData(p) {
       powerCompDb: p.powerCompDb,
       minEpdrVal: minEpdrVal,
       minEpdrFreq: minEpdrFreq,
-      Vb: p.Vb
+      Vb: p.Vb,
+      bpMetrics: p.bpMetrics || null
     }
   };
 }
@@ -9700,10 +10076,9 @@ function computeWizardPlan() {
       Vr = Math.max(15, Math.round(Vb * 0.75));
       Vb = Math.max(15, Math.round(Vb * 0.65));
       const alphaR = Vas / Vr;
-      const alphaF = Vas / Vb;
       const fcR = Fs * Math.sqrt(1.0 + alphaR);
-      const fbOptBp4 = Math.max(fcR * 1.25, fcR * (1.15 + 0.15 * Math.pow(Math.max(0.25, alphaF), 0.31)));
-      Fb = Math.round(Math.max(45, fbOptBp4 * cfg.kFb) * 10) / 10;
+      const fbOptBp4 = fcR;
+      Fb = Math.round(Math.max(30, fbOptBp4 * cfg.kFb) * 10) / 10;
       keepAutoTune = (g === 'optimum');
       hpf = Math.max(22, Math.round(fcR * 0.65));
       alignDesc = `BP4 (VR=${Vr}L / VF=${Vb}L) · ${cfg.label}`;
