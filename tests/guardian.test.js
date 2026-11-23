@@ -255,7 +255,8 @@ runSuite('3. UI & Integration Contracts (nav order, sliders, storage keys)', () 
     const idM = m[0].match(/\bid="([^"]+)"/);
     return idM ? idM[1] : '(no-id)';
   });
-  assert.deepStrictEqual(ranges.sort(), ['fbRange', 'vbRange'], `Sliders must exist ONLY on vbRange and fbRange, got: ${ranges.join(', ')}`);
+  assert.deepStrictEqual(ranges.sort(), ['fbRange', 'fbVrRange', 'vbRange', 'vrRange'], `Sliders must exist ONLY on vbRange, vrRange, fbRange, fbVrRange, got: ${ranges.join(', ')}`);
+  assert(indexHtml.includes('id="numDuctsVr"') && indexHtml.includes('id="ductDiaVr"') && indexHtml.includes('id="portTelemetryBoxVr"'), 'index.html: missing BP6 VR per-chamber duct controls');
 });
 
 // Initialize VM once for mathematical & behavioral suites

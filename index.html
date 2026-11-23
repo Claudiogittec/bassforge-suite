@@ -1086,20 +1086,25 @@
         <div id="bpControls" style="display:none; flex-direction:column; gap:5px; padding:5px 0; border-top:1px dashed var(--border); border-bottom:1px dashed var(--border);">
           <div class="prop-row">
             <label for="vrInput">Câm. Tras. VR (L):</label>
-            <input type="number" id="vrInput" value="60" min="5" step="1" oninput="recalculate()">
+            <input type="number" id="vrInput" value="60" min="5" step="1" oninput="onVrInputChange(this.value)">
           </div>
+          <input type="range" id="vrRange" class="prop-slider" min="10" max="300" step="1" value="60" oninput="onVrRangeChange(this.value)">
           <div id="bp6ExtraRow" style="display:none; flex-direction:column; gap:5px;">
             <div class="prop-row">
               <label for="bp6Mode">Acopl. BP6:</label>
-              <select id="bp6Mode" onchange="recalculate()">
+              <select id="bp6Mode" onchange="onBp6ModeChange()">
                 <option value="parallel" selected>Paralela (2 dutos ext.)</option>
                 <option value="series">Série (VR ➔ VF)</option>
               </select>
             </div>
             <div class="prop-row">
               <label for="fbVrInput">Sint. VR (Hz):</label>
-              <input type="number" id="fbVrInput" value="35" min="15" max="120" step="0.5" oninput="onFbVrInputChange(this.value)">
+              <div style="display:flex; gap:4px; align-items:center;">
+                <input type="number" id="fbVrInput" value="35" min="15" max="120" step="0.5" oninput="onFbVrInputChange(this.value)">
+                <button type="button" id="fbVrLockBtn" class="fb-lock-btn" onclick="setTuningMode(!isAutoTune)" title="Alternar Sintonia Automática BP6 (VR+VF) / Manual">⚡</button>
+              </div>
             </div>
+            <input type="range" id="fbVrRange" class="prop-slider" min="15" max="90" step="0.5" value="35" oninput="onFbVrRangeChange(this.value)">
           </div>
         </div>
 
@@ -1167,6 +1172,7 @@
     <details class="prop-group" id="portControls" open>
       <summary>Duto (Aerodinâmica)</summary>
       <div class="prop-body">
+        <div id="portVfHeader" style="display:none; font-size:10px; font-weight:700; color:#38bdf8; letter-spacing:0.4px; text-transform:uppercase; padding-bottom:2px; border-bottom:1px dashed var(--border);">Câmara Frontal (VF)</div>
         <div class="prop-row">
           <label for="portType">Geometria:</label>
           <select id="portType" onchange="recalculate()">
@@ -1193,6 +1199,17 @@
           <div class="prop-row"><label for="triB">Cateto B (cm):</label><input type="number" id="triB" value="14.0" min="2" step="0.5" oninput="recalculate()"></div>
         </div>
         <div id="portTelemetryBox" style="margin-top:3px; padding:6px 7px; border-radius:4px; background:rgba(6,9,15,0.85); border:1px solid var(--border); font-family:var(--mono); font-size:9.8px; color:#cbd5e1; line-height:1.45;"></div>
+
+        <!-- GERENCIAMENTO INDEPENDENTE DE DUTO DA CÂMARA TRASEIRA VR (BP6) -->
+        <div id="portVrSection" style="display:none; flex-direction:column; gap:5px; margin-top:7px; padding-top:7px; border-top:1px dashed var(--border);">
+          <div id="portVrHeader" style="font-size:10px; font-weight:700; color:#c084fc; letter-spacing:0.4px; text-transform:uppercase; padding-bottom:2px;">Câmara Traseira (VR)</div>
+          <div id="portVrRoundFields" style="display:flex; flex-direction:column; gap:5px;">
+            <div class="prop-row"><label for="numDuctsVr">Qtde. Dutos VR:</label><input type="number" id="numDuctsVr" value="1" min="1" max="4" step="1" oninput="recalculate()"></div>
+            <div class="prop-row"><label for="ductDiaVr">Diâm. VR (pol):</label><input type="number" id="ductDiaVr" value="4.0" min="1" step="0.5" oninput="recalculate()"></div>
+            <div class="prop-row"><label for="ductThickVr">Espess. VR (mm):</label><input type="number" id="ductThickVr" value="1.5" min="0.5" step="0.5" oninput="recalculate()"></div>
+          </div>
+          <div id="portTelemetryBoxVr" style="margin-top:2px; padding:6px 7px; border-radius:4px; background:rgba(15,10,28,0.85); border:1px solid rgba(192,132,252,0.3); font-family:var(--mono); font-size:9.8px; color:#cbd5e1; line-height:1.45;"></div>
+        </div>
       </div>
     </details>
   </aside>
@@ -2372,7 +2389,7 @@ function onSimNumDriversChange() {
 
 const PROJECT_FIELD_IDS = [
   'driverPreset', 'boxType', 'simNumDrivers', 'vbInput', 'fbInput', 'vrInput', 'bp6Mode', 'fbVrInput', 'qlInput', 'tempInput',
-  'portType', 'numDucts', 'ductDia', 'ductThick', 'slotW', 'slotH', 'slotWallThick', 'triCount', 'triA', 'triB',
+  'portType', 'numDucts', 'ductDia', 'ductThick', 'numDuctsVr', 'ductDiaVr', 'ductThickVr', 'slotW', 'slotH', 'slotWallThick', 'triCount', 'triA', 'triB',
   'cabinLen', 'hpfCutoff', 'thermalDeltaT',
   'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
   'tsLe', 'tsZnom', 'tsDia', 'tsCoils', 'tsMmsCat', 'tsBlCat',
@@ -2440,6 +2457,10 @@ function applyProjectData(proj, opts = {}) {
     if (fb < parseFloat(fbR.min)) fbR.min = Math.max(10, Math.floor(fb * 0.7));
     fbR.value = fb;
   }
+  const vr = parseFloat(proj.fields.vrInput);
+  if (!isNaN(vr) && vr > 0) syncSliderRange('vrRange', vr, 5);
+  const fbVr = parseFloat(proj.fields.fbVrInput);
+  if (!isNaN(fbVr) && fbVr > 0) syncSliderRange('fbVrRange', fbVr, 15);
   if (typeof proj.isHpfEnabled === 'boolean') setHpfEnabled(proj.isHpfEnabled, false);
   setTuningMode(proj.isAutoTune !== false);
   if (typeof proj.analysisEnv === 'string' && ENV_PROFILES[proj.analysisEnv]) {
@@ -2506,17 +2527,19 @@ function syncSliderRange(rangeId, val, minFloor = 10) {
 }
 
 function updateFbLockButtonUI(boxTypeOverride) {
-  const lockBtn = document.getElementById('fbLockBtn');
-  if (!lockBtn) return;
   const boxType = boxTypeOverride || document.getElementById('boxType')?.value || 'bass-reflex';
   const formulaHint = boxType === 'bp4'
     ? 'BP4 (VR+VF)'
     : (boxType === 'bp6' ? 'BP6 (VR+VF)' : 'Fb = Fs·α^0.31');
-  lockBtn.textContent = isAutoTune ? '⚡' : '🔒';
-  lockBtn.classList.toggle('manual', !isAutoTune);
-  lockBtn.title = isAutoTune
-    ? `Sintonia Automática (${formulaHint}) — clique para travar em Manual`
-    : `Sintonia Manual — clique para voltar ao Automático (${formulaHint})`;
+  ['fbLockBtn', 'fbVrLockBtn'].forEach(btnId => {
+    const lockBtn = document.getElementById(btnId);
+    if (!lockBtn) return;
+    lockBtn.textContent = isAutoTune ? '⚡' : '🔒';
+    lockBtn.classList.toggle('manual', !isAutoTune);
+    lockBtn.title = isAutoTune
+      ? `Sintonia Automática (${formulaHint}) — clique para travar em Manual`
+      : `Sintonia Manual — clique para voltar ao Automático (${formulaHint})`;
+  });
 }
 
 let isHpfEnabled = false;
@@ -2614,15 +2637,51 @@ function onFbInputChange(val) {
   }
 }
 
-function onFbVrInputChange(val) {
+function onVrRangeChange(val) {
+  const vr = parseFloat(val);
+  if (!isNaN(vr) && vr > 0) {
+    const el = document.getElementById('vrInput');
+    if (el) el.value = vr;
+    recalculate();
+  }
+}
+
+function onVrInputChange(val) {
+  const vr = parseFloat(val);
+  if (!isNaN(vr) && vr > 0) {
+    syncSliderRange('vrRange', vr, 5);
+    recalculate();
+  }
+}
+
+function onFbVrRangeChange(val) {
   const fbVr = parseFloat(val);
   if (!isNaN(fbVr) && fbVr > 0) {
+    const el = document.getElementById('fbVrInput');
+    if (el) el.value = fbVr;
     if (isAutoTune) {
       setTuningMode(false);
     } else {
       recalculate();
     }
   }
+}
+
+function onFbVrInputChange(val) {
+  const fbVr = parseFloat(val);
+  if (!isNaN(fbVr) && fbVr > 0) {
+    syncSliderRange('fbVrRange', fbVr, 15);
+    if (isAutoTune) {
+      setTuningMode(false);
+    } else {
+      recalculate();
+    }
+  }
+}
+
+function onBp6ModeChange() {
+  recalculate();
+  autofixWoodlockGeometry('acoplamento BP6');
 }
 
 // ============================================================================
@@ -3088,35 +3147,71 @@ function computeTopologySuitability({ EBP, Qts, dia }) {
 
 function selectTopology(topo) {
   const el = document.getElementById('boxType');
+  const prevTopo = el ? el.value : '';
   if (el) el.value = topo;
-  const Vb = parseFloat(document.getElementById('vbInput')?.value) || 80;
+  const vbEl = document.getElementById('vbInput');
   const vrEl = document.getElementById('vrInput');
   const fbEl = document.getElementById('fbInput');
   const fbVrEl = document.getElementById('fbVrInput');
   const fbR = document.getElementById('fbRange');
+  const VbCur = parseFloat(vbEl?.value) || 80;
   if (fbR && isAutoTune) {
     fbR.min = 20;
     fbR.max = 80;
   }
-  if ((topo === 'bp4' || topo === 'bp6') && vrEl && (!parseFloat(vrEl.value) || parseFloat(vrEl.value) < 0.5)) {
-    vrEl.value = Math.max(0.5, Math.round(Vb * 0.75 * 10) / 10);
+  if (topo === 'bp4' || topo === 'bp6') {
+    const enteringBp = (prevTopo !== 'bp4' && prevTopo !== 'bp6');
+    const curVr = parseFloat(vrEl?.value) || 0;
+    // Em Band-Pass (BP4/BP6), ao entrar vindo de outra topologia com VR ainda no padrão de fábrica (60 L) e Vb grande, ajusta VR > VF
+    if (enteringBp && isAutoTune && vbEl && vrEl && VbCur >= 20 && (curVr < 0.5 || (Math.abs(curVr - 60) < 0.01 && VbCur > curVr * 1.15))) {
+      const targetVr = Math.max(15, Math.round(VbCur));
+      const targetVf = Math.max(10, Math.round(targetVr * (topo === 'bp6' ? 0.55 : 0.50)));
+      vrEl.value = targetVr;
+      vbEl.value = targetVf;
+      syncSliderRange('vbRange', targetVf, 5);
+    } else if (vrEl && (!curVr || curVr < 0.5)) {
+      vrEl.value = Math.max(0.5, Math.round(VbCur * 0.75 * 10) / 10);
+    }
   }
+  if (vrEl && parseFloat(vrEl.value) > 0) syncSliderRange('vrRange', parseFloat(vrEl.value), 5);
   if (topo === 'bp6' && fbVrEl && fbEl) {
     const fbF = parseFloat(fbEl.value) || 65;
     if (!parseFloat(fbVrEl.value) || parseFloat(fbVrEl.value) >= fbF) {
       fbVrEl.value = Math.max(18, Math.round(fbF * 0.62));
     }
+    syncSliderRange('fbVrRange', parseFloat(fbVrEl.value), 15);
   }
   recalculate();
-  // Em BP4/BP6 com Auto-Tune, se Lv <= 1.0 cm (Fb alto p/ área do duto), aumenta numDucts (Lv ∝ Sp) para garantir tubo físico positivo
-  if ((topo === 'bp4' || topo === 'bp6') && isAutoTune && lastBuildPack && lastBuildPack.acoustics && lastBuildPack.acoustics.LvCm <= 1.0) {
-    const nEl = document.getElementById('numDucts');
+  // Em BP4/BP6 com Auto-Tune e duto cilíndrico, escolhe combinação (Qtde, Diâm) com Lv fisicamente viável (5..maxSafeLv cm) para VF e VR
+  if ((topo === 'bp4' || topo === 'bp6') && isAutoTune) {
     const pEl = document.getElementById('portType');
-    if (pEl && pEl.value === 'round' && nEl) {
-      for (const tryN of [3, 4]) {
-        if (lastBuildPack && lastBuildPack.acoustics && lastBuildPack.acoustics.LvCm > 1.0) break;
+    const nEl = document.getElementById('numDucts');
+    const dEl = document.getElementById('ductDia');
+    const curLv = lastBuildPack && lastBuildPack.acoustics ? lastBuildPack.acoustics.LvCm : 0;
+    const maxSafeLv = Math.max(32.0, ((parseFloat(document.getElementById('wlHeightB')?.value) || 480) - 70) / 10.0);
+    if (pEl && (pEl.value === 'round' || pEl.value === 'flared') && nEl && dEl && (curLv < 4.0 || curLv > maxSafeLv)) {
+      const candidates = [[2, 5], [2, 6], [1, 6], [2, 4], [1, 5], [1, 4], [3, 4], [3, 5]];
+      for (const [tryN, tryD] of candidates) {
         nEl.value = String(tryN);
+        dEl.value = String(tryD);
         recalculate();
+        const lvTry = lastBuildPack && lastBuildPack.acoustics ? lastBuildPack.acoustics.LvCm : 0;
+        if (lvTry >= 5.0 && lvTry <= maxSafeLv) break;
+      }
+    }
+    if (topo === 'bp6') {
+      const nVrEl = document.getElementById('numDuctsVr');
+      const dVrEl = document.getElementById('ductDiaVr');
+      const curLvVr = lastBuildPack && lastBuildPack.acoustics ? (lastBuildPack.acoustics.lvRearMm || 0) / 10.0 : 0;
+      if (nVrEl && dVrEl && (curLvVr < 4.0 || curLvVr > maxSafeLv)) {
+        const vrCandidates = [[2, 4], [1, 6], [1, 5], [1, 4], [2, 5], [1, 3], [2, 3]];
+        for (const [tryN, tryD] of vrCandidates) {
+          nVrEl.value = String(tryN);
+          dVrEl.value = String(tryD);
+          recalculate();
+          const lvVrTry = lastBuildPack && lastBuildPack.acoustics ? (lastBuildPack.acoustics.lvRearMm || 0) / 10.0 : 0;
+          if (lvVrTry >= 5.0 && lvVrTry <= maxSafeLv) break;
+        }
       }
     }
   }
@@ -3363,13 +3458,22 @@ function recalculate() {
   const bpCtrl = document.getElementById('bpControls');
   const bp6Extra = document.getElementById('bp6ExtraRow');
   const vbLbl = document.getElementById('vbInputLabel');
+  const portVfHdr = document.getElementById('portVfHeader');
+  const portVrSec = document.getElementById('portVrSection');
+  const portVrHdr = document.getElementById('portVrHeader');
+  const portVrRound = document.getElementById('portVrRoundFields');
   if (bpCtrl) bpCtrl.style.display = isBP ? 'flex' : 'none';
   if (bp6Extra) bp6Extra.style.display = (boxType === 'bp6') ? 'flex' : 'none';
   if (vbLbl) vbLbl.textContent = isBP ? 'Câm. Front. VF (L):' : 'Vol. Vb (L):';
+  if (portVfHdr) portVfHdr.style.display = isBP ? 'block' : 'none';
+  if (portVrSec) portVrSec.style.display = (boxType === 'bp6') ? 'flex' : 'none';
 
   const portType = document.getElementById('portType')?.value || 'round';
   const isSlot = (portType === 'slot' || portType === 'slot_wall');
   const isTri = (portType === 'triangle');
+  const bp6ModeUi = document.getElementById('bp6Mode')?.value || 'parallel';
+  if (portVrHdr) portVrHdr.textContent = (bp6ModeUi === 'series') ? 'Câmara Traseira (VR ➔ VF Série)' : 'Câmara Traseira (VR — Paralela)';
+  if (portVrRound) portVrRound.style.display = (boxType === 'bp6' && (!isSlot || bp6ModeUi === 'series')) ? 'flex' : 'none';
   const roundFields = document.getElementById('portRoundFields');
   const slotFields = document.getElementById('portSlotFields');
   const triFields = document.getElementById('portTriFields');
@@ -3417,6 +3521,9 @@ function recalculate() {
   const numD = parseInt(document.getElementById('numDucts').value) || 1;
   const dDia = parseFloat(document.getElementById('ductDia').value) || 4.0;
   const dThick = parseFloat(document.getElementById('ductThick').value) || 1.5;
+  const numDVr = Math.max(1, parseInt(document.getElementById('numDuctsVr')?.value) || 1);
+  const dDiaVr = Math.max(1.0, parseFloat(document.getElementById('ductDiaVr')?.value) || 4.0);
+  const dThickVr = Math.max(0.5, parseFloat(document.getElementById('ductThickVr')?.value) || 1.5);
   const slotW = parseFloat(document.getElementById('slotW')?.value) || 35.0;
   const slotH = parseFloat(document.getElementById('slotH')?.value) || 6.0;
   const slotWallThick = parseFloat(document.getElementById('slotWallThick')?.value) || 18.0;
@@ -3552,11 +3659,14 @@ function recalculate() {
         Fb = fbOptBp6;
         const fbVrEl = document.getElementById('fbVrInput');
         if (fbVrEl) fbVrEl.value = FbVr.toFixed(1);
+        syncSliderRange('fbVrRange', parseFloat(FbVr.toFixed(1)), 15);
         document.getElementById('fbInput').value = Fb.toFixed(2);
         syncSliderRange('fbRange', parseFloat(Fb.toFixed(2)), 15);
       } else {
         Fb = parseFloat(document.getElementById('fbInput').value) || fbOptBp6;
+        syncSliderRange('fbVrRange', parseFloat(FbVr.toFixed(1)), 15);
       }
+      if (isBP) syncSliderRange('vrRange', Vr, 5);
       const bp6Eval = analyzeTransferAlignment({ boxType, Fs, Qts, Vas, Vr, Vb, FbVr, Fb, bp6Mode });
       F3 = bp6Eval.fL;
       FH = bp6Eval.fH;
@@ -3576,11 +3686,21 @@ function recalculate() {
       portType, numDucts: numD, ductDia: dDia, ductThick: dThick,
       slotW, slotH, slotWallThick, triCount, triA, triB, Fb, Vb, c
     });
+    let portGeomVr = null;
+    let airVelVr = 0;
+    if (boxType === 'bp6') {
+      const vrPortType = (bp6Mode === 'parallel' && isSlot) ? portType : (portType === 'flared' ? 'flared' : 'round');
+      portGeomVr = computePortGeometry({
+        portType: vrPortType, numDucts: numDVr, ductDia: dDiaVr, ductThick: dThickVr,
+        slotW, slotH, slotWallThick, triCount, triA, triB, Fb: FbVr, Vb: Vr, c
+      });
+      airVelVr = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeomVr.Sp) * Math.max(1.0, FbVr));
+    }
     DeqIn = portGeom.DeqIn;
     LvCm = portGeom.LvCm;
     fPipe1 = portGeom.fPipe1;
     velLimit = portGeom.velLimit;
-    Vtot = Vb + (isBP ? Vr : 0) + Vsub + portGeom.vDuto;
+    Vtot = Vb + (isBP ? Vr : 0) + Vsub + portGeom.vDuto + (portGeomVr ? portGeomVr.vDuto : 0);
 
     airVel = 4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb));
     machPct = (airVel / c) * 100.0;
@@ -3600,6 +3720,21 @@ function recalculate() {
         `<div><b>Sp:</b> ${spCm2.toFixed(1)} cm² | <b>Lv:</b> <span style="color:var(--accent);font-weight:700;">${LvCm.toFixed(2)} cm</span> (k=${portGeom.kEnd})</div>` +
         `<div><b>Tubo Órgão f₁:</b> <span style="color:#38bdf8;">${fPipe1.toFixed(0)} Hz</span>${dimExtra}</div>` +
         (warns.length ? `<div style="margin-top:2px;">${warns.join('<br>')}</div>` : `<div style="color:#4ade80;">✓ Escoamento limpo (&lt;${velLimit} m/s)</div>`);
+    }
+
+    const ptBoxVr = document.getElementById('portTelemetryBoxVr');
+    if (ptBoxVr && portGeomVr) {
+      const spVrCm2 = portGeomVr.Sp * 10000.0;
+      const lvVrCm = portGeomVr.LvCm;
+      const fPipeVr = portGeomVr.fPipe1;
+      const warnsVr = [];
+      if (lvVrCm < 1.0) warnsVr.push('<span style="color:#f87171;">⚠️ Lv VR curto/negativo (ajuste Ø VR ou Fb VR)</span>');
+      if (fPipeVr > 0 && fPipeVr < 400) warnsVr.push(`<span style="color:#facc15;">⚠️ Tubo órgão VR baixo (${fPipeVr.toFixed(0)} Hz)</span>`);
+      if (airVelVr > portGeomVr.velLimit) warnsVr.push(`<span style="color:#f87171;">⚠️ Sopro VR (${airVelVr.toFixed(1)} m/s &gt; ${portGeomVr.velLimit})</span>`);
+      ptBoxVr.innerHTML =
+        `<div><b>Sp VR:</b> ${spVrCm2.toFixed(1)} cm² | <b>Lv VR:</b> <span style="color:#c084fc;font-weight:700;">${lvVrCm.toFixed(2)} cm</span></div>` +
+        `<div><b>Ar VR:</b> <span style="color:#38bdf8;">${airVelVr.toFixed(1)} m/s</span> | <b>f₁:</b> ${fPipeVr.toFixed(0)} Hz</div>` +
+        (warnsVr.length ? `<div style="margin-top:2px;">${warnsVr.join('<br>')}</div>` : `<div style="color:#4ade80;">✓ Escoamento VR limpo (&lt;${portGeomVr.velLimit} m/s)</div>`);
     }
 
     document.getElementById('kpi1Label').textContent = isBP ? 'Sintonia VF (Fb)' : 'Sintonia Fb';
@@ -3623,10 +3758,16 @@ function recalculate() {
     const portCard = document.getElementById('kpiPortCard');
     if (portCard) {
       portCard.style.display = 'flex';
+      const worstVel = portGeomVr ? Math.max(airVel, airVelVr) : airVel;
       portCard.classList.remove('good', 'warn', 'danger');
-      portCard.classList.add(airVel <= velLimit * 0.85 ? 'good' : (airVel <= velLimit ? 'warn' : 'danger'));
-      document.getElementById('kpiVelVal').textContent = LvCm.toFixed(1) + ' cm (Lv)';
-      document.getElementById('kpiVelSub').textContent = `Ar: ${airVel.toFixed(1)} m/s (${machPct.toFixed(1)}% Mach · f₁=${fPipe1.toFixed(0)}Hz)`;
+      portCard.classList.add(worstVel <= velLimit * 0.85 ? 'good' : (worstVel <= velLimit ? 'warn' : 'danger'));
+      if (portGeomVr) {
+        document.getElementById('kpiVelVal').textContent = `VF ${LvCm.toFixed(1)} · VR ${portGeomVr.LvCm.toFixed(1)} cm`;
+        document.getElementById('kpiVelSub').textContent = `Ar VF ${airVel.toFixed(1)} · VR ${airVelVr.toFixed(1)} m/s`;
+      } else {
+        document.getElementById('kpiVelVal').textContent = LvCm.toFixed(1) + ' cm (Lv)';
+        document.getElementById('kpiVelSub').textContent = `Ar: ${airVel.toFixed(1)} m/s (${machPct.toFixed(1)}% Mach · f₁=${fPipe1.toFixed(0)}Hz)`;
+      }
     }
   } else {
     // Caixa Selada, Planar Horn (câmara traseira selada) ou Baffle Infinito (Free-Air, Vb → ∞)
@@ -4950,6 +5091,8 @@ function computeWoodlockFloors(opts) {
   const isTri = (portType === 'triangle');
   const numDucts = Math.max(1, parseInt(opts.numDucts) || 1);
   const ductHoleDia = (parseFloat(opts.ductDia) || 4.0) * 25.4 + 2.0 * (parseFloat(opts.ductThick) || 1.5);
+  const numDuctsVr = Math.max(1, parseInt(opts.numDuctsVr) || 1);
+  const ductHoleDiaVr = (parseFloat(opts.ductDiaVr) || parseFloat(opts.ductDia) || 4.0) * 25.4 + 2.0 * (parseFloat(opts.ductThickVr) || parseFloat(opts.ductThick) || 1.5);
   const slotWmm = (parseFloat(opts.slotW) || 35.0) * 10.0;
   const slotHmm = (parseFloat(opts.slotH) || 6.0) * 10.0;
   const slotWallThick = parseFloat(opts.slotWallThick) || 18.0;
@@ -5014,12 +5157,12 @@ function computeWoodlockFloors(opts) {
       minB = Math.max(minB, rows * flangeOD + ductHoleDia + minGap + 2 * edgeMargin);
     }
   } else if (isBp) {
-    // Em BP4/BP6, o(s) driver(s) ficam na(s) divisória(s) interna(s) B×C e os dutos nas câmaras A_rear/A_front
-    const minBPortStack = isBpSlot ? (flangeOD + 20) : (numDucts * ductHoleDia + (numDucts - 1) * minGap + 2 * edgeMargin);
+    // Em BP4/BP6, o(s) driver(s) ficam na(s) divisória(s) interna(s) B×C e os dutos saem pelo tampo (ao longo de C, não empilhados em B)
+    const maxPortDia = Math.max(ductHoleDia, boxType === 'bp6' ? ductHoleDiaVr : 0);
     const bpSlotA = isBpSlot ? ((isBp6Parallel ? 2 : 1) * (slotHmm + slotWallThick + 90) + (nDrivers === 2 ? 260 : 180)) : 0;
-    const bpRoundA = (nDrivers === 2 ? 3.2 : 2.5) * (ductHoleDia + 2 * edgeMargin) + (nDrivers === 2 ? 120 : 60);
+    const bpRoundA = (nDrivers === 2 ? 3.2 : 2.3) * (maxPortDia + 2 * edgeMargin) + (nDrivers === 2 ? 120 : 60);
     minA = Math.max(minA, bpSlotA, bpRoundA);
-    minB = Math.max(minB, rows * flangeOD + (rows - 1) * minGap + 20, minBPortStack);
+    minB = Math.max(minB, rows * flangeOD + (rows - 1) * minGap + 20);
   } else if (isPlanar && planarStyle === 'square') {
     // Em Planar Quadrada, o baffle útil tem altura C4 = B - min(110, 0.18*B) - t acima da divisória
     const throatReserve = 110 + t;
@@ -5085,10 +5228,25 @@ function autofixWoodlockGeometry(reason = '') {
     changes.push(`A ${origA.toFixed(0)}→${A} mm`);
   }
 
-  // 3. Revalida; se profundidade C ficar curta para Lv + 40 mm ou para o flange na divisória BP4/BP6, reduz A e B até os pisos preservando Vb/Fb
+  // 3. Revalida; em BP4/BP6 dutos descem do tampo ao longo de B (cresce B se PORT_DEPTH_COLLISION); em dutada frontal/divisória BP reduz A/B p/ crescer C
   updateWoodlock();
   if (lastBuildPack && !lastBuildPack.validation.valid) {
-    const needsMoreDepth = () => lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION' || i.code === 'BP_DIVIDER_DEPTH_FIT');
+    const isBpActive = !!(lastBuildPack.acoustics && lastBuildPack.acoustics.bpChambers && lastBuildPack.acoustics.bpChambers.isBp);
+    const hasPortDepthErr = () => lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION');
+    const hasBpDivDepthErr = () => lastBuildPack.validation.issues.some(i => i.code === 'BP_DIVIDER_DEPTH_FIT');
+    if (isBpActive && hasPortDepthErr()) {
+      const acP = lastBuildPack.acoustics;
+      const lvNeed = Math.max(acP.lvMm || 0, (acP.bpChambers && acP.bpChambers.isBp6Parallel) ? (acP.lvRearMm || 0) : 0);
+      const targetB = roundUp5(Math.max(floors.minB, lvNeed + 55));
+      if (targetB > B) {
+        const prevB = B;
+        B = targetB;
+        elB.value = B;
+        changes.push(`B ${prevB.toFixed(0)}→${B} mm (folga duto topo)`);
+        updateWoodlock();
+      }
+    }
+    const needsMoreDepth = () => isBpActive ? hasBpDivDepthErr() : (hasPortDepthErr() || hasBpDivDepthErr());
     let hasDepthErr = needsMoreDepth();
     if (hasDepthErr && A > floors.minA) {
       const targetA = roundUp5(floors.minA);
@@ -5101,7 +5259,7 @@ function autofixWoodlockGeometry(reason = '') {
         hasDepthErr = needsMoreDepth();
       }
     }
-    if (hasDepthErr && B > floors.minB) {
+    if (hasDepthErr && !(isBpActive && hasPortDepthErr()) && B > floors.minB) {
       const targetB = roundUp5(floors.minB);
       if (targetB < B) {
         const prevB = B;
@@ -5269,6 +5427,8 @@ function validateBuildGeometry(opts) {
   const isTri = (portType === 'triangle');
   const numDucts = Math.max(1, parseInt(opts.numDucts) || 1);
   const ductHoleDia = (parseFloat(opts.ductDia) || 4.0) * 25.4 + 2.0 * (parseFloat(opts.ductThick) || 1.5);
+  const numDuctsVr = Math.max(1, parseInt(opts.numDuctsVr) || 1);
+  const ductHoleDiaVr = (parseFloat(opts.ductDiaVr) || parseFloat(opts.ductDia) || 4.0) * 25.4 + 2.0 * (parseFloat(opts.ductThickVr) || parseFloat(opts.ductThick) || 1.5);
   const slotWmm = (parseFloat(opts.slotW) || 35.0) * 10.0;
   const slotHmm = (parseFloat(opts.slotH) || 6.0) * 10.0;
   const slotWallThick = parseFloat(opts.slotWallThick) || 18.0;
@@ -5532,46 +5692,64 @@ function validateBuildGeometry(opts) {
           collision: false
         });
       }
-      // Em BP6 Paralelo, adiciona duto(s) da câmara traseira (VR) no tampo superior
+      // Em BP6 Paralelo, adiciona duto(s) independentes da câmara traseira (VR) no tampo superior
       if (isBp && bpChambers && bpChambers.isBp6Parallel && bpChambers.lvRearMm > 0) {
         const rearXs = bpChambers.dualDiv
           ? [bpChambers.A_rear_side / 2, A - bpChambers.A_rear_side / 2]
           : [bpChambers.A_rear / 2];
-        rearXs.forEach((rx, rIdx) => {
+        const vrPerSide = bpChambers.dualDiv ? Math.max(1, Math.ceil(numDuctsVr / 2)) : numDuctsVr;
+        let vrIdxGlobal = 0;
+        rearXs.forEach(rx => {
+          for (let j = 0; j < vrPerSide; j++) {
+            vrIdxGlobal++;
+            let ry;
+            if (vrPerSide === 1) {
+              ry = C_min / 2;
+            } else {
+              const zMinVr = t + edgeMargin + ductHoleDiaVr / 2;
+              const zMaxVr = Math.max(zMinVr + 10, C_min - edgeMargin - ductHoleDiaVr / 2);
+              ry = zMinVr + (j / (vrPerSide - 1)) * (zMaxVr - zMinVr);
+            }
+            holes.push({
+              kind: 'port',
+              panel: 'topo',
+              shape: 'round',
+              label: (rearXs.length * vrPerSide > 1) ? `Duto Câmara Traseira (VR) #${vrIdxGlobal}` : 'Duto Câmara Traseira (VR)',
+              xInt: +rx.toFixed(1),
+              yInt: +ry.toFixed(1),
+              xExt: +(rx + t).toFixed(1),
+              yExt: +(ry + t).toFixed(1),
+              dia: +ductHoleDiaVr.toFixed(1),
+              flangeDia: +(ductHoleDiaVr + 22).toFixed(1),
+              lvMm: +bpChambers.lvRearMm.toFixed(1),
+              collision: false
+            });
+          }
+        });
+      }
+      // Em BP6 Série, adiciona o(s) duto(s) acoplador(es) VR->VF na divisória interna
+      if (isBp && bpChambers && bpChambers.isBp6Series && bpChambers.lvRearMm > 0) {
+        const serCount = Math.min(2, numDuctsVr);
+        for (let sIdx = 0; sIdx < serCount; sIdx++) {
+          const serX = sIdx === 0
+            ? Math.max(edgeMargin + ductHoleDiaVr / 2, C_min - edgeMargin - ductHoleDiaVr / 2)
+            : (edgeMargin + ductHoleDiaVr / 2);
+          const serY = edgeMargin + ductHoleDiaVr / 2;
           holes.push({
             kind: 'port',
-            panel: 'topo',
+            panel: bpChambers.dualDiv ? 'divisoria_1' : 'divisoria',
             shape: 'round',
-            label: rearXs.length > 1 ? `Duto Câmara Traseira (VR) #${rIdx + 1}` : 'Duto Câmara Traseira (VR)',
-            xInt: +rx.toFixed(1),
-            yInt: +(C_min / 2).toFixed(1),
-            xExt: +(rx + t).toFixed(1),
-            yExt: +(C_min / 2 + t).toFixed(1),
-            dia: +ductHoleDia.toFixed(1),
-            flangeDia: +(ductHoleDia + 22).toFixed(1),
+            label: serCount > 1 ? `Duto Série (VR→VF) #${sIdx + 1}` : 'Duto Série (VR→VF)',
+            xInt: +serX.toFixed(1),
+            yInt: +serY.toFixed(1),
+            xExt: +serX.toFixed(1),
+            yExt: +serY.toFixed(1),
+            dia: +ductHoleDiaVr.toFixed(1),
+            flangeDia: +(ductHoleDiaVr + 22).toFixed(1),
             lvMm: +bpChambers.lvRearMm.toFixed(1),
             collision: false
           });
-        });
-      }
-      // Em BP6 Série, adiciona o duto acoplador VR->VF na divisória interna
-      if (isBp && bpChambers && bpChambers.isBp6Series && bpChambers.lvRearMm > 0) {
-        const serX = Math.max(edgeMargin + ductHoleDia / 2, C_min - edgeMargin - ductHoleDia / 2);
-        const serY = edgeMargin + ductHoleDia / 2;
-        holes.push({
-          kind: 'port',
-          panel: bpChambers.dualDiv ? 'divisoria_1' : 'divisoria',
-          shape: 'round',
-          label: 'Duto Série (VR→VF)',
-          xInt: +serX.toFixed(1),
-          yInt: +serY.toFixed(1),
-          xExt: +serX.toFixed(1),
-          yExt: +serY.toFixed(1),
-          dia: +ductHoleDia.toFixed(1),
-          flangeDia: +(ductHoleDia + 22).toFixed(1),
-          lvMm: +bpChambers.lvRearMm.toFixed(1),
-          collision: false
-        });
+        }
       }
     }
   }
@@ -5673,13 +5851,21 @@ function validateBuildGeometry(opts) {
       issues.push({
         level: 'critical',
         code: 'PORT_LV_NEGATIVE',
-        msg: `Comprimento cortado do duto Lv = ${(lvMm / 10).toFixed(1)} cm é nulo/negativo. Reduza a área do duto ou baixe Fb.`
+        msg: `Comprimento cortado do duto VF Lv = ${(lvMm / 10).toFixed(1)} cm é nulo/negativo. Reduza a área do duto ou baixe Fb.`
+      });
+    } else if (boxType === 'bp6' && bpChambers && bpChambers.lvRearMm <= 0) {
+      issues.push({
+        level: 'critical',
+        code: 'PORT_LV_NEGATIVE',
+        msg: `Comprimento cortado do duto VR Lv_VR é nulo/negativo. Ajuste Diâm. VR / Qtde. VR ou Sintonia VR.`
       });
     } else if (clearanceMm < 40) {
       issues.push({
         level: 'critical',
         code: 'PORT_DEPTH_COLLISION',
-        msg: `Duto (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na profundidade interna mínima C = ${C_min.toFixed(0)} mm (folga traseira ${clearanceMm.toFixed(0)} mm < 40 mm).`
+        msg: isBp
+          ? `Duto de topo (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na altura interna B = ${B.toFixed(0)} mm (folga inferior ${clearanceMm.toFixed(0)} mm < 40 mm).`
+          : `Duto (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na profundidade interna mínima C = ${C_min.toFixed(0)} mm (folga traseira ${clearanceMm.toFixed(0)} mm < 40 mm).`
       });
     } else if (clearanceMm < Math.max(50, deqMm * 0.75)) {
       issues.push({
@@ -5765,6 +5951,9 @@ function updateWoodlock() {
   const numDucts = isSharedCenterPort && portType === 'round' ? 1 : (parseInt(document.getElementById('numDucts').value) || 2);
   const ductDia = parseFloat(document.getElementById('ductDia').value) || 6.0;
   const ductThick = parseFloat(document.getElementById('ductThick').value) || 1.5;
+  const numDuctsVr = Math.max(1, parseInt(document.getElementById('numDuctsVr')?.value) || 1);
+  const ductDiaVr = Math.max(1.0, parseFloat(document.getElementById('ductDiaVr')?.value) || 4.0);
+  const ductThickVr = Math.max(0.5, parseFloat(document.getElementById('ductThickVr')?.value) || 1.5);
   const slotW = parseFloat(document.getElementById('slotW')?.value) || 35.0;
   const slotH = parseFloat(document.getElementById('slotH')?.value) || 6.0;
   const slotWallThick = parseFloat(document.getElementById('slotWallThick')?.value) || 18.0;
@@ -5787,8 +5976,8 @@ function updateWoodlock() {
     Vduto = portGeom.vDuto;
     if ((isBp6Parallel || isBp6Series) && VbpRear > 0) {
       portGeomRear = computePortGeometry({
-        portType: (isBp6Parallel && isSlotType) ? portType : 'round',
-        numDucts: 1, ductDia, ductThick, slotW, slotH, slotWallThick,
+        portType: (isBp6Parallel && isSlotType) ? portType : (portType === 'flared' ? 'flared' : 'round'),
+        numDucts: numDuctsVr, ductDia: ductDiaVr, ductThick: ductThickVr, slotW, slotH, slotWallThick,
         triCount, triA, triB, Fb: fbVr, Vb: VbpRear, c: cVal
       });
       VdutoRear = portGeomRear.vDuto;
@@ -6185,17 +6374,18 @@ function updateWoodlock() {
         pieces.push(pRear);
         portBom.push(pRear);
       } else {
-        const idMm = ductDia * 25.4;
-        const odMm = idMm + 2.0 * ductThick;
+        const idMm = ductDiaVr * 25.4;
+        const odMm = idMm + 2.0 * ductThickVr;
+        const vrQty = isBp6Series ? Math.min(2, numDuctsVr) : numDuctsVr;
         const pRear = {
           kind: 'port', orient: isBp6Series ? 'DUTO SERIE' : 'DUTO VR',
           name: isBp6Series
-            ? `Tubo Série VR→VF Ø ${ductDia}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`
-            : `Tubo Câmara Traseira VR Ø ${ductDia}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`,
-          qty: 1, w: odMm, h: lvRearMmCanon, t: ductThick, bev: 0.0, area: 0.0,
+            ? `Tubo Série VR→VF Ø ${ductDiaVr}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`
+            : `Tubo Câmara Traseira VR Ø ${ductDiaVr}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`,
+          qty: vrQty, w: odMm, h: lvRearMmCanon, t: ductThickVr, bev: 0.0, area: 0.0,
           note: isBp6Series
-            ? `Acoplamento série VR→VF na divisória (${fbVr.toFixed(1)} Hz) — cortar 1× tubo Lv_serie = ${lvRearMmCanon} mm (${lvRCmStr} cm)`
-            : `Câmara traseira VR (${fbVr.toFixed(1)} Hz) — cortar 1× tubo Lv_rear = ${lvRearMmCanon} mm (${lvRCmStr} cm)`
+            ? `Acoplamento série VR→VF na divisória (${fbVr.toFixed(1)} Hz) — cortar ${vrQty}× tubo(s) Lv_serie = ${lvRearMmCanon} mm (${lvRCmStr} cm)`
+            : `Câmara traseira VR (${fbVr.toFixed(1)} Hz) — cortar ${vrQty}× tubo(s) Lv_rear = ${lvRearMmCanon} mm (${lvRCmStr} cm)`
         };
         pieces.push(pRear);
         portBom.push(pRear);
@@ -6220,7 +6410,7 @@ function updateWoodlock() {
   const sdVal = parseFloat(document.getElementById('tsSd')?.value) || 500;
   lastWoodlockFloors = computeWoodlockFloors({
     driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType, planarStyle, t,
-    portType, numDucts, ductDia, ductThick, slotW, slotH, slotWallThick, slotOrient, portLayout, bp6Mode, triCount, triA, triB
+    portType, numDucts, ductDia, ductThick, numDuctsVr, ductDiaVr, ductThickVr, slotW, slotH, slotWallThick, slotOrient, portLayout, bp6Mode, triCount, triA, triB
   });
   const wlAEl = document.getElementById('wlWidthA');
   const wlBEl = document.getElementById('wlHeightB');
@@ -6234,7 +6424,7 @@ function updateWoodlock() {
   const validation = validateBuildGeometry({
     driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType,
     A, B, C_top, D_bot, t, F_ext, E_ext, portGeom, planarGeom,
-    portType, numDucts, ductDia, ductThick, slotW, slotH, slotWallThick, slotOrient, portLayout,
+    portType, numDucts, ductDia, ductThick, numDuctsVr, ductDiaVr, ductThickVr, slotW, slotH, slotWallThick, slotOrient, portLayout,
     bpChambers, triCount, triA, triB, matrixCols, matrixRows,
     LvCm: lvCmCanon
   });
@@ -7264,7 +7454,17 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         });
       } else if (p.id === 'P_PORT_SERIES') {
         const r = p.size[1] / 2;
-        pushCylinderFaces(oxP, oyP + r, ozP + r, r, p.size[0], '-X', [251, 146, 60], '#fdba74', pAlpha);
+        const serHoles = (geom.cutouts || []).filter(c => c.partId && c.partId.startsWith('P_BP_DIVIDER') && c.kind === 'port');
+        if (serHoles.length) {
+          serHoles.forEach(ch => {
+            const cz = (isTrap3d ? zRt3d : t) + ch.xInt + ez;
+            const cy = t + ch.yInt + ey;
+            const lv = Math.min(p.size[0], ch.lvMm || p.size[0]);
+            pushCylinderFaces(oxP, cy, cz, r, lv, '-X', [251, 146, 60], '#fdba74', pAlpha);
+          });
+        } else {
+          pushCylinderFaces(oxP, oyP + r, ozP + r, r, p.size[0], '-X', [251, 146, 60], '#fdba74', pAlpha);
+        }
       } else {
         const r = p.size[0] / 2;
         const holes = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_FRONT_BAFFLE');
@@ -7594,21 +7794,37 @@ function drawWoodlockBlueprint(g, targetCanvas) {
   ctx.stroke();
 
   // Desenha duto real na vista lateral (Lv vs C na frente, ou Lv vs B no tampo em BP4/BP6)
-  if (g.isVented && g.lvMm > 0) {
+  if (g.isVented && (g.lvMm > 0 || (g.bpChambers && g.bpChambers.lvRearMm > 0))) {
     const portColl = g.validation && g.validation.clearanceMm < 40;
-    ctx.fillStyle = portColl ? 'rgba(239,68,68,0.35)' : 'rgba(249,115,22,0.28)';
-    ctx.strokeStyle = portColl ? '#ef4444' : '#f97316';
     ctx.lineWidth = 1.6;
     if (g.bpChambers && g.bpChambers.isBp) {
-      const lvPx = Math.min(hExtPx - 2 * tSidePx, g.lvMm * scaleSide);
-      const pWpx = Math.max(12, Math.min(wTopPx * 0.30, 100 * scaleSide));
-      const pX = sideX0 + (wTopPx - pWpx) * 0.5;
-      ctx.fillRect(pX, sideY0 + tSidePx, pWpx, lvPx);
-      ctx.strokeRect(pX, sideY0 + tSidePx, pWpx, lvPx);
-      ctx.fillStyle = portColl ? '#fca5a5' : '#fdba74';
-      ctx.font = 'bold 9.5px var(--mono)';
-      ctx.fillText(`Lv=${g.lvMm.toFixed(0)}mm`, pX + 2, sideY0 + tSidePx + lvPx / 2 + 3);
-    } else {
+      const hasVrTop = !!(g.bpChambers.isBp6Parallel && g.bpChambers.lvRearMm > 0);
+      const pWpx = Math.max(12, Math.min(wTopPx * (hasVrTop ? 0.24 : 0.30), 90 * scaleSide));
+      if (g.lvMm > 0) {
+        const lvPx = Math.min(hExtPx - 2 * tSidePx, g.lvMm * scaleSide);
+        const pX = hasVrTop ? (sideX0 + wTopPx * 0.62 - pWpx * 0.5) : (sideX0 + (wTopPx - pWpx) * 0.5);
+        ctx.fillStyle = portColl ? 'rgba(239,68,68,0.35)' : 'rgba(249,115,22,0.28)';
+        ctx.strokeStyle = portColl ? '#ef4444' : '#f97316';
+        ctx.fillRect(pX, sideY0 + tSidePx, pWpx, lvPx);
+        ctx.strokeRect(pX, sideY0 + tSidePx, pWpx, lvPx);
+        ctx.fillStyle = portColl ? '#fca5a5' : '#fdba74';
+        ctx.font = 'bold 9px var(--mono)';
+        ctx.fillText(`VF=${g.lvMm.toFixed(0)}`, pX + 2, sideY0 + tSidePx + lvPx / 2 + 3);
+      }
+      if (hasVrTop) {
+        const lvVrPx = Math.min(hExtPx - 2 * tSidePx, g.bpChambers.lvRearMm * scaleSide);
+        const pXVr = sideX0 + wTopPx * 0.30 - pWpx * 0.5;
+        ctx.fillStyle = portColl ? 'rgba(239,68,68,0.35)' : 'rgba(192,132,252,0.28)';
+        ctx.strokeStyle = portColl ? '#ef4444' : '#c084fc';
+        ctx.fillRect(pXVr, sideY0 + tSidePx, pWpx, lvVrPx);
+        ctx.strokeRect(pXVr, sideY0 + tSidePx, pWpx, lvVrPx);
+        ctx.fillStyle = portColl ? '#fca5a5' : '#e9d5ff';
+        ctx.font = 'bold 9px var(--mono)';
+        ctx.fillText(`VR=${g.bpChambers.lvRearMm.toFixed(0)}`, pXVr + 2, sideY0 + tSidePx + lvVrPx / 2 + 3);
+      }
+    } else if (g.lvMm > 0) {
+      ctx.fillStyle = portColl ? 'rgba(239,68,68,0.35)' : 'rgba(249,115,22,0.28)';
+      ctx.strokeStyle = portColl ? '#ef4444' : '#f97316';
       const lvPx = Math.min(wTopPx - tSidePx, g.lvMm * scaleSide);
       const pHpx = Math.max(12, Math.min(hExtPx * 0.28, 120 * scaleSide));
       const pY = sideY0 + hExtPx - tSidePx - pHpx - 6;
@@ -7622,7 +7838,7 @@ function drawWoodlockBlueprint(g, targetCanvas) {
 
   ctx.fillStyle = '#e5e7eb';
   ctx.font = 'bold 11px var(--font)';
-  ctx.fillText('CORTE LATERAL (Lv vs C)', sideX0, 18);
+  ctx.fillText((g.bpChambers && g.bpChambers.isBp) ? 'CORTE LATERAL (Lv vs B)' : 'CORTE LATERAL (Lv vs C)', sideX0, 18);
   ctx.fillStyle = '#38bdf8';
   ctx.font = '10px var(--mono)';
   ctx.fillText(`C=${g.C_top.toFixed(0)}mm`, sideX0 + 6, sideY0 + 14);
@@ -7633,57 +7849,78 @@ function drawWoodlockBlueprint(g, targetCanvas) {
   ctx.fillStyle = '#38bdf8';
   ctx.fillText(`E=${g.E_ext.toFixed(0)}mm (B=${g.B.toFixed(0)})`, sideX0, sideY0 + hExtPx + 15);
 
-  // Vista 2: Vista Frontal Baffle (Direita) com recortes REAIS (driver + dutos)
+  // Vista 2: Em BP4/BP6 exibe VISTA SUPERIOR (TAMPO A×C) com dutos reais; nas demais, VISTA FRONTAL (A×B)
+  const isBpView = !!(g.bpChambers && g.bpChambers.isBp);
   const frontX0 = w * 0.49;
-  const maxDimFront = Math.max(g.F_ext, g.E_ext, 100);
+  const viewHExt = isBpView ? (g.C_top + 2 * g.t) : g.E_ext;
+  const maxDimFront = Math.max(g.F_ext, viewHExt, 100);
   const scaleFront = Math.min((w - frontX0 - pad) / maxDimFront, (h - 2*pad - 24) / maxDimFront);
   const fPx = g.F_ext * scaleFront;
-  const ePx = g.E_ext * scaleFront;
+  const ePx = viewHExt * scaleFront;
   const tPx = Math.max(2, g.t * scaleFront);
 
   ctx.fillStyle = '#e5e7eb';
   ctx.font = 'bold 11px var(--font)';
-  ctx.fillText('VISTA FRONTAL — FURAÇÃO REAL (A×B / F×E)', frontX0, 18);
+  ctx.fillText(isBpView ? 'VISTA SUPERIOR — TAMPO (A×C / F×C_ext)' : 'VISTA FRONTAL — FURAÇÃO REAL (A×B / F×E)', frontX0, 18);
 
-  // Contorno externo F x E
+  // Contorno externo
   ctx.strokeStyle = '#38bdf8';
   ctx.lineWidth = 2;
   ctx.fillStyle = 'rgba(56, 189, 248, 0.06)';
   ctx.fillRect(frontX0, sideY0, fPx, ePx);
   ctx.strokeRect(frontX0, sideY0, fPx, ePx);
 
-  // Contorno interno A x B (Laterais embutidas)
+  // Contorno interno
   ctx.strokeStyle = '#64748b';
   ctx.lineWidth = 1;
   ctx.setLineDash([3, 3]);
   ctx.strokeRect(frontX0 + tPx, sideY0 + tPx, fPx - 2*tPx, ePx - 2*tPx);
   ctx.setLineDash([]);
 
-  // Em BP4/BP6, desenha a Divisória Interna separando Câmara Traseira A_rear (VR) e Frontal G (VF)
-  if (g.bpChambers && g.bpChambers.isBp) {
-    const divX = frontX0 + tPx + g.bpChambers.A_rear * scaleFront;
+  // Em BP4/BP6, desenha a(s) Divisória(s) Interna(s) separando VR e VF
+  if (isBpView) {
     const divW = Math.max(2, g.t * scaleFront);
     ctx.fillStyle = 'rgba(167, 139, 250, 0.45)';
     ctx.strokeStyle = '#a78bfa';
     ctx.lineWidth = 1.5;
-    ctx.fillRect(divX, sideY0 + tPx, divW, ePx - 2 * tPx);
-    ctx.strokeRect(divX, sideY0 + tPx, divW, ePx - 2 * tPx);
-    ctx.fillStyle = '#c4b5fd';
-    ctx.font = 'bold 9px var(--mono)';
-    ctx.fillText(`VR: A=${g.bpChambers.A_rear.toFixed(0)}mm`, frontX0 + tPx + 4, sideY0 + tPx + 12);
-    ctx.fillText(`VF: G=${g.bpChambers.A_front.toFixed(0)}mm`, divX + divW + 4, sideY0 + tPx + 12);
+    if (g.bpChambers.dualDiv) {
+      const div1X = frontX0 + tPx + g.bpChambers.A_rear_side * scaleFront;
+      const div2X = frontX0 + tPx + (g.bpChambers.A_rear_side + g.t + g.bpChambers.A_front) * scaleFront;
+      ctx.fillRect(div1X, sideY0 + tPx, divW, ePx - 2 * tPx);
+      ctx.strokeRect(div1X, sideY0 + tPx, divW, ePx - 2 * tPx);
+      ctx.fillRect(div2X, sideY0 + tPx, divW, ePx - 2 * tPx);
+      ctx.strokeRect(div2X, sideY0 + tPx, divW, ePx - 2 * tPx);
+      ctx.fillStyle = '#c4b5fd';
+      ctx.font = 'bold 9px var(--mono)';
+      ctx.fillText(`VR1`, frontX0 + tPx + 4, sideY0 + tPx + 12);
+      ctx.fillText(`VF=${g.bpChambers.A_front.toFixed(0)}`, div1X + divW + 4, sideY0 + tPx + 12);
+      ctx.fillText(`VR2`, div2X + divW + 4, sideY0 + tPx + 12);
+    } else {
+      const divX = frontX0 + tPx + g.bpChambers.A_rear * scaleFront;
+      ctx.fillRect(divX, sideY0 + tPx, divW, ePx - 2 * tPx);
+      ctx.strokeRect(divX, sideY0 + tPx, divW, ePx - 2 * tPx);
+      ctx.fillStyle = '#c4b5fd';
+      ctx.font = 'bold 9px var(--mono)';
+      ctx.fillText(`VR: A=${g.bpChambers.A_rear.toFixed(0)}mm`, frontX0 + tPx + 4, sideY0 + tPx + 12);
+      ctx.fillText(`VF: G=${g.bpChambers.A_front.toFixed(0)}mm`, divX + divW + 4, sideY0 + tPx + 12);
+    }
   }
 
-  // Desenha furos reais do painel frontal a partir das coordenadas validadas (Y=0 na base interna)
+  // Desenha furos reais do painel ativo (tampo em BP4/BP6, frontal nas demais)
   const holes = (g.validation && g.validation.holes) ? g.validation.holes : [];
-  holes.filter(hl => hl.panel !== 'divisoria').forEach(hl => {
+  const activeHoles = isBpView
+    ? holes.filter(hl => hl.panel === 'topo')
+    : holes.filter(hl => !hl.panel || hl.panel === 'frontal');
+  activeHoles.forEach(hl => {
     const cx = frontX0 + tPx + hl.xInt * scaleFront;
-    const cy = sideY0 + ePx - tPx - hl.yInt * scaleFront;
+    const cy = isBpView
+      ? (sideY0 + tPx + hl.yInt * scaleFront)
+      : (sideY0 + ePx - tPx - hl.yInt * scaleFront);
     const isErr = !!hl.collision;
+    const isVrPort = /Traseir|\(VR\)/.test(hl.label || '');
     if (hl.shape === 'round') {
       const rCut = (hl.dia / 2) * scaleFront;
       const rFlg = ((hl.flangeDia || hl.dia) / 2) * scaleFront;
-      // Flange tracejado
       if (hl.kind === 'driver') {
         ctx.strokeStyle = isErr ? '#ef4444' : 'rgba(248, 113, 113, 0.55)';
         ctx.lineWidth = 1.2;
@@ -7693,26 +7930,26 @@ function drawWoodlockBlueprint(g, targetCanvas) {
         ctx.stroke();
         ctx.setLineDash([]);
       }
-      // Recorte real sólido
-      ctx.fillStyle = isErr ? 'rgba(239, 68, 68, 0.25)' : (hl.kind === 'driver' ? 'rgba(15, 23, 42, 0.85)' : 'rgba(249, 115, 22, 0.22)');
-      ctx.strokeStyle = isErr ? '#ef4444' : (hl.kind === 'driver' ? '#f87171' : '#f97316');
+      ctx.fillStyle = isErr ? 'rgba(239, 68, 68, 0.25)' : (hl.kind === 'driver' ? 'rgba(15, 23, 42, 0.85)' : (isVrPort ? 'rgba(192, 132, 252, 0.24)' : 'rgba(249, 115, 22, 0.22)'));
+      ctx.strokeStyle = isErr ? '#ef4444' : (hl.kind === 'driver' ? '#f87171' : (isVrPort ? '#c084fc' : '#f97316'));
       ctx.lineWidth = 1.8;
       ctx.beginPath();
       ctx.arc(cx, cy, rCut, 0, 2 * Math.PI);
       ctx.fill();
       ctx.stroke();
-      // Mira de centro
       ctx.strokeStyle = '#e2e8f0';
       ctx.lineWidth = 0.8;
       ctx.beginPath(); ctx.moveTo(cx - 4, cy); ctx.lineTo(cx + 4, cy); ctx.moveTo(cx, cy - 4); ctx.lineTo(cx, cy + 4); ctx.stroke();
     } else if (hl.shape === 'slot') {
       const sw = hl.w * scaleFront;
       const sh = hl.h * scaleFront;
-      ctx.fillStyle = isErr ? 'rgba(239,68,68,0.3)' : 'rgba(249,115,22,0.28)';
-      ctx.strokeStyle = isErr ? '#ef4444' : '#f97316';
+      ctx.fillStyle = isErr ? 'rgba(239,68,68,0.3)' : (isVrPort ? 'rgba(192,132,252,0.28)' : 'rgba(249,115,22,0.28)');
+      ctx.strokeStyle = isErr ? '#ef4444' : (isVrPort ? '#c084fc' : '#f97316');
       ctx.lineWidth = 1.6;
-      ctx.fillRect(cx - sw / 2, cy - sh / 2, sw, sh);
-      ctx.strokeRect(cx - sw / 2, cy - sh / 2, sw, sh);
+      const slotY = isBpView ? (sideY0 + tPx) : (cy - sh / 2);
+      const slotHDraw = isBpView ? (ePx - 2 * tPx) : sh;
+      ctx.fillRect(cx - sw / 2, slotY, sw, slotHDraw);
+      ctx.strokeRect(cx - sw / 2, slotY, sw, slotHDraw);
     } else if (hl.shape === 'triangle') {
       const ta = hl.triA * scaleFront;
       const tb = hl.triB * scaleFront;
