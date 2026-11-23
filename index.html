@@ -7357,13 +7357,16 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
       project(x0, y0, z0), project(x0 + dx, y0, z0), project(x0 + dx, y0, z0 + dz), project(x0, y0, z0 + dz),
       project(x0, y0 + dy, z0), project(x0 + dx, y0 + dy, z0), project(x0 + dx, y0 + dy, z0 + dz), project(x0, y0 + dy, z0 + dz)
     ];
+    const isFrontP = (partId === 'P_FRONT_BAFFLE');
+    const isTopP = (partId === 'P_TOP');
+    const isDivP = !!(partId && partId.startsWith('P_BP_DIVIDER'));
     const quads = [
-      { idxs: [0, 1, 2, 3], n: [0, -1, 0] }, // base
-      { idxs: [4, 7, 6, 5], n: [0, 1, 0] },  // topo
-      { idxs: [0, 4, 5, 1], n: [0, 0, -1] }, // tras
-      { idxs: [3, 2, 6, 7], n: [0, 0, 1], isFront: partId === 'P_FRONT_BAFFLE', zFront: z0 + dz }, // frente
-      { idxs: [0, 3, 7, 4], n: [-1, 0, 0] }, // esq
-      { idxs: [1, 5, 6, 2], n: [1, 0, 0] }   // dir
+      { idxs: [0, 1, 2, 3], n: [0, -1, 0], cutoutFace: isTopP ? 'top' : null, cutoutCoord: y0 - 0.6 }, // base
+      { idxs: [4, 7, 6, 5], n: [0, 1, 0], cutoutFace: isTopP ? 'top' : null, cutoutCoord: y0 + dy + 0.6 }, // topo
+      { idxs: [0, 4, 5, 1], n: [0, 0, -1], cutoutFace: isFrontP ? 'front' : null, cutoutCoord: z0 - 0.6 }, // tras
+      { idxs: [3, 2, 6, 7], n: [0, 0, 1], cutoutFace: isFrontP ? 'front' : null, cutoutCoord: z0 + dz + 0.6 }, // frente
+      { idxs: [0, 3, 7, 4], n: [-1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 - 0.6 }, // esq
+      { idxs: [1, 5, 6, 2], n: [1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 + dx + 0.6 } // dir
     ];
     quads.forEach(q => {
       const avgZ = (pts[q.idxs[0]].z + pts[q.idxs[1]].z + pts[q.idxs[2]].z + pts[q.idxs[3]].z) * 0.25;
@@ -7372,8 +7375,11 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         pts: q.idxs.map(i => pts[i]),
         fill: shadeRgb(baseRgb, q.n[0], q.n[1], q.n[2], alpha),
         stroke: strokeCol,
-        isFront: q.isFront,
-        zFront: q.zFront
+        partId,
+        cutoutFace: q.cutoutFace,
+        cutoutCoord: q.cutoutCoord,
+        xMin: x0,
+        xMax: x0 + dx
       });
     });
   };
@@ -7389,19 +7395,29 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
   const zRb3d = t;
   const zRt3d = t + Math.max(0, (env.D || (D - 2 * t)) - (env.C || (D - 2 * t)));
 
-  const pushTrapSideFaces = (x0, y0, zFront, dy, thick, baseRgb, strokeCol, alpha) => {
+  const pushTrapSideFaces = (x0, y0, zFront, dy, thick, baseRgb, strokeCol, alpha, partId) => {
     const pts = [
       project(x0, y0, zRb3d), project(x0 + thick, y0, zRb3d), project(x0 + thick, y0, zFront), project(x0, y0, zFront),
       project(x0, y0 + dy, zRt3d), project(x0 + thick, y0 + dy, zRt3d), project(x0 + thick, y0 + dy, zFront), project(x0, y0 + dy, zFront)
     ];
+    const isDivP = !!(partId && partId.startsWith('P_BP_DIVIDER'));
     const quads = [
       { idxs: [0, 1, 2, 3], n: [0, -1, 0] }, { idxs: [4, 7, 6, 5], n: [0, 1, 0] },
       { idxs: [0, 4, 5, 1], n: [0, 0, -1] }, { idxs: [3, 2, 6, 7], n: [0, 0, 1] },
-      { idxs: [0, 3, 7, 4], n: [-1, 0, 0] }, { idxs: [1, 5, 6, 2], n: [1, 0, 0] }
+      { idxs: [0, 3, 7, 4], n: [-1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 - 0.6 },
+      { idxs: [1, 5, 6, 2], n: [1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 + thick + 0.6 }
     ];
     quads.forEach(q => {
       const avgZ = (pts[q.idxs[0]].z + pts[q.idxs[1]].z + pts[q.idxs[2]].z + pts[q.idxs[3]].z) * 0.25;
-      faces.push({ depth: avgZ, pts: q.idxs.map(i => pts[i]), fill: shadeRgb(baseRgb, q.n[0], q.n[1], q.n[2], alpha), stroke: strokeCol });
+      faces.push({
+        depth: avgZ,
+        pts: q.idxs.map(i => pts[i]),
+        fill: shadeRgb(baseRgb, q.n[0], q.n[1], q.n[2], alpha),
+        stroke: strokeCol,
+        partId,
+        cutoutFace: q.cutoutFace,
+        cutoutCoord: q.cutoutCoord
+      });
     });
   };
 
@@ -7611,7 +7627,7 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         pushBoxFaces(bx, t + ey, t + ez, p.size[0], Math.min(p.size[1], env.B), t, rgb, scCol, alpha, p.id);
       }
     } else if ((p.id.startsWith('P_BP_DIVIDER') || p.id === 'P_CENTER_DIV') && isTrap3d) {
-      pushTrapSideFaces(oxP, oyP, ozP + p.size[2], p.size[1], p.size[0], rgb, scCol, alpha);
+      pushTrapSideFaces(oxP, oyP, ozP + p.size[2], p.size[1], p.size[0], rgb, scCol, alpha, p.id);
     } else {
       pushBoxFaces(oxP, oyP, ozP, p.size[0], p.size[1], p.size[2], rgb, scCol, alpha, p.id);
     }
@@ -7619,12 +7635,15 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
 
   // Painter's Algorithm: desenha do fundo para a frente
   faces.sort((a, b) => a.depth - b.depth);
-  const drawFrontCutouts = zPlane => {
+  const drawFrontCutouts = (zPlane, xMin, xMax) => {
+    const inSpan = x => !Number.isFinite(xMin) || (x >= xMin - 2 && x <= xMax + 2);
     (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'round').forEach(c => {
+      const cx = t + c.xInt;
+      if (!inSpan(cx)) return;
       ctx.beginPath();
       for (let i = 0; i <= 32; i++) {
         const ang = (i / 32) * Math.PI * 2;
-        const pt = project(t + c.xInt + Math.cos(ang) * (c.dia / 2), t + c.yInt + Math.sin(ang) * (c.dia / 2), zPlane + 0.6);
+        const pt = project(cx + Math.cos(ang) * (c.dia / 2), t + c.yInt + Math.sin(ang) * (c.dia / 2), zPlane);
         if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
       }
       ctx.closePath();
@@ -7644,9 +7663,11 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
           : ci === 2
             ? [[t, t + env.B], [t + ta, t + env.B], [t, t + env.B - tb]]
             : [[t + env.A, t + env.B], [t + env.A - ta, t + env.B], [t + env.A, t + env.B - tb]];
+      const cx = (triPts[0][0] + triPts[1][0] + triPts[2][0]) / 3;
+      if (!inSpan(cx)) return;
       ctx.beginPath();
       triPts.forEach(([px, py], idx) => {
-        const pt = project(px, py, zPlane + 0.6);
+        const pt = project(px, py, zPlane);
         if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
       });
       ctx.closePath();
@@ -7657,20 +7678,18 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
       ctx.stroke();
     });
   };
-  const drawDividerAndTopCutouts = () => {
-    // Furos circulares nas divisórias BP (plano YZ)
-    (geom.cutouts || []).filter(c => c.partId && c.partId.startsWith('P_BP_DIVIDER') && c.dia).forEach(c => {
-      const host = (geom.parts || []).find(pp => pp.id === c.partId);
-      if (!host) return;
-      const hx = host.origin[0] + host.size[0] + host.explodeDir[0] * host.explodeDist * er + 0.6;
-      const hyOff = host.explodeDir[1] * host.explodeDist * er;
-      const hzOff = host.explodeDir[2] * host.explodeDist * er;
+  const drawDividerCutoutsOnFace = (partId, xPlane) => {
+    const host = (geom.parts || []).find(pp => pp.id === partId);
+    if (!host) return;
+    const hyOff = host.explodeDir[1] * host.explodeDist * er;
+    const hzOff = host.explodeDir[2] * host.explodeDist * er;
+    (geom.cutouts || []).filter(c => c.partId === partId && c.dia).forEach(c => {
       const cz = (isTrap3d ? zRt3d : t) + c.xInt + hzOff;
       const cy = t + c.yInt + hyOff;
       ctx.beginPath();
       for (let i = 0; i <= 32; i++) {
         const ang = (i / 32) * Math.PI * 2;
-        const pt = project(hx, cy + Math.sin(ang) * (c.dia / 2), cz + Math.cos(ang) * (c.dia / 2));
+        const pt = project(xPlane, cy + Math.sin(ang) * (c.dia / 2), cz + Math.cos(ang) * (c.dia / 2));
         if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
       }
       ctx.closePath();
@@ -7680,29 +7699,30 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
       ctx.lineWidth = 1.6;
       ctx.stroke();
     });
-    // Furos circulares no tampo superior P_TOP (plano XZ em BP4/BP6 Redondo)
+  };
+  const drawTopCutoutsOnFace = (yPlane, xMin, xMax) => {
     const topPart = (geom.parts || []).find(pp => pp.id === 'P_TOP');
-    if (topPart) {
-      const ty = topPart.origin[1] + topPart.size[1] + topPart.explodeDir[1] * topPart.explodeDist * er + 0.6;
-      const txOff = topPart.explodeDir[0] * topPart.explodeDist * er;
-      const tzOff = topPart.explodeDir[2] * topPart.explodeDist * er;
-      (geom.cutouts || []).filter(c => c.partId === 'P_TOP' && c.shape === 'round' && c.dia).forEach(c => {
-        const cx = t + c.xInt + txOff;
-        const cz = (isTrap3d ? zRt3d : t) + c.yInt + tzOff;
-        ctx.beginPath();
-        for (let i = 0; i <= 32; i++) {
-          const ang = (i / 32) * Math.PI * 2;
-          const pt = project(cx + Math.cos(ang) * (c.dia / 2), ty, cz + Math.sin(ang) * (c.dia / 2));
-          if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-        }
-        ctx.closePath();
-        ctx.fillStyle = 'rgba(6, 9, 17, 0.85)';
-        ctx.fill();
-        ctx.strokeStyle = '#fb923c';
-        ctx.lineWidth = 1.6;
-        ctx.stroke();
-      });
-    }
+    if (!topPart) return;
+    const txOff = topPart.explodeDir[0] * topPart.explodeDist * er;
+    const tzOff = topPart.explodeDir[2] * topPart.explodeDist * er;
+    const inSpan = x => !Number.isFinite(xMin) || (x >= xMin - 2 && x <= xMax + 2);
+    (geom.cutouts || []).filter(c => c.partId === 'P_TOP' && c.shape === 'round' && c.dia).forEach(c => {
+      const cx = t + c.xInt + txOff;
+      if (!inSpan(cx)) return;
+      const cz = (isTrap3d ? zRt3d : t) + c.yInt + tzOff;
+      ctx.beginPath();
+      for (let i = 0; i <= 32; i++) {
+        const ang = (i / 32) * Math.PI * 2;
+        const pt = project(cx + Math.cos(ang) * (c.dia / 2), yPlane, cz + Math.sin(ang) * (c.dia / 2));
+        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = 'rgba(6, 9, 17, 0.85)';
+      ctx.fill();
+      ctx.strokeStyle = '#fb923c';
+      ctx.lineWidth = 1.6;
+      ctx.stroke();
+    });
   };
 
   faces.forEach(fc => {
@@ -7715,9 +7735,10 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
     ctx.strokeStyle = fc.stroke;
     ctx.lineWidth = 0.9;
     ctx.stroke();
-    if (fc.isFront) drawFrontCutouts(frontOz + frontDz);
+    if (fc.cutoutFace === 'front') drawFrontCutouts(fc.cutoutCoord, fc.xMin, fc.xMax);
+    else if (fc.cutoutFace === 'divider') drawDividerCutoutsOnFace(fc.partId, fc.cutoutCoord);
+    else if (fc.cutoutFace === 'top') drawTopCutoutsOnFace(fc.cutoutCoord, fc.xMin, fc.xMax);
   });
-  drawDividerAndTopCutouts();
 
   const gPassCount = (geom.validation || []).filter(v => v.pass).length;
   ctx.fillStyle = '#e2e8f0';
