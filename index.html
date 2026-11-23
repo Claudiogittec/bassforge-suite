@@ -7361,12 +7361,12 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
     const isTopP = (partId === 'P_TOP');
     const isDivP = !!(partId && partId.startsWith('P_BP_DIVIDER'));
     const quads = [
-      { idxs: [0, 1, 2, 3], n: [0, -1, 0], cutoutFace: isTopP ? 'top' : null, cutoutCoord: y0 - 0.6 }, // base
-      { idxs: [4, 7, 6, 5], n: [0, 1, 0], cutoutFace: isTopP ? 'top' : null, cutoutCoord: y0 + dy + 0.6 }, // topo
-      { idxs: [0, 4, 5, 1], n: [0, 0, -1], cutoutFace: isFrontP ? 'front' : null, cutoutCoord: z0 - 0.6 }, // tras
-      { idxs: [3, 2, 6, 7], n: [0, 0, 1], cutoutFace: isFrontP ? 'front' : null, cutoutCoord: z0 + dz + 0.6 }, // frente
-      { idxs: [0, 3, 7, 4], n: [-1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 - 0.6 }, // esq
-      { idxs: [1, 5, 6, 2], n: [1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 + dx + 0.6 } // dir
+      { idxs: [0, 1, 2, 3], n: [0, -1, 0], cutoutFace: isTopP ? 'top' : null, cutoutCoord: y0 }, // base
+      { idxs: [4, 7, 6, 5], n: [0, 1, 0], cutoutFace: isTopP ? 'top' : null, cutoutCoord: y0 + dy }, // topo
+      { idxs: [0, 4, 5, 1], n: [0, 0, -1], cutoutFace: isFrontP ? 'front' : null, cutoutCoord: z0 }, // tras
+      { idxs: [3, 2, 6, 7], n: [0, 0, 1], cutoutFace: isFrontP ? 'front' : null, cutoutCoord: z0 + dz }, // frente
+      { idxs: [0, 3, 7, 4], n: [-1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 }, // esq
+      { idxs: [1, 5, 6, 2], n: [1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 + dx } // dir
     ];
     quads.forEach(q => {
       const avgZ = (pts[q.idxs[0]].z + pts[q.idxs[1]].z + pts[q.idxs[2]].z + pts[q.idxs[3]].z) * 0.25;
@@ -7404,8 +7404,8 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
     const quads = [
       { idxs: [0, 1, 2, 3], n: [0, -1, 0] }, { idxs: [4, 7, 6, 5], n: [0, 1, 0] },
       { idxs: [0, 4, 5, 1], n: [0, 0, -1] }, { idxs: [3, 2, 6, 7], n: [0, 0, 1] },
-      { idxs: [0, 3, 7, 4], n: [-1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 - 0.6 },
-      { idxs: [1, 5, 6, 2], n: [1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 + thick + 0.6 }
+      { idxs: [0, 3, 7, 4], n: [-1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 },
+      { idxs: [1, 5, 6, 2], n: [1, 0, 0], cutoutFace: isDivP ? 'divider' : null, cutoutCoord: x0 + thick }
     ];
     quads.forEach(q => {
       const avgZ = (pts[q.idxs[0]].z + pts[q.idxs[1]].z + pts[q.idxs[2]].z + pts[q.idxs[3]].z) * 0.25;
@@ -7633,111 +7633,114 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
     }
   });
 
-  // Painter's Algorithm: desenha do fundo para a frente
+  // Painter's Algorithm: desenha do fundo para a frente com furos vazados reais (evenodd)
   faces.sort((a, b) => a.depth - b.depth);
-  const drawFrontCutouts = (zPlane, xMin, xMax) => {
-    const inSpan = x => !Number.isFinite(xMin) || (x >= xMin - 2 && x <= xMax + 2);
-    (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'round').forEach(c => {
-      const cx = t + c.xInt;
-      if (!inSpan(cx)) return;
-      ctx.beginPath();
-      for (let i = 0; i <= 32; i++) {
-        const ang = (i / 32) * Math.PI * 2;
-        const pt = project(cx + Math.cos(ang) * (c.dia / 2), t + c.yInt + Math.sin(ang) * (c.dia / 2), zPlane);
-        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-      }
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(6, 9, 17, 0.88)';
-      ctx.fill();
-      ctx.strokeStyle = c.kind === 'driver' ? '#f87171' : '#fb923c';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-    });
-    (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'triangle' && c.triA && c.triB).forEach(c => {
-      const ta = c.triA, tb = c.triB;
-      const ci = Math.abs(parseInt(c.cornerIdx) || 0) % 4;
-      const triPts = ci === 0
-        ? [[t, t], [t + ta, t], [t, t + tb]]
-        : ci === 1
-          ? [[t + env.A, t], [t + env.A - ta, t], [t + env.A, t + tb]]
-          : ci === 2
-            ? [[t, t + env.B], [t + ta, t + env.B], [t, t + env.B - tb]]
-            : [[t + env.A, t + env.B], [t + env.A - ta, t + env.B], [t + env.A, t + env.B - tb]];
-      const cx = (triPts[0][0] + triPts[1][0] + triPts[2][0]) / 3;
-      if (!inSpan(cx)) return;
-      ctx.beginPath();
-      triPts.forEach(([px, py], idx) => {
-        const pt = project(px, py, zPlane);
-        if (idx === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
+  const getFaceCutoutLoops = fc => {
+    const loops = [];
+    if (!fc.cutoutFace) return loops;
+    const inSpan = x => !Number.isFinite(fc.xMin) || (x >= fc.xMin - 2 && x <= fc.xMax + 2);
+    if (fc.cutoutFace === 'front') {
+      const zPlane = fc.cutoutCoord;
+      (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'round').forEach(c => {
+        const cx = t + c.xInt;
+        if (!inSpan(cx)) return;
+        const pts = [];
+        for (let i = 0; i < 32; i++) {
+          const ang = (i / 32) * Math.PI * 2;
+          pts.push(project(cx + Math.cos(ang) * (c.dia / 2), t + c.yInt + Math.sin(ang) * (c.dia / 2), zPlane));
+        }
+        loops.push({ pts, stroke: c.kind === 'driver' ? '#f87171' : '#fb923c' });
       });
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(6, 9, 17, 0.88)';
-      ctx.fill();
-      ctx.strokeStyle = '#fb923c';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-    });
-  };
-  const drawDividerCutoutsOnFace = (partId, xPlane) => {
-    const host = (geom.parts || []).find(pp => pp.id === partId);
-    if (!host) return;
-    const hyOff = host.explodeDir[1] * host.explodeDist * er;
-    const hzOff = host.explodeDir[2] * host.explodeDist * er;
-    (geom.cutouts || []).filter(c => c.partId === partId && c.dia).forEach(c => {
-      const cz = (isTrap3d ? zRt3d : t) + c.xInt + hzOff;
-      const cy = t + c.yInt + hyOff;
-      ctx.beginPath();
-      for (let i = 0; i <= 32; i++) {
-        const ang = (i / 32) * Math.PI * 2;
-        const pt = project(xPlane, cy + Math.sin(ang) * (c.dia / 2), cz + Math.cos(ang) * (c.dia / 2));
-        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-      }
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(6, 9, 17, 0.78)';
-      ctx.fill();
-      ctx.strokeStyle = c.kind === 'driver' ? '#f87171' : '#fb923c';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-    });
-  };
-  const drawTopCutoutsOnFace = (yPlane, xMin, xMax) => {
-    const topPart = (geom.parts || []).find(pp => pp.id === 'P_TOP');
-    if (!topPart) return;
-    const txOff = topPart.explodeDir[0] * topPart.explodeDist * er;
-    const tzOff = topPart.explodeDir[2] * topPart.explodeDist * er;
-    const inSpan = x => !Number.isFinite(xMin) || (x >= xMin - 2 && x <= xMax + 2);
-    (geom.cutouts || []).filter(c => c.partId === 'P_TOP' && c.shape === 'round' && c.dia).forEach(c => {
-      const cx = t + c.xInt + txOff;
-      if (!inSpan(cx)) return;
-      const cz = (isTrap3d ? zRt3d : t) + c.yInt + tzOff;
-      ctx.beginPath();
-      for (let i = 0; i <= 32; i++) {
-        const ang = (i / 32) * Math.PI * 2;
-        const pt = project(cx + Math.cos(ang) * (c.dia / 2), yPlane, cz + Math.sin(ang) * (c.dia / 2));
-        if (i === 0) ctx.moveTo(pt.x, pt.y); else ctx.lineTo(pt.x, pt.y);
-      }
-      ctx.closePath();
-      ctx.fillStyle = 'rgba(6, 9, 17, 0.85)';
-      ctx.fill();
-      ctx.strokeStyle = '#fb923c';
-      ctx.lineWidth = 1.6;
-      ctx.stroke();
-    });
+      (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE' && c.shape === 'triangle' && c.triA && c.triB).forEach(c => {
+        const ta = c.triA, tb = c.triB;
+        const ci = Math.abs(parseInt(c.cornerIdx) || 0) % 4;
+        const triPts = ci === 0
+          ? [[t, t], [t + ta, t], [t, t + tb]]
+          : ci === 1
+            ? [[t + env.A, t], [t + env.A - ta, t], [t + env.A, t + tb]]
+            : ci === 2
+              ? [[t, t + env.B], [t + ta, t + env.B], [t, t + env.B - tb]]
+              : [[t + env.A, t + env.B], [t + env.A - ta, t + env.B], [t + env.A, t + env.B - tb]];
+        const cx = (triPts[0][0] + triPts[1][0] + triPts[2][0]) / 3;
+        if (!inSpan(cx)) return;
+        loops.push({ pts: triPts.map(([px, py]) => project(px, py, zPlane)), stroke: '#fb923c' });
+      });
+    } else if (fc.cutoutFace === 'divider') {
+      const host = (geom.parts || []).find(pp => pp.id === fc.partId);
+      if (!host) return loops;
+      const hyOff = host.explodeDir[1] * host.explodeDist * er;
+      const hzOff = host.explodeDir[2] * host.explodeDist * er;
+      const xPlane = fc.cutoutCoord;
+      (geom.cutouts || []).filter(c => c.partId === fc.partId && c.dia).forEach(c => {
+        const cz = (isTrap3d ? zRt3d : t) + c.xInt + hzOff;
+        const cy = t + c.yInt + hyOff;
+        const pts = [];
+        for (let i = 0; i < 32; i++) {
+          const ang = (i / 32) * Math.PI * 2;
+          pts.push(project(xPlane, cy + Math.sin(ang) * (c.dia / 2), cz + Math.cos(ang) * (c.dia / 2)));
+        }
+        loops.push({ pts, stroke: c.kind === 'driver' ? '#f87171' : '#fb923c' });
+      });
+    } else if (fc.cutoutFace === 'top') {
+      const topPart = (geom.parts || []).find(pp => pp.id === 'P_TOP');
+      if (!topPart) return loops;
+      const txOff = topPart.explodeDir[0] * topPart.explodeDist * er;
+      const tzOff = topPart.explodeDir[2] * topPart.explodeDist * er;
+      const yPlane = fc.cutoutCoord;
+      (geom.cutouts || []).filter(c => c.partId === 'P_TOP' && c.shape === 'round' && c.dia).forEach(c => {
+        const cx = t + c.xInt + txOff;
+        if (!inSpan(cx)) return;
+        const cz = (isTrap3d ? zRt3d : t) + c.yInt + tzOff;
+        const pts = [];
+        for (let i = 0; i < 32; i++) {
+          const ang = (i / 32) * Math.PI * 2;
+          pts.push(project(cx + Math.cos(ang) * (c.dia / 2), yPlane, cz + Math.sin(ang) * (c.dia / 2)));
+        }
+        loops.push({ pts, stroke: '#fb923c' });
+      });
+    }
+    return loops;
   };
 
   faces.forEach(fc => {
+    const holeLoops = getFaceCutoutLoops(fc);
     ctx.beginPath();
     ctx.moveTo(fc.pts[0].x, fc.pts[0].y);
     for (let i = 1; i < fc.pts.length; i++) ctx.lineTo(fc.pts[i].x, fc.pts[i].y);
     ctx.closePath();
-    ctx.fillStyle = fc.fill;
-    ctx.fill();
-    ctx.strokeStyle = fc.stroke;
-    ctx.lineWidth = 0.9;
-    ctx.stroke();
-    if (fc.cutoutFace === 'front') drawFrontCutouts(fc.cutoutCoord, fc.xMin, fc.xMax);
-    else if (fc.cutoutFace === 'divider') drawDividerCutoutsOnFace(fc.partId, fc.cutoutCoord);
-    else if (fc.cutoutFace === 'top') drawTopCutoutsOnFace(fc.cutoutCoord, fc.xMin, fc.xMax);
+    if (holeLoops.length) {
+      holeLoops.forEach(lp => {
+        ctx.moveTo(lp.pts[0].x, lp.pts[0].y);
+        for (let i = 1; i < lp.pts.length; i++) ctx.lineTo(lp.pts[i].x, lp.pts[i].y);
+        ctx.closePath();
+      });
+      ctx.fillStyle = fc.fill;
+      ctx.fill('evenodd');
+      // Borda externa da chapa
+      ctx.beginPath();
+      ctx.moveTo(fc.pts[0].x, fc.pts[0].y);
+      for (let i = 1; i < fc.pts.length; i++) ctx.lineTo(fc.pts[i].x, fc.pts[i].y);
+      ctx.closePath();
+      ctx.strokeStyle = fc.stroke;
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+      // Contorno de cada furo vazado
+      holeLoops.forEach(lp => {
+        ctx.beginPath();
+        ctx.moveTo(lp.pts[0].x, lp.pts[0].y);
+        for (let i = 1; i < lp.pts.length; i++) ctx.lineTo(lp.pts[i].x, lp.pts[i].y);
+        ctx.closePath();
+        ctx.strokeStyle = lp.stroke;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      });
+    } else {
+      ctx.fillStyle = fc.fill;
+      ctx.fill();
+      ctx.strokeStyle = fc.stroke;
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+    }
   });
 
   const gPassCount = (geom.validation || []).filter(v => v.pass).length;
