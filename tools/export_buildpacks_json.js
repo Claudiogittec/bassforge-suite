@@ -96,10 +96,12 @@ for (const c of cases) {
     elements.get('vbInput').value = '60';
     elements.get('vrInput').value = '80';
     elements.get('fbInput').value = '55.0';
-    elements.get('ductDia').value = '4.0';
-    elements.get('numDucts').value = '2';
-    if (c.bp === 'bp6' && elements.get('fbVrInput')) {
-      elements.get('fbVrInput').value = '35.0';
+    elements.get('ductDia').value = '5.0';
+    elements.get('numDucts').value = '1';
+    if (c.bp === 'bp6') {
+      if (elements.get('numDuctsVr')) elements.get('numDuctsVr').value = '1';
+      if (elements.get('ductDiaVr')) elements.get('ductDiaVr').value = '4.0';
+      if (elements.get('fbVrInput')) elements.get('fbVrInput').value = '35.0';
     }
   }
   vm.runInContext("recalculate(); autofixWoodlockGeometry('freecad'); updateWoodlock();", ctx);
