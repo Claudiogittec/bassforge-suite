@@ -796,8 +796,11 @@ def run_live_build():
 
         if HAS_GUI and view is not None:
             try:
+                import warnings
                 from pivy import coin
-                cam = view.getCameraNode()
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", DeprecationWarning)
+                    cam = view.getCameraNode()
                 center = coin.SbVec3f(F / 2.0, D_ext / 2.0, E / 2.0)
                 radius = max(F, E, D_ext) * (2.6 if explode_target > 0.01 else 2.1)
                 for step in range(48):
@@ -813,6 +816,13 @@ def run_live_build():
                 log("Aviso orbita: " + str(ce))
             view.viewIsometric()
             view.fitAll()
+            try:
+                mw = FreeCADGui.getMainWindow()
+                dock = mw.findChild(QtCore.QObject, "BassForgeStudioDockWidget")
+                if dock is not None and dock.widget() is not None and hasattr(dock.widget(), "set_status"):
+                    dock.widget().set_status(f"OK: {base_name} ({len(built)} solidos | MDF {mdf_kg} kg | {len(collisions)} colisoes)")
+            except Exception:
+                pass
         else:
             FreeCAD.closeDocument(doc.Name)
 
