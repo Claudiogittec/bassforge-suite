@@ -9347,20 +9347,27 @@ def build_all():
     def add_solid(name, kind, shape, p_meta, rgb, transp=0):
         if shape is None:
             return
-        if EXPLODE_RATIO > 0.001 and p_meta:
-            ed = p_meta.get("explodeDir") or [0, 0, 0]
-            dist = float(p_meta.get("explodeDist") or 0.0) * EXPLODE_RATIO
-            shape = shape.copy()
-            shape.translate(pgs_vec(ed[0] * dist, ed[1] * dist, ed[2] * dist))
+        ed = (p_meta.get("explodeDir") if p_meta else None) or [0, 0, 0]
+        dist = float((p_meta.get("explodeDist") if p_meta else 0.0) or 0.0)
         obj = doc.addObject("Part::Feature", name)
         obj.Shape = shape
+        try:
+            obj.addProperty("App::PropertyVector", "BF_ExplodeVec", "BassForge", "Vetor de explosao 3D (mm)")
+            obj.BF_ExplodeVec = pgs_vec(ed[0] * dist, ed[1] * dist, ed[2] * dist)
+            if EXPLODE_RATIO > 0.001:
+                obj.Placement.Base = pgs_vec(ed[0] * dist * EXPLODE_RATIO, ed[1] * dist * EXPLODE_RATIO, ed[2] * dist * EXPLODE_RATIO)
+        except Exception:
+            if EXPLODE_RATIO > 0.001:
+                sh_c = shape.copy()
+                sh_c.translate(pgs_vec(ed[0] * dist * EXPLODE_RATIO, ed[1] * dist * EXPLODE_RATIO, ed[2] * dist * EXPLODE_RATIO))
+                obj.Shape = sh_c
         if HAS_GUI and hasattr(obj, "ViewObject") and obj.ViewObject:
             try:
                 obj.ViewObject.ShapeColor = rgb
                 obj.ViewObject.Transparency = int(transp)
             except Exception:
                 pass
-        solids.append((name, kind, shape))
+        solids.append((name, kind, obj))
 
     MDF_MAIN = (0.82, 0.67, 0.46)
     MDF_SIDE = (0.76, 0.60, 0.40)
@@ -9657,11 +9664,60 @@ def build_all():
         col = DIV_COL if kind == "divider" else (PORT_COL if kind == "port" else MDF_MAIN)
         add_solid(pid, kind, make_box(ox, oy, oz, dx, dy, dz), p, col, transp=55 if pid == "P_TOP" else 0)
 
+    # Organiza em Grupos + Planilhas Nativas FreeCAD (Manual FreeCAD p. 34-35 & p. 133-140)
+    try:
+        grp_map = {
+            "mdf": doc.addObject("App::DocumentObjectGroup", "01_Estrutura_MDF"),
+            "divider": doc.addObject("App::DocumentObjectGroup", "02_Divisorias"),
+            "port": doc.addObject("App::DocumentObjectGroup", "03_Dutos"),
+            "batten": doc.addObject("App::DocumentObjectGroup", "04_Travamentos"),
+        }
+        for (_, k_g, o_g) in solids:
+            grp_map.get(k_g, grp_map["mdf"]).addObject(o_g)
+        for gk, gobj in list(grp_map.items()):
+            if not gobj.Group:
+                doc.removeObject(gobj.Name)
+        mdf_kg = round(sum(o.Shape.Volume for (_, k, o) in solids if k in ("mdf", "divider", "batten")) / 1e9 * 750.0, 2)
+        sp_p = doc.addObject("Spreadsheet::Sheet", "Parametros_Acusticos")
+        sp_p.set("A1", "Parametro"); sp_p.set("B1", "Valor"); sp_p.set("C1", "Unidade")
+        dr_m = pack.get("driver") or {}
+        for ir, (lb, vl, un, al) in enumerate([
+            ("Driver", str(dr_m.get("name") or "Driver"), "-", None),
+            ("Topologia", str(ac.get("boxType") or "custom").upper(), "-", None),
+            ("Largura_Ext_F", round(F, 2), "mm", "F_ext"),
+            ("Altura_Ext_E", round(E, 2), "mm", "E_ext"),
+            ("Prof_Ext_D", round(D_ext, 2), "mm", "D_ext"),
+            ("Largura_Int_A", round(A, 2), "mm", "A_int"),
+            ("Altura_Int_B", round(B, 2), "mm", "B_int"),
+            ("Espessura_MDF_t", round(t, 2), "mm", "t_mdf"),
+            ("Vol_Vb_VF", round(float(ac.get("Vb") or 0.0), 2), "L", "Vb_L"),
+            ("Vol_VR", round(float(ac.get("Vr") or 0.0), 2), "L", "Vr_L"),
+            ("Sintonia_Fb", round(float(ac.get("Fb") or 0.0), 2), "Hz", "Fb_Hz"),
+            ("Peso_MDF_Real_OCCT", mdf_kg, "kg", "MDF_kg"),
+        ], start=2):
+            sp_p.set(f"A{ir}", lb); sp_p.set(f"B{ir}", str(vl)); sp_p.set(f"C{ir}", un)
+            if al:
+                try:
+                    sp_p.setAlias(f"B{ir}", al)
+                except Exception:
+                    pass
+        sp_bom = doc.addObject("Spreadsheet::Sheet", "Lista_de_Corte_BOM")
+        for cl, ht in [("A1", "Peca"), ("B1", "Categoria"), ("C1", "BBox_X_mm"), ("D1", "BBox_Y_mm"), ("E1", "BBox_Z_mm"), ("F1", "Volume_cm3"), ("G1", "Massa_MDF_kg")]:
+            sp_bom.set(cl, ht)
+        for ib, (nb, kb, ob) in enumerate(solids, start=2):
+            bb = ob.Shape.BoundBox
+            sp_bom.set(f"A{ib}", nb); sp_bom.set(f"B{ib}", kb)
+            sp_bom.set(f"C{ib}", str(round(bb.XLength, 1))); sp_bom.set(f"D{ib}", str(round(bb.YLength, 1))); sp_bom.set(f"E{ib}", str(round(bb.ZLength, 1)))
+            sp_bom.set(f"F{ib}", str(round(float(ob.Shape.Volume) / 1000.0, 1)))
+            sp_bom.set(f"G{ib}", str(round((float(ob.Shape.Volume) / 1e9) * 750.0, 2) if kb in ("mdf", "divider", "batten") else 0.0))
+    except Exception:
+        pass
+
     doc.recompute()
     if HAS_GUI:
         FreeCADGui.ActiveDocument.ActiveView.viewIsometric()
         FreeCADGui.ActiveDocument.ActiveView.fitAll()
-    FreeCAD.Console.PrintMessage(f"[BassForge] {len(solids)} solidos gerados com sucesso.\\n")
+    FreeCAD.Console.PrintMessage(f"[BassForge] {len(solids)} solidos + grupos + planilhas gerados com sucesso.\\n")
 
 build_all()
 `;

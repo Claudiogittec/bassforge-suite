@@ -1,0 +1,243 @@
+"""
+BassForge SUITE — Studio Interativo Nativo para FreeCAD 1.1+ (PySide6 TaskPanel + OpenCASCADE)
+Baseado nas boas praticas do Manual Oficial do FreeCAD 1.1:
+  - Painel nativo no Task Panel (FreeCADGui.Control.showDialog)
+  - Abertura e construcao ao vivo de qualquer BuildPack (.json) do BassForge
+  - Slider de Explosao 3D em tempo real (0% a 100%) via propriedade BF_ExplodeVec
+  - Toggle de Raio-X (transparencia MDF 0% / 55%)
+  - Auditoria Booleana 3D OpenCASCADE em 1 clique
+  - Fusao de solido unico estanque (Part.Fuse -> FEM_Gabinete_Unificado) pronto para FEM/CalculiX
+  - Exportacao rapida para STEP (.step) e STL (.stl)
+"""
+import os
+import FreeCAD
+import Part
+
+HAS_GUI = bool(getattr(FreeCAD, "GuiUp", False))
+if HAS_GUI:
+    import FreeCADGui
+    try:
+        from PySide6 import QtCore, QtWidgets
+    except ImportError:
+        from PySide2 import QtCore, QtWidgets
+
+DEFAULT_JSON_DIR = r"C:\Users\Dinalli\Desktop\Projetos acusticos\BassForge_CAD_Biblioteca\06_BuildPacks_JSON"
+DEFAULT_OUT_DIR = r"C:\Users\Dinalli\Desktop\Projetos acusticos\BassForge_CAD_Biblioteca\01_FreeCAD_FCStd"
+
+
+def _iter_part_features(doc):
+    if not doc:
+        return []
+    return [o for o in doc.Objects if o.isDerivedFrom("Part::Feature") and o.Name != "FEM_Gabinete_Unificado"]
+
+
+def _is_mdf_struct(obj):
+    n = obj.Name
+    return not (n.startswith("P_PORT") or n.startswith("FEM_"))
+
+
+class BassForgeStudioPanel:
+    def __init__(self):
+        self.form = QtWidgets.QWidget()
+        self.form.setWindowTitle("BassForge SUITE — Studio 3D")
+        lay = QtWidgets.QVBoxLayout(self.form)
+        lay.setSpacing(8)
+
+        title = QtWidgets.QLabel("<b>BassForge SUITE — Studio FreeCAD 1.1</b>")
+        lay.addWidget(title)
+
+        # 1. Importar BuildPack JSON
+        btn_open = QtWidgets.QPushButton("📂 Abrir BuildPack (.json) e Construir")
+        btn_open.clicked.connect(self.on_open_json)
+        lay.addWidget(btn_open)
+
+        # 2. Slider de Explosao 3D ao vivo
+        exp_box = QtWidgets.QGroupBox("Vista Explodida 3D ao Vivo")
+        exp_lay = QtWidgets.QVBoxLayout(exp_box)
+        self.lbl_exp = QtWidgets.QLabel("Explosao: 0%")
+        self.sld_exp = QtWidgets.QSlider(QtCore.Qt.Horizontal)
+        self.sld_exp.setRange(0, 100)
+        self.sld_exp.setValue(0)
+        self.sld_exp.valueChanged.connect(self.on_explode_changed)
+        exp_lay.addWidget(self.lbl_exp)
+        exp_lay.addWidget(self.sld_exp)
+        row_exp = QtWidgets.QHBoxLayout()
+        for pct in (0, 50, 100):
+            b = QtWidgets.QPushButton(f"{pct}%")
+            b.clicked.connect(lambda _=False, v=pct: self.sld_exp.setValue(v))
+            row_exp.addWidget(b)
+        exp_lay.addLayout(row_exp)
+        lay.addWidget(exp_box)
+
+        # 3. Visualizacao e Engenharia
+        eng_box = QtWidgets.QGroupBox("Engenharia & Auditoria OpenCASCADE")
+        eng_lay = QtWidgets.QVBoxLayout(eng_box)
+
+        self.btn_xray = QtWidgets.QPushButton("👁️ Alternar Raio-X (MDF Translucido)")
+        self.btn_xray.setCheckable(True)
+        self.btn_xray.toggled.connect(self.on_toggle_xray)
+        eng_lay.addWidget(self.btn_xray)
+
+        btn_audit = QtWidgets.QPushButton("🛡️ Auditar Colisoes 3D (OpenCASCADE)")
+        btn_audit.clicked.connect(self.on_audit_collisions)
+        eng_lay.addWidget(btn_audit)
+
+        btn_fem = QtWidgets.QPushButton("🔬 Gerar Solido Unificado p/ FEM (Part.Fuse)")
+        btn_fem.clicked.connect(self.on_generate_fem_solid)
+        eng_lay.addWidget(btn_fem)
+        lay.addWidget(eng_box)
+
+        # 4. Exportacao Rapida
+        exp_out = QtWidgets.QHBoxLayout()
+        btn_step = QtWidgets.QPushButton("💾 Exportar STEP")
+        btn_step.clicked.connect(self.on_export_step)
+        btn_stl = QtWidgets.QPushButton("🖨️ Exportar STL")
+        btn_stl.clicked.connect(self.on_export_stl)
+        exp_out.addWidget(btn_step)
+        exp_out.addWidget(btn_stl)
+        lay.addLayout(exp_out)
+
+        # Status log
+        self.lbl_status = QtWidgets.QLabel("Pronto. Abra um .FCStd ou BuildPack .json.")
+        self.lbl_status.setWordWrap(True)
+        self.lbl_status.setStyleSheet("color: #38bdf8; font-size: 11px;")
+        lay.addWidget(self.lbl_status)
+        lay.addStretch(1)
+
+    def set_status(self, msg):
+        self.lbl_status.setText(msg)
+        FreeCAD.Console.PrintMessage("[BassForge Studio] " + msg + "\n")
+
+    def on_open_json(self):
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self.form,
+            "Selecione um BuildPack (.json) do BassForge SUITE",
+            DEFAULT_JSON_DIR if os.path.isdir(DEFAULT_JSON_DIR) else "",
+            "BassForge BuildPack (*.json)",
+        )
+        if not path:
+            return
+        os.environ["BF_LIVE_JSON"] = path
+        os.environ["BF_LIVE_EXPLODE"] = f"{self.sld_exp.value() / 100.0:.2f}"
+        base = os.path.splitext(os.path.basename(path))[0]
+        os.environ["BF_LIVE_OUT"] = os.path.join(DEFAULT_OUT_DIR, f"{base}_LIVE.FCStd")
+        macro_dir = os.path.dirname(__file__)
+        live_script = os.path.join(macro_dir, "BassForge_AoVivo.FCMacro")
+        if not os.path.isfile(live_script):
+            live_script = os.path.join(macro_dir, "freecad_live_build.FCMacro")
+        if not os.path.isfile(live_script):
+            self.set_status("Erro: BassForge_AoVivo.FCMacro nao encontrada na pasta de macros.")
+            return
+        self.set_status(f"Construindo {base} ao vivo...")
+        with open(live_script, "r", encoding="utf-8") as f:
+            code = f.read()
+        exec(compile(code, live_script, "exec"), {"__name__": "__main__", "__file__": live_script})
+
+    def on_explode_changed(self, val):
+        self.lbl_exp.setText(f"Explosao: {val}%")
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            return
+        frac = val / 100.0
+        moved = 0
+        for obj in _iter_part_features(doc):
+            if hasattr(obj, "BF_ExplodeVec"):
+                v = obj.BF_ExplodeVec
+                obj.Placement.Base = FreeCAD.Vector(v.x * frac, v.y * frac, v.z * frac)
+                moved += 1
+        doc.recompute()
+        if HAS_GUI and FreeCADGui.ActiveDocument and FreeCADGui.ActiveDocument.ActiveView:
+            FreeCADGui.ActiveDocument.ActiveView.fitAll()
+        if moved:
+            self.set_status(f"Explosao aplicada em {moved} pecas ({val}%).")
+
+    def on_toggle_xray(self, checked):
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            return
+        transp = 60 if checked else 0
+        for obj in _iter_part_features(doc):
+            if hasattr(obj, "ViewObject") and obj.ViewObject:
+                if obj.Name.startswith("P_TOP") and not checked:
+                    obj.ViewObject.Transparency = 55
+                elif _is_mdf_struct(obj):
+                    obj.ViewObject.Transparency = transp
+        self.set_status("Raio-X ativado (60%)." if checked else "Modo solido restaurado.")
+
+    def on_audit_collisions(self):
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            self.set_status("Nenhum documento ativo.")
+            return
+        objs = _iter_part_features(doc)
+        cols = []
+        for i in range(len(objs)):
+            s1 = objs[i].Shape
+            bb1 = s1.BoundBox
+            for j in range(i + 1, len(objs)):
+                s2 = objs[j].Shape
+                if not bb1.intersect(s2.BoundBox):
+                    continue
+                try:
+                    vol = float(s1.common(s2).Volume)
+                    if vol > 5.0:
+                        cols.append(f"{objs[i].Name} x {objs[j].Name} ({vol / 1000.0:.2f} cm3)")
+                except Exception:
+                    pass
+        mdf_kg = round(sum(o.Shape.Volume for o in objs if _is_mdf_struct(o)) / 1e9 * 750.0, 2)
+        if not cols:
+            self.set_status(f"✅ 0 colisoes em {len(objs)} solidos | MDF real: {mdf_kg} kg.")
+        else:
+            self.set_status(f"⚠️ {len(cols)} colisao(oes): " + "; ".join(cols[:4]))
+
+    def on_generate_fem_solid(self):
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            self.set_status("Nenhum documento ativo.")
+            return
+        mdf_objs = [o for o in _iter_part_features(doc) if _is_mdf_struct(o) and o.Shape and o.Shape.Volume > 1.0]
+        if len(mdf_objs) < 2:
+            self.set_status("Sao necessarias ao menos 2 chapas MDF para fusao FEM.")
+            return
+        self.set_status(f"Fundindo {len(mdf_objs)} chapas para FEM (Part.Fuse)...")
+        fused = mdf_objs[0].Shape.copy()
+        for o in mdf_objs[1:]:
+            fused = fused.fuse(o.Shape)
+        old = doc.getObject("FEM_Gabinete_Unificado")
+        if old:
+            doc.removeObject(old.Name)
+        fem_obj = doc.addObject("Part::Feature", "FEM_Gabinete_Unificado")
+        fem_obj.Shape = fused
+        if HAS_GUI and hasattr(fem_obj, "ViewObject") and fem_obj.ViewObject:
+            fem_obj.ViewObject.ShapeColor = (0.20, 0.75, 0.55)
+            fem_obj.ViewObject.Transparency = 35
+        doc.recompute()
+        self.set_status(f"✅ FEM_Gabinete_Unificado criado ({round(fused.Volume / 1e6, 2)} L de MDF, valido={fused.isValid()}). Pronto para FEM Workbench!")
+
+    def on_export_step(self):
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self.form, "Exportar STEP (.step)", doc.Name + ".step", "STEP (*.step *.stp)")
+        if path:
+            Part.export(_iter_part_features(doc), path)
+            self.set_status("STEP exportado: " + os.path.basename(path))
+
+    def on_export_stl(self):
+        doc = FreeCAD.ActiveDocument
+        if not doc:
+            return
+        path, _ = QtWidgets.QFileDialog.getSaveFileName(self.form, "Exportar STL (.stl)", doc.Name + ".stl", "STL (*.stl)")
+        if path:
+            objs = _iter_part_features(doc)
+            comp = Part.makeCompound([o.Shape for o in objs if o.Shape])
+            comp.exportStl(path)
+            self.set_status("STL exportado: " + os.path.basename(path))
+
+    def getStandardButtons(self):
+        return QtWidgets.QDialogButtonBox.Close
+
+
+if HAS_GUI:
+    FreeCADGui.Control.closeDialog()
+    FreeCADGui.Control.showDialog(BassForgeStudioPanel())

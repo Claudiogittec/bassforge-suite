@@ -621,10 +621,25 @@ def build_freecad_from_buildpack(json_path, out_dir, explode_ratio=0.0):
         shape = make_box_pgs(ox, oy, oz, dx, dy, dz)
         push_solid(pid, kind, shape, p)
 
-    # 2. Adiciona ao documento FreeCAD
+    # 2. Adiciona ao documento FreeCAD organizado em Grupos (Manual FreeCAD p. 34-35)
+    grp_map = {
+        "mdf": doc.addObject("App::DocumentObjectGroup", "01_Estrutura_MDF"),
+        "divider": doc.addObject("App::DocumentObjectGroup", "02_Divisorias"),
+        "port": doc.addObject("App::DocumentObjectGroup", "03_Dutos"),
+        "batten": doc.addObject("App::DocumentObjectGroup", "04_Travamentos"),
+    }
+    created_objs = []
     for name, kind, shape in solids:
         obj = doc.addObject("Part::Feature", name)
         obj.Shape = shape
+        grp = grp_map.get(kind, grp_map["mdf"])
+        grp.addObject(obj)
+        created_objs.append((name, kind, obj))
+
+    # Remove grupos vazios para manter a arvore limpa
+    for gk, gobj in list(grp_map.items()):
+        if not gobj.Group:
+            doc.removeObject(gobj.Name)
 
     doc.recompute()
 
@@ -652,6 +667,59 @@ def build_freecad_from_buildpack(json_path, out_dir, explode_ratio=0.0):
 
     mdf_vol_m3 = sum(s.Volume for (_, k, s) in solids if k in ("mdf", "divider", "batten")) / 1e9
     mdf_weight_kg = round(mdf_vol_m3 * 750.0, 2)
+
+    # 3B. Planilhas Nativas FreeCAD (Parametros_Acusticos + Lista_de_Corte_BOM, sem ciclo — Manual p. 133-140)
+    try:
+        sp_p = doc.addObject("Spreadsheet::Sheet", "Parametros_Acusticos")
+        sp_p.set("A1", "Parametro")
+        sp_p.set("B1", "Valor")
+        sp_p.set("C1", "Unidade")
+        sp_rows = [
+            ("Driver", str(dr.get("name") or "Driver"), "-", None),
+            ("Topologia", str(ac.get("boxType") or "custom").upper(), "-", None),
+            ("Largura_Ext_F", round(F, 2), "mm", "F_ext"),
+            ("Altura_Ext_E", round(E, 2), "mm", "E_ext"),
+            ("Prof_Ext_D", round(D_ext, 2), "mm", "D_ext"),
+            ("Largura_Int_A", round(A, 2), "mm", "A_int"),
+            ("Altura_Int_B", round(B, 2), "mm", "B_int"),
+            ("Prof_Topo_C", round(c_top_env, 2), "mm", "C_top"),
+            ("Prof_Base_D", round(d_bot_env, 2), "mm", "D_bot"),
+            ("Espessura_MDF_t", round(t, 2), "mm", "t_mdf"),
+            ("Vol_Vb_VF", round(float(ac.get("Vb") or 0.0), 2), "L", "Vb_L"),
+            ("Vol_VR", round(float(ac.get("Vr") or 0.0), 2), "L", "Vr_L"),
+            ("Sintonia_Fb", round(float(ac.get("Fb") or 0.0), 2), "Hz", "Fb_Hz"),
+            ("Comprimento_Duto_Lv", round(float(ac.get("lvMm") or 0.0), 1), "mm", "Lv_mm"),
+            ("Peso_MDF_Real_OCCT", mdf_weight_kg, "kg", "MDF_kg"),
+            ("Colisoes_3D_OCCT", len(collisions), "un", None),
+        ]
+        for idx_r, (lbl, val, unit, alias) in enumerate(sp_rows, start=2):
+            sp_p.set(f"A{idx_r}", lbl)
+            sp_p.set(f"B{idx_r}", str(val))
+            sp_p.set(f"C{idx_r}", unit)
+            if alias:
+                try:
+                    sp_p.setAlias(f"B{idx_r}", alias)
+                except Exception:
+                    pass
+
+        sp_bom = doc.addObject("Spreadsheet::Sheet", "Lista_de_Corte_BOM")
+        headers = [("A1", "Peca"), ("B1", "Categoria"), ("C1", "BBox_X_mm"), ("D1", "BBox_Y_mm"), ("E1", "BBox_Z_mm"), ("F1", "Volume_cm3"), ("G1", "Massa_MDF_kg")]
+        for cell, htxt in headers:
+            sp_bom.set(cell, htxt)
+        for idx_b, (n_b, k_b, s_b) in enumerate(solids, start=2):
+            bb = s_b.BoundBox
+            vol_cm3 = round(float(s_b.Volume) / 1000.0, 1)
+            mass_kg = round((float(s_b.Volume) / 1e9) * 750.0, 2) if k_b in ("mdf", "divider", "batten") else 0.0
+            sp_bom.set(f"A{idx_b}", n_b)
+            sp_bom.set(f"B{idx_b}", k_b)
+            sp_bom.set(f"C{idx_b}", str(round(bb.XLength, 1)))
+            sp_bom.set(f"D{idx_b}", str(round(bb.YLength, 1)))
+            sp_bom.set(f"E{idx_b}", str(round(bb.ZLength, 1)))
+            sp_bom.set(f"F{idx_b}", str(vol_cm3))
+            sp_bom.set(f"G{idx_b}", str(mass_kg))
+        doc.recompute()
+    except Exception:
+        pass
 
     out_fcstd_dir = os.environ.get("BF_OUT_FCSTD") or out_dir
     out_step_dir = os.environ.get("BF_OUT_STEP") or out_dir

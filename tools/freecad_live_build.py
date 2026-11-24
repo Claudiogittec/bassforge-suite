@@ -669,7 +669,16 @@ def run_live_build():
                 continue
 
             if pid == "P_TOP":
-                register(pid, "mdf", make_box(ox, oy, oz, dx, dy, dz), p, MDF_MAIN, transp=55)
+                tpanels = [("P_TOP_L", float(p["topSplit"]["xLeft"])), ("P_TOP_R", float(p["topSplit"]["xRight"]))] if p.get("topSplit") else [(pid, ox)]
+                for tn, tx0 in tpanels:
+                    top_sh = make_box(tx0, oy, oz, dx, dy, dz)
+                    for c in cutouts:
+                        if top_sh and c.get("partId") == "P_TOP" and c.get("shape") == "round" and c.get("dia"):
+                            cx = t + float(c["xInt"])
+                            cz = (z_rear_top if is_trap else t) + float(c["yInt"])
+                            if tx0 - 1.0 <= cx <= tx0 + dx + 1.0:
+                                top_sh = top_sh.cut(Part.makeCylinder(float(c["dia"]) / 2.0, dy + 4.0, pgs_vec(cx, oy - 2.0, cz), FreeCAD.Vector(0.0, 0.0, 1.0)))
+                    register(tn, "mdf", top_sh, p, MDF_MAIN, transp=55)
                 if view:
                     view.fitAll()
                 ui_pause(0.5)
@@ -702,6 +711,68 @@ def run_live_build():
         log(f"Auditoria OpenCASCADE: {len(built)} solidos | MDF real: {mdf_kg} kg | Colisoes 3D: {len(collisions)}")
         for c1, c2, v in collisions:
             log(f"  [COLISAO] {c1} x {c2} = {v} cm3")
+
+        # Organiza pecas em Grupos + Planilhas Nativas (Manual FreeCAD p. 34-35 & p. 133-140)
+        try:
+            grp_map = {
+                "mdf": doc.addObject("App::DocumentObjectGroup", "01_Estrutura_MDF"),
+                "divider": doc.addObject("App::DocumentObjectGroup", "02_Divisorias"),
+                "port": doc.addObject("App::DocumentObjectGroup", "03_Dutos"),
+                "batten": doc.addObject("App::DocumentObjectGroup", "04_Travamentos"),
+            }
+            for (_, k_g, o_g, _, _) in built:
+                grp_map.get(k_g, grp_map["mdf"]).addObject(o_g)
+            for gk, gobj in list(grp_map.items()):
+                if not gobj.Group:
+                    doc.removeObject(gobj.Name)
+
+            sp_p = doc.addObject("Spreadsheet::Sheet", "Parametros_Acusticos")
+            sp_p.set("A1", "Parametro"); sp_p.set("B1", "Valor"); sp_p.set("C1", "Unidade")
+            dr_meta = pack.get("driver") or {}
+            sp_rows = [
+                ("Driver", str(dr_meta.get("name") or "Driver"), "-", None),
+                ("Topologia", str(ac.get("boxType") or "custom").upper(), "-", None),
+                ("Largura_Ext_F", round(F, 2), "mm", "F_ext"),
+                ("Altura_Ext_E", round(E, 2), "mm", "E_ext"),
+                ("Prof_Ext_D", round(D_ext, 2), "mm", "D_ext"),
+                ("Largura_Int_A", round(A, 2), "mm", "A_int"),
+                ("Altura_Int_B", round(B, 2), "mm", "B_int"),
+                ("Espessura_MDF_t", round(t, 2), "mm", "t_mdf"),
+                ("Vol_Vb_VF", round(float(ac.get("Vb") or 0.0), 2), "L", "Vb_L"),
+                ("Vol_VR", round(float(ac.get("Vr") or 0.0), 2), "L", "Vr_L"),
+                ("Sintonia_Fb", round(float(ac.get("Fb") or 0.0), 2), "Hz", "Fb_Hz"),
+                ("Peso_MDF_Real_OCCT", mdf_kg, "kg", "MDF_kg"),
+                ("Colisoes_3D_OCCT", len(collisions), "un", None),
+            ]
+            for idx_r, (lbl, val, unit, alias) in enumerate(sp_rows, start=2):
+                sp_p.set(f"A{idx_r}", lbl); sp_p.set(f"B{idx_r}", str(val)); sp_p.set(f"C{idx_r}", unit)
+                if alias:
+                    try:
+                        sp_p.setAlias(f"B{idx_r}", alias)
+                    except Exception:
+                        pass
+
+            sp_bom = doc.addObject("Spreadsheet::Sheet", "Lista_de_Corte_BOM")
+            for cell, htxt in [("A1", "Peca"), ("B1", "Categoria"), ("C1", "BBox_X_mm"), ("D1", "BBox_Y_mm"), ("E1", "BBox_Z_mm"), ("F1", "Volume_cm3"), ("G1", "Massa_MDF_kg")]:
+                sp_bom.set(cell, htxt)
+            for idx_b, (n_b, k_b, o_b, _, _) in enumerate(built, start=2):
+                bb = o_b.Shape.BoundBox
+                vol_cm3 = round(float(o_b.Shape.Volume) / 1000.0, 1)
+                mass_kg = round((float(o_b.Shape.Volume) / 1e9) * 750.0, 2) if k_b in ("mdf", "divider", "batten") else 0.0
+                sp_bom.set(f"A{idx_b}", n_b); sp_bom.set(f"B{idx_b}", k_b)
+                sp_bom.set(f"C{idx_b}", str(round(bb.XLength, 1))); sp_bom.set(f"D{idx_b}", str(round(bb.YLength, 1))); sp_bom.set(f"E{idx_b}", str(round(bb.ZLength, 1)))
+                sp_bom.set(f"F{idx_b}", str(vol_cm3)); sp_bom.set(f"G{idx_b}", str(mass_kg))
+            # Metadados de explosao no proprio objeto para controle ao vivo no BassForge Studio
+            for (_, _, o_m, ed_m, dist_m) in built:
+                try:
+                    if not hasattr(o_m, "BF_ExplodeVec"):
+                        o_m.addProperty("App::PropertyVector", "BF_ExplodeVec", "BassForge", "Vetor de explosao 3D (mm)")
+                    o_m.BF_ExplodeVec = pgs_vec(ed_m[0] * dist_m, ed_m[1] * dist_m, ed_m[2] * dist_m)
+                except Exception:
+                    pass
+            doc.recompute()
+        except Exception as se:
+            log("Aviso grupos/planilhas: " + str(se))
 
         # Animacao suave para Vista Explodida 3D se solicitado
         if explode_target > 0.01:
