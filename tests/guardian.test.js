@@ -310,7 +310,7 @@ runSuite('5. Energy Conservation G2_VentSPL (h^2) & G10_ConeSPL (+HPF)', () => {
 });
 
 // SUITE 6: All 5 Topologies (0 NaN / Infinity across all 13 curves)
-runSuite('6. All 5 Topologies (Sealed, BR, BP4, BP6 Parallel/Series, Planar)', () => {
+runSuite('6. All 5 Topologies (Sealed, BR, BP4, BP6 Parallel, Planar)', () => {
   const curveKeys = [
     'G1_MaxPower', 'G2_VentSPL', 'G3_FreeAirZ', 'G4_NormAmp', 'G5_SPLinCar',
     'G6_SPLThermic', 'G7_CabinGain', 'G8_ConeExcursion', 'G9_PortAirVel', 'G10_ConeSPL',
@@ -320,19 +320,17 @@ runSuite('6. All 5 Topologies (Sealed, BR, BP4, BP6 Parallel/Series, Planar)', (
     { topo: 'bass-reflex' },
     { topo: 'sealed' },
     { topo: 'bp4' },
-    { topo: 'bp6', bp6Mode: 'parallel' },
-    { topo: 'bp6', bp6Mode: 'series' },
+    { topo: 'bp6' },
     { topo: 'planar' }
   ];
   for (const cfg of configs) {
-    if (cfg.bp6Mode) elements.get('bp6Mode').value = cfg.bp6Mode;
     vm.runInContext(`selectTopology('${cfg.topo}')`, ctx);
     const curves = vm.runInContext('currentCurves', ctx);
     for (const k of curveKeys) {
       const arr = curves[k];
       assert(Array.isArray(arr) && arr.length === 600, `${cfg.topo}: ${k} length invalid`);
       const bad = arr.filter(v => !Number.isFinite(v)).length;
-      assert.strictEqual(bad, 0, `${cfg.topo} (${cfg.bp6Mode || ''}): ${k} has ${bad} NaN/Infinity values`);
+      assert.strictEqual(bad, 0, `${cfg.topo}: ${k} has ${bad} NaN/Infinity values`);
     }
   }
   vm.runInContext("selectTopology('bass-reflex')", ctx);
@@ -373,8 +371,8 @@ runSuite('7. Anti-NaN Edge Guards (hpf=0, empty Vb, zero params) & Small-Driver 
   vm.runInContext("selectTopology('bass-reflex')", ctx);
 });
 
-// SUITE 8: Port Geometries & Wizard BP6 Series Parity
-runSuite('8. Port Geometries (Round, Slot Wall, Triangle) & Wizard BP6 Series Parity', () => {
+// SUITE 8: Port Geometries & Wizard BP6 Parity
+runSuite('8. Port Geometries (Round, Slot Wall, Triangle) & Wizard BP6 Parity', () => {
   const tri = vm.runInContext(
     "computePortGeometry({ portType: 'triangle', triCount: 2, triA: 14, triB: 14, Fb: 44.62, Vb: 130, c: 343.37 })",
     ctx
@@ -383,13 +381,12 @@ runSuite('8. Port Geometries (Round, Slot Wall, Triangle) & Wizard BP6 Series Pa
   approx(tri.hypCm, 19.799, 0.05, 'Triangle port hypotenuse (cm)');
   assert.strictEqual(tri.kEnd, 1.343, 'Triangle port kEnd must be 1.343');
 
-  elements.get('bp6Mode').value = 'series';
   elements.get('wizBoxOverride').value = 'bp6';
   vm.runInContext("activeWizardGoal = 'optimum'; updateWizardPreview();", ctx);
   const previewFb = vm.runInContext('activeWizardPlan.Fb', ctx);
   vm.runInContext('applyWizardRecommendation()', ctx);
   const appliedFb = parseFloat(elements.get('fbInput').value);
-  approx(appliedFb, previewFb, 0.25, 'Wizard BP6 Series preview vs applied Fb');
+  approx(appliedFb, previewFb, 0.25, 'Wizard BP6 preview vs applied Fb');
 });
 
 // SUITE 9: Mirror SHA-256 Parity (local workspace only)
@@ -643,7 +640,6 @@ runSuite('13. WoodLock CAD Fase A (Normal/Invertida, Régua A×C4, BP4/BP6 2 Câ
   assert(packBp4.baffleHoles.some(h => h.kind === 'driver' && h.panel === 'divisoria'), 'Driver em BP4 deve estar marcado na divisória interna');
 
   // --- 13.4 BP6 Paralelo: 2 conjuntos de dutos independentes (frontal + traseiro) ---
-  elements.get('bp6Mode').value = 'parallel';
   vm.runInContext('selectTopology("bp6"); updateWoodlock();', ctx);
   const packBp6 = vm.runInContext('lastBuildPack', ctx);
   const portPiecesBp6 = packBp6.pieces.filter(p => p.kind === 'port');
@@ -902,7 +898,7 @@ runSuite('19. Expansão CAD 3D P1 (Trapézio, BP6 Série, Duto Triângulo & Rég
   assert(triPort && triPort.triMeta && triPort.triMeta.count === 4, 'Duto triângulo deve exportar triMeta com 4 cantos');
   assert.strictEqual(triCuts.length, 4, 'Baffle deve possuir 4 cutouts triangulares');
 
-  // 19.4 BP6 Série
+  // 19.4 BP6 Paralela (2 câmaras dutadas no tampo)
   elements.get('portType').value = 'round';
   vm.runInContext("selectTopology('bp6'); setTuningMode(false);", ctx);
   elements.get('vbInput').value = '60';
@@ -910,16 +906,13 @@ runSuite('19. Expansão CAD 3D P1 (Trapézio, BP6 Série, Duto Triângulo & Rég
   elements.get('fbInput').value = '55.0';
   elements.get('ductDia').value = '4.0';
   elements.get('numDucts').value = '2';
-  elements.get('bp6Mode').value = 'series';
   elements.get('fbVrInput').value = '35.0';
-  vm.runInContext("recalculate(); autofixWoodlockGeometry('s19_bp6s'); updateWoodlock();", ctx);
-  const bp6sPack = vm.runInContext('lastBuildPack', ctx);
-  const serCut = bp6sPack.geometry.cutouts.find(c => c.partId === 'P_BP_DIVIDER' && c.kind === 'port');
-  const serPort = bp6sPack.geometry.parts.find(p => p.id === 'P_PORT_SERIES');
-  assert(serCut && serPort && serPort.axis === '-X', 'BP6 Série deve vincular duto acoplador à P_BP_DIVIDER com P_PORT_SERIES no eixo -X');
-  assert.strictEqual(bp6sPack.validation.valid, true, 'BP6 Série após autofix deve ser 100% válida');
+  vm.runInContext("recalculate(); autofixWoodlockGeometry('s19_bp6p'); updateWoodlock();", ctx);
+  const bp6pPack = vm.runInContext('lastBuildPack', ctx);
+  const rearPort = bp6pPack.geometry.parts.find(p => p.id === 'P_PORT_REAR');
+  assert(rearPort && rearPort.bpTopRound, 'BP6 Paralela deve gerar P_PORT_REAR no tampo superior');
+  assert.strictEqual(bp6pPack.validation.valid, true, 'BP6 Paralela após autofix deve ser 100% válida');
 
-  elements.get('bp6Mode').value = 'parallel';
   elements.get('driverPreset').value = 'oversound';
   vm.runInContext('loadPreset()', ctx);
 });
@@ -964,7 +957,6 @@ runSuite('20. Árvore Completa 01..08 (2 Subs, Duto Único, BP Duto Quadrado, Tr
   elements.get('slotW').value = '40';
   elements.get('slotH').value = '6';
   vm.runInContext("selectTopology('bp6'); setTuningMode(false);", ctx);
-  elements.get('bp6Mode').value = 'parallel';
   elements.get('vbInput').value = '70';
   elements.get('vrInput').value = '90';
   elements.get('fbInput').value = '58.0';
@@ -1096,37 +1088,23 @@ runSuite('22. Band-Pass Coupled Physics (BP4, BP6 Parallel/Series) & Q\'t / DF /
   assert(mCheb.peakDb > mB4.peakDb + 2.0, `BP4 Chebyshev pico (${mCheb.peakDb.toFixed(2)}) deve superar Butterworth (${mB4.peakDb.toFixed(2)}) em >2 dB`);
   assert(mCheb.octaves < mB4.octaves, `BP4 Chebyshev banda (${mCheb.octaves.toFixed(2)} oit) deve ser mais estreita que Butterworth (${mB4.octaves.toFixed(2)} oit)`);
 
-  // 22.3 BP6 Paralela e BP6 Série: inclinações +24 dB/oit (HP) e -12 dB/oit (LP), respostas acopladas distintas
+  // 22.3 BP6 Paralela: inclinações +24 dB/oit (HP) e -12 dB/oit (LP) + síntese Quasi-Plana vs SPL
   vm.runInContext("selectTopology('bp6')", ctx);
-  elements.get('bp6Mode').value = 'parallel';
   elements.get('bpAlignPreset').value = 'bp6_flat';
   vm.runInContext('applyBandPassSynthesis();', ctx);
   const c6p = vm.runInContext('currentCurves', ctx);
+  const m6p = c6p.meta.bpMetrics;
   const slopeLow6p = c6p.G4_NormAmp[nearestIdx(c6p.frequencies, 20)] - c6p.G4_NormAmp[nearestIdx(c6p.frequencies, 10)];
   const slopeHi6p = c6p.G4_NormAmp[i1000] - c6p.G4_NormAmp[i500];
   assert(slopeLow6p > 21.0 && slopeLow6p < 29.0, `BP6 Paralela roll-off grave esperado ~+24 dB/oit, obtido ${slopeLow6p.toFixed(2)}`);
   assert(slopeHi6p < -11.0 && slopeHi6p > -13.5, `BP6 Paralela roll-off agudo esperado ~-12 dB/oit, obtido ${slopeHi6p.toFixed(2)}`);
-  assert(c6p.meta.bpMetrics && c6p.meta.bpMetrics.qtPrime > 0 && c6p.meta.bpMetrics.df > 0, 'BP6 Paralela deve expor Q\'t e DF válidos');
+  assert(m6p && m6p.qtPrime > 0 && m6p.df > 0, 'BP6 Paralela deve expor Q\'t e DF válidos');
 
-  elements.get('bp6Mode').value = 'series';
-  elements.get('bpAlignPreset').value = 'bp6_flat';
-  vm.runInContext('applyBandPassSynthesis();', ctx);
-  const c6s = vm.runInContext('currentCurves', ctx);
-  const m6s = c6s.meta.bpMetrics;
-  const slopeLow6s = c6s.G4_NormAmp[nearestIdx(c6s.frequencies, 20)] - c6s.G4_NormAmp[nearestIdx(c6s.frequencies, 10)];
-  const slopeHi6s = c6s.G4_NormAmp[i1000] - c6s.G4_NormAmp[i500];
-  assert(slopeLow6s > 21.0 && slopeLow6s < 30.0, `BP6 Série roll-off grave esperado ~+24 dB/oit, obtido ${slopeLow6s.toFixed(2)}`);
-  assert(slopeHi6s < -11.0 && slopeHi6s > -13.5, `BP6 Série roll-off agudo esperado ~-12 dB/oit, obtido ${slopeHi6s.toFixed(2)}`);
-  assert(m6s.fL < 45.0 && m6s.octaves >= 1.05 && m6s.rippleDb < 1.0 && m6s.paCenterDb > -0.5,
-    `BP6 Série bp6_flat deve entregar banda larga plana (FL=${m6s.fL.toFixed(1)}, oct=${m6s.octaves.toFixed(2)}, rip=${m6s.rippleDb.toFixed(2)}, Pa=${m6s.paCenterDb.toFixed(2)})`);
-  const maxDiff6 = c6s.frequencies.reduce((mx, f, i) => (f >= 25 && f <= 150 ? Math.max(mx, Math.abs(c6s.G4_NormAmp[i] - c6p.G4_NormAmp[i])) : mx), 0);
-  assert(maxDiff6 > 1.0, `BP6 Série e Paralela devem produzir respostas acopladas fisicamente distintas (maxDiff=${maxDiff6.toFixed(2)} dB)`);
-
-  // 22.4 BP6 Série SPL deve superar ganho de pico do bp6_flat
+  // 22.4 BP6 Paralela SPL deve superar ganho de pico do bp6_flat
   elements.get('bpAlignPreset').value = 'bp6_spl';
   vm.runInContext('applyBandPassSynthesis();', ctx);
-  const m6sSpl = vm.runInContext('currentCurves.meta.bpMetrics', ctx);
-  assert(m6sSpl.peakDb > m6s.peakDb + 1.5, `BP6 Série SPL (${m6sSpl.peakDb.toFixed(2)} dB) deve superar bp6_flat (${m6s.peakDb.toFixed(2)} dB)`);
+  const m6pSpl = vm.runInContext('currentCurves.meta.bpMetrics', ctx);
+  assert(m6pSpl.peakDb > m6p.peakDb + 0.5, `BP6 SPL (${m6pSpl.peakDb.toFixed(2)} dB) deve superar bp6_flat (${m6p.peakDb.toFixed(2)} dB)`);
 
   // 22.5 Alerta explícito de limitação física em BP4 quando Qts > alvo (Qts=0.75, Bessel Pa=-1.5dB)
   vm.runInContext("selectTopology('bp4')", ctx);
@@ -1138,7 +1116,6 @@ runSuite('22. Band-Pass Coupled Physics (BP4, BP6 Parallel/Series) & Q\'t / DF /
     'BP4 síntese limitada por Qts alto deve exibir alerta explícito em bpTelemetryBox');
 
   // Restaura estado padrão
-  elements.get('bp6Mode').value = 'parallel';
   elements.get('driverPreset').value = 'oversound';
   vm.runInContext('loadPreset()', ctx);
 });

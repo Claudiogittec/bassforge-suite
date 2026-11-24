@@ -70,8 +70,7 @@ const cases = [
   { file: '08_bp6_paralela.json', topo: 'bp6', port: 'round', pStyle: 'square', bp: 'bp6', bp6Mode: 'parallel' },
   { file: '09_selada_trapezoidal.json', topo: 'sealed', port: 'round', pStyle: 'square', shape: 'trapezoidal', angle: '15' },
   { file: '10_dutada_regua_vertical.json', topo: 'bass-reflex', port: 'slot_wall', pStyle: 'square', slotOrient: 'vertical', slotW: '58', slotH: '7' },
-  { file: '11_dutada_triangulo.json', topo: 'bass-reflex', port: 'triangle', pStyle: 'square', triCount: '4', triA: '14', triB: '14' },
-  { file: '12_bp6_serie.json', topo: 'bp6', port: 'round', pStyle: 'square', bp: 'bp6', bp6Mode: 'series' }
+  { file: '11_dutada_triangulo.json', topo: 'bass-reflex', port: 'triangle', pStyle: 'square', triCount: '4', triA: '14', triB: '14' }
 ];
 
 for (const c of cases) {
@@ -99,9 +98,8 @@ for (const c of cases) {
     elements.get('fbInput').value = '55.0';
     elements.get('ductDia').value = '4.0';
     elements.get('numDucts').value = '2';
-    if (c.bp === 'bp6' && elements.get('bp6Mode')) {
-      elements.get('bp6Mode').value = c.bp6Mode || 'parallel';
-      if (elements.get('fbVrInput')) elements.get('fbVrInput').value = '35.0';
+    if (c.bp === 'bp6' && elements.get('fbVrInput')) {
+      elements.get('fbVrInput').value = '35.0';
     }
   }
   vm.runInContext("recalculate(); autofixWoodlockGeometry('freecad'); updateWoodlock();", ctx);

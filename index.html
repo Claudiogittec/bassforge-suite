@@ -1091,13 +1091,6 @@
           <input type="range" id="vrRange" class="prop-slider" min="10" max="300" step="1" value="60" oninput="onVrRangeChange(this.value)">
           <div id="bp6ExtraRow" style="display:none; flex-direction:column; gap:5px;">
             <div class="prop-row">
-              <label for="bp6Mode">Acopl. BP6:</label>
-              <select id="bp6Mode" onchange="onBp6ModeChange()">
-                <option value="parallel" selected>Paralela (2 dutos ext.)</option>
-                <option value="series">Série (VR ➔ VF)</option>
-              </select>
-            </div>
-            <div class="prop-row">
               <label for="fbVrInput">Sint. VR (Hz):</label>
               <div style="display:flex; gap:4px; align-items:center;">
                 <input type="number" id="fbVrInput" value="35" min="15" max="120" step="0.5" oninput="onFbVrInputChange(this.value)">
@@ -2416,7 +2409,7 @@ function onSimNumDriversChange() {
 }
 
 const PROJECT_FIELD_IDS = [
-  'driverPreset', 'boxType', 'simNumDrivers', 'vbInput', 'fbInput', 'vrInput', 'bp6Mode', 'fbVrInput', 'qlInput', 'tempInput',
+  'driverPreset', 'boxType', 'simNumDrivers', 'vbInput', 'fbInput', 'vrInput', 'fbVrInput', 'qlInput', 'tempInput',
   'portType', 'numDucts', 'ductDia', 'ductThick', 'numDuctsVr', 'ductDiaVr', 'ductThickVr', 'slotW', 'slotH', 'slotWallThick', 'triCount', 'triA', 'triB',
   'cabinLen', 'hpfCutoff', 'thermalDeltaT',
   'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
@@ -3614,48 +3607,23 @@ function applyBandPassSynthesis() {
     }
   } else {
     const preset = document.getElementById('bpAlignPreset')?.value || 'bp6_flat';
-    const bp6Mode = document.getElementById('bp6Mode')?.value || 'parallel';
-    const isSeries = (bp6Mode === 'series');
-    if (isSeries) {
-      // BP6 Série (VR acopla em VF; apenas VF radia ao exterior):
-      // Exige VF > VR para controlar o termo de acoplamento (VR/VF) e manter os polos acoplados planos
-      const qScale = Math.max(0.65, Math.min(1.45, Math.pow(Qts / 0.42, 1.4)));
-      if (preset === 'bp6_ext') {
-        Vr = Math.max(5.0, Vas * 0.65 * qScale);
-        Vf = Math.max(5.0, Vas * 1.15 * qScale);
-        FbVr = Math.max(18.0, Fs * 0.72);
-        Fb = FbVr * 1.62;
-      } else if (preset === 'bp6_spl') {
-        Vr = Math.max(5.0, Vas * 0.42 * qScale);
-        Vf = Math.max(5.0, Vas * 0.95 * qScale);
-        FbVr = Math.max(20.0, Fs * 1.05);
-        Fb = FbVr * 1.48;
-      } else {
-        // bp6_flat (Quasi-Plana Série)
-        Vr = Math.max(5.0, Vas * 0.58 * qScale);
-        Vf = Math.max(5.0, Vas * 1.00 * qScale);
-        FbVr = Math.max(18.0, Fs * 0.82);
-        Fb = FbVr * 1.58;
-      }
+    // BP6 Paralela (ambas câmaras dutadas ao exterior: VR maior/grave, VF menor/médio-grave)
+    if (preset === 'bp6_ext') {
+      Vr = Math.max(5.0, Vas * 1.15);
+      Vf = Math.max(3.0, Vas * 0.52);
+      FbVr = Math.max(18.0, Fs * 0.76);
+      Fb = FbVr * 1.95;
+    } else if (preset === 'bp6_spl') {
+      Vr = Math.max(5.0, Vas * 0.65);
+      Vf = Math.max(3.0, Vas * 0.34);
+      FbVr = Math.max(20.0, Fs * 1.02);
+      Fb = FbVr * 1.75;
     } else {
-      // BP6 Paralela (ambas câmaras radiam ao exterior: VR maior/grave, VF menor/médio-grave)
-      if (preset === 'bp6_ext') {
-        Vr = Math.max(5.0, Vas * 1.15);
-        Vf = Math.max(3.0, Vas * 0.52);
-        FbVr = Math.max(18.0, Fs * 0.76);
-        Fb = FbVr * 1.95;
-      } else if (preset === 'bp6_spl') {
-        Vr = Math.max(5.0, Vas * 0.65);
-        Vf = Math.max(3.0, Vas * 0.34);
-        FbVr = Math.max(20.0, Fs * 1.02);
-        Fb = FbVr * 1.75;
-      } else {
-        // bp6_flat (Quasi-Plana Paralela)
-        Vr = Math.max(5.0, Vas * 0.88);
-        Vf = Math.max(3.0, Vas * 0.44);
-        FbVr = Math.max(18.0, Fs * 0.86);
-        Fb = FbVr * 1.85;
-      }
+      // bp6_flat (Quasi-Plana Paralela)
+      Vr = Math.max(5.0, Vas * 0.88);
+      Vf = Math.max(3.0, Vas * 0.44);
+      FbVr = Math.max(18.0, Fs * 0.86);
+      Fb = FbVr * 1.85;
     }
   }
 
@@ -3867,9 +3835,8 @@ function recalculate() {
   const portType = document.getElementById('portType')?.value || 'round';
   const isSlot = (portType === 'slot' || portType === 'slot_wall');
   const isTri = (portType === 'triangle');
-  const bp6ModeUi = document.getElementById('bp6Mode')?.value || 'parallel';
-  if (portVrHdr) portVrHdr.textContent = (bp6ModeUi === 'series') ? 'Câmara Traseira (VR ➔ VF Série)' : 'Câmara Traseira (VR — Paralela)';
-  if (portVrRound) portVrRound.style.display = (boxType === 'bp6' && (!isSlot || bp6ModeUi === 'series')) ? 'flex' : 'none';
+  if (portVrHdr) portVrHdr.textContent = 'Câmara Traseira (VR — Paralela)';
+  if (portVrRound) portVrRound.style.display = (boxType === 'bp6' && !isSlot) ? 'flex' : 'none';
   const roundFields = document.getElementById('portRoundFields');
   const slotFields = document.getElementById('portSlotFields');
   const triFields = document.getElementById('portTriFields');
@@ -6103,30 +6070,6 @@ function validateBuildGeometry(opts) {
           }
         });
       }
-      // Em BP6 Série, adiciona o(s) duto(s) acoplador(es) VR->VF na divisória interna
-      if (isBp && bpChambers && bpChambers.isBp6Series && bpChambers.lvRearMm > 0) {
-        const serCount = Math.min(2, numDuctsVr);
-        for (let sIdx = 0; sIdx < serCount; sIdx++) {
-          const serX = sIdx === 0
-            ? Math.max(edgeMargin + ductHoleDiaVr / 2, C_min - edgeMargin - ductHoleDiaVr / 2)
-            : (edgeMargin + ductHoleDiaVr / 2);
-          const serY = edgeMargin + ductHoleDiaVr / 2;
-          holes.push({
-            kind: 'port',
-            panel: bpChambers.dualDiv ? 'divisoria_1' : 'divisoria',
-            shape: 'round',
-            label: serCount > 1 ? `Duto Série (VR→VF) #${sIdx + 1}` : 'Duto Série (VR→VF)',
-            xInt: +serX.toFixed(1),
-            yInt: +serY.toFixed(1),
-            xExt: +serX.toFixed(1),
-            yExt: +serY.toFixed(1),
-            dia: +ductHoleDiaVr.toFixed(1),
-            flangeDia: +(ductHoleDiaVr + 22).toFixed(1),
-            lvMm: +bpChambers.lvRearMm.toFixed(1),
-            collision: false
-          });
-        }
-      }
     }
   }
 
@@ -6737,10 +6680,10 @@ function updateWoodlock() {
       pieces.push(pLine);
       portBom.push(pLine);
     }
-    // Em BP6 (Paralelo ou Série), adiciona o duto da câmara traseira (VR) como peça independente
-    if ((isBp6Parallel || isBp6Series) && lvRearMmCanon > 0) {
+    // Em BP6 Paralela, adiciona o duto da câmara traseira (VR) como peça independente
+    if (isBp6Parallel && lvRearMmCanon > 0) {
       const lvRCmStr = (lvRearMmCanon / 10.0).toFixed(1);
-      if (isBpSlot && isBp6Parallel) {
+      if (isBpSlot) {
         const bpVrQty = isBpDualSlot ? 2 : 1;
         const pRear = {
           kind: 'port', orient: 'DUTO_BP_TOP_VR',
@@ -6753,16 +6696,11 @@ function updateWoodlock() {
       } else {
         const idMm = ductDiaVr * 25.4;
         const odMm = idMm + 2.0 * ductThickVr;
-        const vrQty = isBp6Series ? Math.min(2, numDuctsVr) : numDuctsVr;
         const pRear = {
-          kind: 'port', orient: isBp6Series ? 'DUTO SERIE' : 'DUTO VR',
-          name: isBp6Series
-            ? `Tubo Série VR→VF Ø ${ductDiaVr}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`
-            : `Tubo Câmara Traseira VR Ø ${ductDiaVr}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`,
-          qty: vrQty, w: odMm, h: lvRearMmCanon, t: ductThickVr, bev: 0.0, area: 0.0,
-          note: isBp6Series
-            ? `Acoplamento série VR→VF na divisória (${fbVr.toFixed(1)} Hz) — cortar ${vrQty}× tubo(s) Lv_serie = ${lvRearMmCanon} mm (${lvRCmStr} cm)`
-            : `Câmara traseira VR (${fbVr.toFixed(1)} Hz) — cortar ${vrQty}× tubo(s) Lv_rear = ${lvRearMmCanon} mm (${lvRCmStr} cm)`
+          kind: 'port', orient: 'DUTO VR',
+          name: `Tubo Câmara Traseira VR Ø ${ductDiaVr}" (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`,
+          qty: numDuctsVr, w: odMm, h: lvRearMmCanon, t: ductThickVr, bev: 0.0, area: 0.0,
+          note: `Câmara traseira VR (${fbVr.toFixed(1)} Hz) — cortar ${numDuctsVr}× tubo(s) Lv_rear = ${lvRearMmCanon} mm (${lvRCmStr} cm)`
         };
         pieces.push(pRear);
         portBom.push(pRear);
