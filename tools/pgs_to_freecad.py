@@ -198,18 +198,46 @@ def build_freecad_from_buildpack(json_path, out_dir, explode_ratio=0.0):
     z_rear_top = t + max(0.0, d_bot_env - c_top_env)
     has_cross_brace = any((pp.get("braceMeta") or {}).get("code") == "CROSS" for pp in parts)
     has_tb_brace = any((pp.get("braceMeta") or {}).get("code") == "TB" for pp in parts)
+    is_inverted_mount = (ac.get("mountMode") == "inverted")
+    drv_front_cuts = [dc for dc in cutouts if dc.get("kind") == "driver" and dc.get("partId") == "P_FRONT_BAFFLE" and dc.get("dia")]
+    max_drv_dia = max((float(dc["dia"]) for dc in drv_front_cuts), default=0.0)
+    driver_keepouts = []
+    if not is_inverted_mount:
+        for dc in drv_front_cuts:
+            dcx, dcy, d_dia = t + float(dc["xInt"]), t + float(dc["yInt"]), float(dc["dia"])
+            r_bask = d_dia * 0.50 + 10.0
+            d_bask = min(max(40.0, D_ext - 2.0 * t - 25.0), min(110.0, d_dia * 0.28))
+            driver_keepouts.append(Part.makeCylinder(r_bask, d_bask + 2.0, pgs_to_cad_vec(dcx, dcy, D_ext - t - d_bask), FreeCAD.Vector(0.0, 1.0, 0.0)))
+            r_mag = d_dia * 0.34 + 15.0
+            d_mag = min(max(60.0, D_ext - 2.0 * t - 30.0), d_dia * 0.56)
+            driver_keepouts.append(Part.makeCylinder(r_mag, d_mag + 2.0, pgs_to_cad_vec(dcx, dcy, D_ext - t - d_mag), FreeCAD.Vector(0.0, 1.0, 0.0)))
+
+    def apply_drv_keepout(sh):
+        if not sh or not driver_keepouts:
+            return sh
+        out = sh
+        for dk in driver_keepouts:
+            try:
+                if out.BoundBox.intersect(dk.BoundBox):
+                    out = out.cut(dk)
+            except Exception:
+                pass
+        return out
+
     cross_x0 = F / 2.0 - t / 2.0
-    for dc in cutouts:
-        if dc.get("kind") == "driver" and dc.get("partId") == "P_FRONT_BAFFLE" and dc.get("dia"):
+    if not is_inverted_mount:
+        for dc in drv_front_cuts:
             dcx = t + float(dc["xInt"])
-            r_mag = float(dc["dia"]) * 0.45 + 15.0
-            if abs((cross_x0 + t / 2.0) - dcx) < r_mag:
-                cand_l = dcx - r_mag - t
-                cand_r = dcx + r_mag
-                if cand_l >= t + 35.0:
+            r_clr = float(dc["dia"]) * 0.50 + 18.0
+            if abs((cross_x0 + t / 2.0) - dcx) < r_clr:
+                cand_l = dcx - r_clr - t
+                cand_r = dcx + r_clr
+                if cand_l >= t + 30.0:
                     cross_x0 = cand_l
-                elif cand_r + t <= F - t - 35.0:
+                elif cand_r + t <= F - t - 30.0:
                     cross_x0 = cand_r
+                else:
+                    cross_x0 = t + 35.0
     tb_x0 = t + A * 0.14 - 25.0
     if has_cross_brace and abs((tb_x0 + 25.0) - (cross_x0 + t / 2.0)) < 45.0:
         tb_x0 = F - t - A * 0.14 - 25.0
@@ -555,13 +583,21 @@ def build_freecad_from_buildpack(json_path, out_dir, explode_ratio=0.0):
                     sh_b = make_trapezoid_batten(tb_x0, t, z_rear_bot, z_rear_top, 50.0, B, t) if is_trap else make_box_pgs(tb_x0, t, t, 50.0, B, t)
                 elif bcode == "LR":
                     z_mid_b = (z_rear_top + (D_ext - t)) / 2.0
+                    if max_drv_dia > 0 and not is_inverted_mount:
+                        z_behind = (D_ext - t) - min(max(60.0, D_ext - 2.0 * t - 45.0), max_drv_dia * 0.56) - t
+                        z_mid_b = max(z_rear_top + t + 12.0, min(z_mid_b, z_behind))
                     sh_b = make_box_pgs(t, t + B * 0.5 - 25.0, z_mid_b - t / 2.0, A, 50.0, t)
                     if sh_b and cross_cut:
                         sh_b = sh_b.cut(cross_cut)
                 elif bcode == "FF":
                     y_ff = t + 20.0
                     z_sff = z_rear_at_y(y_ff + t) + t
-                    sh_b = make_box_pgs(t + A * 0.78 - 25.0, y_ff, z_sff, 50.0, t, max(20.0, (D_ext - t) - z_sff))
+                    x_ff = t + A * 0.78 - 25.0
+                    if not is_inverted_mount:
+                        for dc in drv_front_cuts:
+                            if math.hypot((x_ff + 25.0) - (t + float(dc["xInt"])), (y_ff + t * 0.5) - (t + float(dc["yInt"]))) < float(dc["dia"]) * 0.50 + 35.0:
+                                x_ff = F - t - 58.0
+                    sh_b = make_box_pgs(x_ff, y_ff, z_sff, 50.0, t, max(20.0, (D_ext - t) - z_sff))
                 elif bcode == "BAFFLE":
                     sh_b = make_box_pgs(t, E - t - 50.0, D_ext - 2.0 * t, A, 50.0, t)
                     if sh_b and cross_cut:
@@ -574,7 +610,7 @@ def build_freecad_from_buildpack(json_path, out_dir, explode_ratio=0.0):
                         sh_b = sh_b.cut(cross_cut)
                     if sh_b and tb_cut:
                         sh_b = sh_b.cut(tb_cut)
-                push_solid(pid, "batten", apply_wa_cut(sh_b), p)
+                push_solid(pid, "batten", apply_drv_keepout(apply_wa_cut(sh_b)), p)
                 continue
             qty = max(1, int(p.get("qty", 1)))
             bp_ch = ac.get("bpChambers")

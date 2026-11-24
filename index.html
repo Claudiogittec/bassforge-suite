@@ -7216,8 +7216,19 @@ function buildPgsGeometryModel(pack) {
       const bi = p.braceInfo || null;
       const bCode = bi ? bi.code : (String(p.orient || '').startsWith('TRAVA_') ? String(p.orient).replace('TRAVA_', '') : null);
       id = bCode ? `P_BRACE_${bCode}` : `P_BATTEN_${battenIdx}`;
+      const drvFrontList = (ac.mountMode === 'inverted') ? [] : (pack.baffleHoles || []).filter(hl => hl.kind === 'driver' && (!hl.panel || hl.panel === 'frontal') && hl.dia);
+      const maxDrvDiaPgs = drvFrontList.reduce((mx, d) => Math.max(mx, d.dia || 0), 0);
       if (bCode === 'CROSS') {
-        origin = [+(F * 0.5 - t / 2).toFixed(1), t, t];
+        let cxPgs = F * 0.5 - t / 2;
+        drvFrontList.forEach(dc => {
+          const dcx = t + dc.xInt, rClr = dc.dia * 0.50 + 18;
+          if (Math.abs((cxPgs + t / 2) - dcx) < rClr) {
+            if (dcx - rClr - t >= t + 30) cxPgs = dcx - rClr - t;
+            else if (dcx + rClr + t <= F - t - 30) cxPgs = dcx + rClr;
+            else cxPgs = t + 35;
+          }
+        });
+        origin = [+cxPgs.toFixed(1), t, t];
         size = [t, B, +(D_ext - 2 * t).toFixed(1)];
         explodeDir = [0, 0.5, 0];
         extraMeta.braceMeta = { code: 'CROSS', axis: 'YZ', isWindow: true, holesCount: bi ? bi.holesCount : (isTrapModel ? 5 : 6), holeDiaMm: bi ? bi.holeDiaMm : 80, holesAreaMm2: bi ? bi.holesAreaMm2 : 0 };
@@ -7227,12 +7238,21 @@ function buildPgsGeometryModel(pack) {
         explodeDir = [0, 0.5, 0];
         extraMeta.braceMeta = { code: 'TB', axis: 'Y', isWindow: false, holesAreaMm2: 0 };
       } else if (bCode === 'LR') {
-        origin = [t, +(t + B * 0.5 - 25).toFixed(1), +(t + C_med * 0.5 - t / 2).toFixed(1)];
+        let zLr = t + C_med * 0.5 - t / 2;
+        if (maxDrvDiaPgs > 0) {
+          const zBehind = (D_ext - t) - Math.min(Math.max(60, D_ext - 2 * t - 45), maxDrvDiaPgs * 0.56) - t;
+          zLr = Math.max(t + t + 12, Math.min(zLr, zBehind));
+        }
+        origin = [t, +(t + B * 0.5 - 25).toFixed(1), +zLr.toFixed(1)];
         size = [A, 50, t];
         explodeDir = [0, 0.4, 0.3];
         extraMeta.braceMeta = { code: 'LR', axis: 'X', isWindow: false, holesAreaMm2: 0 };
       } else if (bCode === 'FF') {
-        origin = [+(t + A * 0.78 - 25).toFixed(1), +(t + 20).toFixed(1), +(t + t).toFixed(1)];
+        let xFf = t + A * 0.78 - 25;
+        drvFrontList.forEach(dc => {
+          if (Math.hypot((xFf + 25) - (t + dc.xInt), (t + 20 + t * 0.5) - (t + dc.yInt)) < dc.dia * 0.50 + 35) xFf = F - t - 58;
+        });
+        origin = [+xFf.toFixed(1), +(t + 20).toFixed(1), +(t + t).toFixed(1)];
         size = [50, t, Math.max(40, +(D_ext - 3 * t).toFixed(1))];
         explodeDir = [0, 0.3, 0.5];
         extraMeta.braceMeta = { code: 'FF', axis: 'Z', isWindow: false, holesAreaMm2: 0 };
@@ -9318,13 +9338,33 @@ def build_all():
     z_rb, z_rt = t, t + max(0.0, float(env.get("D", D_ext - 2 * t)) - float(env.get("C", D_ext - 2 * t)))
     has_cross = any((pp.get("braceMeta") or {}).get("code") == "CROSS" for pp in parts)
     has_tb = any((pp.get("braceMeta") or {}).get("code") == "TB" for pp in parts)
+    is_inv = (ac.get("mountMode") == "inverted")
+    drv_fc = [dc for dc in cutouts if dc.get("kind") == "driver" and dc.get("partId") == "P_FRONT_BAFFLE" and dc.get("dia")]
+    max_dd = max((float(dc["dia"]) for dc in drv_fc), default=0.0)
+    drv_ko = []
+    if not is_inv:
+        for dc in drv_fc:
+            dcx, dcy, dd = t + float(dc["xInt"]), t + float(dc["yInt"]), float(dc["dia"])
+            db = min(max(40.0, D_ext - 2.0 * t - 25.0), min(110.0, dd * 0.28))
+            dm = min(max(60.0, D_ext - 2.0 * t - 30.0), dd * 0.56)
+            drv_ko.append(Part.makeCylinder(dd * 0.50 + 10.0, db + 2.0, pgs_vec(dcx, dcy, D_ext - t - db), FreeCAD.Vector(0.0, 1.0, 0.0)))
+            drv_ko.append(Part.makeCylinder(dd * 0.34 + 15.0, dm + 2.0, pgs_vec(dcx, dcy, D_ext - t - dm), FreeCAD.Vector(0.0, 1.0, 0.0)))
+    def cut_ko(sh):
+        for dk in drv_ko:
+            try:
+                if sh and sh.BoundBox.intersect(dk.BoundBox):
+                    sh = sh.cut(dk)
+            except Exception:
+                pass
+        return sh
     cx0 = F / 2.0 - t / 2.0
-    for dc in cutouts:
-        if dc.get("kind") == "driver" and dc.get("partId") == "P_FRONT_BAFFLE" and dc.get("dia"):
-            dcx, rm = t + float(dc["xInt"]), float(dc["dia"]) * 0.45 + 15.0
-            if abs((cx0 + t / 2.0) - dcx) < rm:
-                if dcx - rm - t >= t + 35.0: cx0 = dcx - rm - t
-                elif dcx + rm + t <= F - t - 35.0: cx0 = dcx + rm
+    if not is_inv:
+        for dc in drv_fc:
+            dcx, rc = t + float(dc["xInt"]), float(dc["dia"]) * 0.50 + 18.0
+            if abs((cx0 + t / 2.0) - dcx) < rc:
+                if dcx - rc - t >= t + 30.0: cx0 = dcx - rc - t
+                elif dcx + rc + t <= F - t - 30.0: cx0 = dcx + rc
+                else: cx0 = t + 35.0
     tbx0 = t + A * 0.14 - 25.0
     if has_cross and abs((tbx0 + 25.0) - (cx0 + t / 2.0)) < 45.0:
         tbx0 = F - t - A * 0.14 - 25.0
@@ -9546,11 +9586,19 @@ def build_all():
                 elif bc == "TB":
                     sb = make_trapezoid_batten(tbx0, t, z_rb, z_rt, 50.0, B, t) if is_trap else make_box(tbx0, t, t, 50.0, B, t)
                 elif bc == "LR":
-                    sb = make_box(t, t + B * 0.5 - 25.0, (z_rt + D_ext - t) / 2.0 - t / 2.0, A, 50.0, t)
+                    zlr = (z_rt + D_ext - t) / 2.0
+                    if max_dd > 0 and not is_inv:
+                        zlr = max(z_rt + t + 12.0, min(zlr, (D_ext - t) - min(max(60.0, D_ext - 2.0 * t - 45.0), max_dd * 0.56) - t))
+                    sb = make_box(t, t + B * 0.5 - 25.0, zlr - t / 2.0, A, 50.0, t)
                     if sb and cc: sb = sb.cut(cc)
                 elif bc == "FF":
                     zf = z_ry(t + 20.0 + t) + t
-                    sb = make_box(t + A * 0.78 - 25.0, t + 20.0, zf, 50.0, t, max(20.0, (D_ext - t) - zf))
+                    xff = t + A * 0.78 - 25.0
+                    if not is_inv:
+                        for dc in drv_fc:
+                            if math.hypot((xff + 25.0) - (t + float(dc["xInt"])), (t + 20.0 + t * 0.5) - (t + float(dc["yInt"]))) < float(dc["dia"]) * 0.50 + 35.0:
+                                xff = F - t - 58.0
+                    sb = make_box(xff, t + 20.0, zf, 50.0, t, max(20.0, (D_ext - t) - zf))
                 elif bc == "BAFFLE":
                     sb = make_box(t, E - t - 50.0, D_ext - 2.0 * t, A, 50.0, t)
                     if sb and cc: sb = sb.cut(cc)
@@ -9559,7 +9607,7 @@ def build_all():
                     sb = make_box(t, yr, z_ry(yr + 50.0) + t, A, 50.0, t)
                     if sb and cc: sb = sb.cut(cc)
                     if sb and tc: sb = sb.cut(tc)
-                add_solid(pid, "batten", cut_wa(sb), p, BATTEN_COL)
+                add_solid(pid, "batten", cut_ko(cut_wa(sb)), p, BATTEN_COL)
                 continue
             qty = max(1, int(p.get("qty", 1)))
             bp_ch = ac.get("bpChambers")
