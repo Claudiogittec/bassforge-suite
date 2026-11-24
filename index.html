@@ -6485,6 +6485,7 @@ function updateWoodlock() {
   const rearH = isTrap ? (B / Math.cos((angle * Math.PI) / 180.0)) : B;
 
   const isSlotFrontReduced = (isVented && !isBp && portGeom && portGeom.isSlot);
+  const isTriFrontEmbedded = (isVented && !isBp && portGeom && portGeom.isTri);
   const isSharedSlotVert = (isSharedCenterPort && isSlotType);
   const slotC4 = Math.max(50.0, B - (slotH * 10.0) - slotWallThick);
   const slotAbaffle = isSharedSlotVert
@@ -6495,7 +6496,7 @@ function updateWoodlock() {
   const planarSubW = (isPlanar && hasCenterDiv) ? Math.max(50.0, (A - t) / 2.0) : A;
   const frontW = isSharedSlotVert
     ? slotAbaffle
-    : (isSlotFrontReduced ? (slotOrient === 'horizontal' ? A : slotAbaffle) : (isPlanar ? planarSubW : F_ext));
+    : (isSlotFrontReduced ? (slotOrient === 'horizontal' ? A : slotAbaffle) : ((isPlanar ? planarSubW : (isTriFrontEmbedded ? A : F_ext))));
   const frontH = isSharedSlotVert
     ? B
     : (isSlotFrontReduced
@@ -6537,7 +6538,7 @@ function updateWoodlock() {
         { kind: 'mdf', orient: 'BASE', name: "Base Inferior [BASE]", qty: 1, w: F_ext, h: D_ext_bot, t, bev: bev, area: (F_ext * D_ext_bot) / 1e6, note: isPlanar ? `Base completa câmara + boca planar (F × DG_ext=${D_ext_bot.toFixed(0)} mm)` : "Base estrutural completa (F × D_ext)" },
         { kind: 'mdf', orient: 'FRENTE', name: isSharedSlotVert ? "Baffles Frontais Duplos [2× A2×B]" : (isSlotFrontReduced ? "Painel Frontal Reduzido [Baffle A×C4]" : (isPlanar ? (planarGeom.style === 'triangle' ? "Baffle Octogonal Planar [4×45°]" : "Baffle Planar Recuado [A×C4]") : "Painel Frontal [FRENTE / Baffle]")), qty: frontQty, w: frontW, h: frontH, t, bev: (isPlanar && planarGeom.style === 'triangle') ? 45.0 : 0.0, area: (frontQty * frontW * frontH) / 1e6, note: frontNote },
         { kind: 'mdf', orient: 'TRÁS', name: "Painel Traseiro [TRÁS]", qty: 1, w: F_ext, h: rearH, t, bev: bev, area: (F_ext * rearH) / 1e6, note: isTrap ? "Inclinado com chanfro superior/inferior" : "Corte reto 90° (F × E)" },
-        { kind: 'mdf', orient: 'LADO ESQ/DIR', name: isPlanar ? "Laterais Embutidas Planar [B×(CG+t)]" : (isSlotFrontReduced ? "Laterais Embutidas Régua [B×(C+t)]" : (isBpSlot ? "Laterais BP Duto Topo [B/BM×C]" : "Laterais Embutidas [ESQ + DIR]")), qty: 2, w: B, h: (isPlanar || isSlotFrontReduced) ? (0.5*(depthForShellTop + depthForShellBot) + t) : (0.5*(depthForShellTop + depthForShellBot)), t, bev: bev, area: 2.0 * (B * ((isPlanar || isSlotFrontReduced) ? (0.5 * (depthForShellTop + depthForShellBot) + t) : (0.5 * (depthForShellTop + depthForShellBot)))) / 1e6, note: isPlanar ? `Profundidade média CG+t=${(0.5*(planarGeom.CG + planarGeom.DG) + t).toFixed(1)} mm (rente à boca planar)` : (isSlotFrontReduced ? `Avançam até a face frontal (C+t=${(0.5*(C_top + D_bot) + t).toFixed(1)} mm) fechando a boca do duto régua` : `Embutidas entre tampo/base e frente/trás (B=${B.toFixed(0)} × C=${C_top.toFixed(0)}/D=${D_bot.toFixed(0)} mm)`) }
+        { kind: 'mdf', orient: 'LADO ESQ/DIR', name: isPlanar ? "Laterais Embutidas Planar [B×(CG+t)]" : ((isSlotFrontReduced || isTriFrontEmbedded) ? "Laterais Embutidas Flush [B×(C+t)]" : (isBpSlot ? "Laterais BP Duto Topo [B/BM×C]" : "Laterais Embutidas [ESQ + DIR]")), qty: 2, w: B, h: (isPlanar || isSlotFrontReduced || isTriFrontEmbedded) ? (0.5*(depthForShellTop + depthForShellBot) + t) : (0.5*(depthForShellTop + depthForShellBot)), t, bev: bev, area: 2.0 * (B * ((isPlanar || isSlotFrontReduced || isTriFrontEmbedded) ? (0.5 * (depthForShellTop + depthForShellBot) + t) : (0.5 * (depthForShellTop + depthForShellBot)))) / 1e6, note: isPlanar ? `Profundidade média CG+t=${(0.5*(planarGeom.CG + planarGeom.DG) + t).toFixed(1)} mm (rente à boca planar)` : ((isSlotFrontReduced || isTriFrontEmbedded) ? `Avançam até a face frontal (C+t=${(0.5*(C_top + D_bot) + t).toFixed(1)} mm) fechando as quinas e permitindo baffle embutido/recuado (Euclides)` : `Embutidas entre tampo/base e frente/trás (B=${B.toFixed(0)} × C=${C_top.toFixed(0)}/D=${D_bot.toFixed(0)} mm)`) }
       ];
 
   // Em Planar Horn: adiciona peças exclusivas da boca (Divisória A4×R no Quadrado ou 4×/8× Paredes Triangulares V×Z no Triângulo)
