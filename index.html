@@ -2885,6 +2885,8 @@ function applyDbDriver(drv) {
   }
 
   document.getElementById('boxType').value = bestTopo;
+  const ptResetEl = document.getElementById('portType');
+  if (ptResetEl) ptResetEl.value = 'round';
   lastActiveTopology = bestTopo;
   isAutoTune = true;
   if (typeof runAutoDesignForCurrentState === 'function') {
@@ -3370,8 +3372,8 @@ function autoSizeBassReflexPort(velTarget = 17.0, allowFlaredUpgrade = false) {
     const dEl = document.getElementById('ductDia');
     const dThick = parseFloat(document.getElementById('ductThick')?.value) || 3;
     if (!nEl || !dEl) return;
-    const candidates = [[1, 2], [1, 2.5], [1, 3], [1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [1, 8], [2, 6], [3, 4], [3, 5], [2, 8], [3, 6]];
-    let tier1 = null, tier2 = null;
+    const candidates = [[1, 1.5], [1, 2], [1, 2.5], [1, 3], [1, 4], [1, 5], [1, 6], [2, 4], [2, 5], [1, 8], [2, 6], [3, 4], [3, 5], [2, 8], [3, 6]];
+    let tier1 = null, tier2 = null, tier3 = null;
     for (const [tryN, tryD] of candidates) {
       const pg = computePortGeometry({ portType: pType, numDucts: tryN, ductDia: tryD, ductThick: dThick, Fb, Vb, c: cVal });
       const vel = (4.540262351285604 * Math.sqrt(noFrac * Pe)) / (Math.max(1e-6, pg.Sp) * Fb);
@@ -3381,9 +3383,11 @@ function autoSizeBassReflexPort(velTarget = 17.0, allowFlaredUpgrade = false) {
       }
       if (pg.LvCm >= 3.0 && pg.LvCm <= maxSafeLv) {
         if (!tier2 || vel < tier2[2]) tier2 = [tryN, tryD, vel];
+      } else if (pg.LvCm >= 2.0) {
+        if (!tier3 || pg.LvCm < tier3[3]) tier3 = [tryN, tryD, vel, pg.LvCm];
       }
     }
-    const chosen = tier1 || tier2;
+    const chosen = tier1 || tier2 || tier3;
     if (chosen) {
       nEl.value = String(chosen[0]);
       dEl.value = String(chosen[1]);
