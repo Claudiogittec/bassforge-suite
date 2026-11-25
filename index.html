@@ -5789,31 +5789,33 @@ function generateSimulationData(p) {
       }
     }
   }
-  const pzRefAtFmin = 10.0 * Math.log10(1.0 + 1.5 / (1.0 + (fLeakRoom / fRoomMin) ** 2));
+  const pzRefAtFmin = 10.0 * Math.log10(1.0 + 0.65 / (1.0 + (fLeakRoom / fRoomMin) ** 2));
   const G14_roomGain = new Array(freqs.length);
   const G15_splRoom = new Array(freqs.length);
   for (let i = 0; i < freqs.length; i++) {
     const f = freqs[i];
-    // 1. Waterhouse boundary loading (ganho de potência difusa por plano rígido: 0 / +3 / +6 / +9 dB)
+    // 1. Waterhouse boundary loading (ganho médio por plano rígido: 0 / +3 / +6 / +9 dB)
     const gBound = nBounds > 0
       ? 10.0 * Math.log10(1.0 + (Math.pow(2, nBounds) - 1.0) / (1.0 + Math.pow(f / fBoundTrans, 2)))
       : 0.0;
-    // 2. Pressurização suave abaixo do 1º modo axial (com shelf de vazamento estrutural em 12 Hz)
-    const gPz = f < fRoomMin * 2.5
-      ? Math.max(0.0, 10.0 * Math.log10(1.0 + 1.5 / (Math.pow(f / fRoomMin, 2) + Math.pow(fLeakRoom / fRoomMin, 2))) - pzRefAtFmin)
+    // 2. Pressurização suave abaixo do 1º modo axial (máx. ~+3 a +4.5 dB em 10-20 Hz, com vazamento estrutural em 12 Hz)
+    const gPz = f < fRoomMin * 2.0
+      ? Math.max(0.0, 10.0 * Math.log10(1.0 + 0.65 / (Math.pow(f / fRoomMin, 2) + Math.pow(fLeakRoom / fRoomMin, 2))) - pzRefAtFmin)
       : 0.0;
-    // 3. Envelope modal discreto abaixo da frequência de Schroeder
-    let mEnergy = 0.0;
-    const modalRoll = Math.exp(-Math.pow(f / Math.max(40.0, fSchroeder * 1.25), 2));
+    // 3. Modos estacionários (L×W×H) centrados em 0 dB (zero-mean) abaixo da frequência de Schroeder
+    let mPeak = 0.0;
+    const modalRoll = Math.exp(-Math.pow(f / Math.max(45.0, fSchroeder * 1.15), 2));
     if (modalRoll > 0.01 && roomModes.length > 0) {
       for (let m = 0; m < roomModes.length; m++) {
         const md = roomModes[m];
         const r = f / md.fm;
-        const denom = Math.pow(1.0 - r * r, 2) + Math.pow(r / md.qm, 2);
-        mEnergy += md.wMode / Math.max(0.08, denom);
+        const resp = 1.0 / Math.sqrt(Math.pow(1.0 - r * r, 2) + Math.pow(r / md.qm, 2));
+        mPeak += md.wMode * Math.min(4.5, resp);
       }
     }
-    const gModal = modalRoll * (10.0 * Math.log10(1.0 + 0.14 * mEnergy) - 1.2);
+    // Normaliza pela densidade modal média esperada para oscilar entre -3 dB (antimodos) e +4.5 dB (modos axiais)
+    const expectedMean = Math.max(1.2, 0.38 * roomModes.length * Math.min(1.0, f / Math.max(20.0, fRoomMin)));
+    const gModal = modalRoll * Math.max(-4.5, Math.min(5.0, 6.0 * Math.log10((0.45 + mPeak) / (0.45 + expectedMean))));
     const rg = gBound + gPz + gModal;
     G14_roomGain[i] = rg;
     G15_splRoom[i] = G6[i] + rg;
