@@ -1392,7 +1392,7 @@
             </div>
             <div class="form-group">
               <label for="wlSlotOrient">Orientação Duto Régua</label>
-              <select id="wlSlotOrient" onchange="updateWoodlock()">
+              <select id="wlSlotOrient" onchange="onSlotOrientChange()">
                 <option value="horizontal" selected>Horizontal (Base · Baffle A×C4)</option>
                 <option value="vertical">Vertical (Lateral · Baffle Reduzido)</option>
               </select>
@@ -1983,7 +1983,7 @@ const PRESETS = {
   alumapro: {
     name: "Alumapro Alchemy 12-8", dia: 12,
     Fs: 35.0, Qms: 6.3, Qes: 0.89, Re: 7.8, Sd: 527, Vas: 65.13,
-    Xmax: 12.0, Pe: 300, Vsub: 2.0, type: "sealed", Vb: 2522.3, Fb: 35.0,
+    Xmax: 12.0, Pe: 300, Vsub: 2.0, type: "sealed", Vb: 85.0, Fb: 35.0,
     numDucts: 1, ductDia: 4.0, ductThick: 1.5, hpf: 20.0
   },
   kicker: {
@@ -3256,7 +3256,7 @@ function synthesizeOptimalEnclosure(params) {
 
   if (boxType === 'bp6') {
     const diaBp6 = Math.max(4, params.dia || 12);
-    const minVfBp6 = nDrivers * (diaBp6 >= 18 ? 48 : (diaBp6 >= 15 ? 30 : (diaBp6 >= 12 ? 18 : (diaBp6 >= 10 ? 12 : (diaBp6 >= 8 ? 11.5 : 5)))));
+    const minVfBp6 = nDrivers * (diaBp6 >= 18 ? 48 : (diaBp6 >= 15 ? 30 : (diaBp6 >= 12 ? 18 : (diaBp6 >= 10 ? 15 : (diaBp6 >= 8 ? 15 : 6)))));
     const minVrBp6 = minVfBp6 * 1.45;
     if (profile === 'subgrave') {
       Vr = Math.max(minVrBp6, Math.min(340.0 * nDrivers, Vas * 1.10));
@@ -3371,7 +3371,7 @@ function autoSizeBassReflexPort(velTarget = 17.0, allowFlaredUpgrade = false) {
     ? Math.max(22, diaInPort * 2.54 * 1.06 + 7.5)
     : Math.max(20, diaInPort * 2.54 * 1.06 + 3.5);
   const estCcm = (Vb * 1000.0) / Math.max(100, estAcm * estBcm);
-  const maxSafeLv = Math.min(48.0, Math.max(12.0, estCcm - 4.5));
+  const maxSafeLv = Math.min(48.0, Math.max(12.0, estCcm - 5.5));
   const spMinLaminarM2 = (4.540262351285604 * Math.sqrt(noFrac * Pe)) / (Math.max(8.0, velTarget) * Math.max(10.0, Fb));
 
   if (pType === 'round' || pType === 'flared') {
@@ -3425,8 +3425,13 @@ function autoSizeBassReflexPort(velTarget = 17.0, allowFlaredUpgrade = false) {
     const uMax = (bC + Math.sqrt(bC * bC + 4.0 * aC * (maxSafeLv / 100.0))) / (2.0 * aC);
     const spMaxCm2 = uMax * uMax * 10000.0;
     const spTarget = Math.min(spMaxCm2, Math.max(spMinCm2, spMinLaminarM2 * 10000.0));
-    const sw = Math.max(10, Math.min(54, Math.round(Math.sqrt(spTarget * 4.5) * 2) / 2));
-    const sh = Math.max(1.8, Math.min(18, Math.round((spTarget / sw) * 2) / 2));
+    const slotOrientNow = document.getElementById('wlSlotOrient')?.value || 'horizontal';
+    // Em Duto Régua (slot_wall), casa exatamente com o vão interno da caixa (A na horizontal, B na vertical)
+    const spanCm = (pType === 'slot_wall')
+      ? (slotOrientNow === 'vertical' ? estBcm : estAcm)
+      : Math.sqrt(spTarget * 4.5);
+    const sw = Math.max(10, Math.min(80, Math.round(spanCm * 2) / 2));
+    const sh = Math.max(1.0, Math.min(18, Math.round((spTarget / sw) * 10) / 10));
     swEl.value = sw.toFixed(1);
     shEl.value = sh.toFixed(1);
   } else if (pType === 'triangle') {
@@ -3588,7 +3593,7 @@ function autoSizeBandPassPorts(topo, resetCount = false) {
   const FbVr = Math.max(10, parseFloat(document.getElementById('fbVrInput')?.value) || 38);
   const tempC = parseFloat(document.getElementById('tempInput')?.value) || 20;
   const cVal = 331.45 * Math.sqrt(1.0 + tempC / 273.15);
-  const maxSafeLv = Math.min(38.0, Math.max(28.0, ((parseFloat(document.getElementById('wlHeightB')?.value) || 480) - 70) / 10.0));
+  const maxSafeLv = Math.min(38.0, Math.max(14.0, ((parseFloat(document.getElementById('wlHeightB')?.value) || 480) - 65) / 10.0));
   const bpM = (currentCurves && currentCurves.meta && currentCurves.meta.bpMetrics) || null;
   const maxUpf = (bpM && Number.isFinite(bpM.maxUpf) && bpM.maxUpf > 0) ? bpM.maxUpf : 0.15;
   const maxUpr = (bpM && Number.isFinite(bpM.maxUpr) && bpM.maxUpr > 0) ? bpM.maxUpr : 0.15;
@@ -3600,7 +3605,10 @@ function autoSizeBandPassPorts(topo, resetCount = false) {
       if (!resetCount && curPg.LvCm >= 4.0 && curPg.LvCm <= maxSafeLv && curVel <= curPg.velLimit * 1.15) {
         return [curN, curD];
       }
-      const candidates = [[1, 6], [1, 8], [1, 5], [1, 4], [1, 10], [1, 3], [2, 6], [2, 8], [2, 5], [2, 4], [2, 3]];
+      const diaBpP = Math.max(4, parseFloat(document.getElementById('tsDia')?.value) || 12);
+      const candidates = (diaBpP <= 8)
+        ? [[1, 3], [1, 2.5], [1, 2], [1, 4], [1, 5], [2, 3]]
+        : [[1, 6], [1, 8], [1, 5], [1, 4], [1, 10], [1, 3], [2, 6], [2, 8], [2, 5], [2, 4], [2, 3]];
       let tier1 = null, tier2 = null, tier3 = null;
       for (const [tryN, tryD] of candidates) {
         const pg = computePortGeometry({ portType: pType, numDucts: tryN, ductDia: tryD, ductThick: chamberThick, Fb: chamberFb, Vb: chamberVb, c: cVal });
@@ -3659,8 +3667,8 @@ function autoSizeBandPassPorts(topo, resetCount = false) {
           const hi = Math.min(maxAreaF, maxAreaR);
           targetArea = (lo <= hi) ? Math.min(hi, Math.max(lo, (lo + hi) * 0.5)) : Math.max(minAreaF, Math.min(maxAreaR * 1.15, (minAreaF + maxAreaR) * 0.5));
         }
-        const swNew = Math.max(15, Math.min(48, Math.round(Math.sqrt(targetArea * 3.5) * 2) / 2));
-        const shNew = Math.max(2.5, Math.min(18, Math.round((targetArea / swNew) * 2) / 2));
+        const swNew = Math.max(10, Math.min(48, Math.round(Math.sqrt(targetArea * 3.5) * 2) / 2));
+        const shNew = Math.max(1.5, Math.min(18, Math.round((targetArea / swNew) * 2) / 2));
         swEl.value = swNew.toFixed(1);
         shEl.value = shNew.toFixed(1);
         recalculate();
@@ -3722,9 +3730,52 @@ function selectTopology(topo) {
   autofixWoodlockGeometry(`topologia ${topo}`);
 }
 
+function syncSlotWidthToBoxSpan() {
+  const boxType = document.getElementById('boxType')?.value || 'bass-reflex';
+  const portType = document.getElementById('portType')?.value || 'round';
+  if (boxType !== 'bass-reflex' || portType !== 'slot_wall') return false;
+  const swEl = document.getElementById('slotW');
+  const shEl = document.getElementById('slotH');
+  const elA = document.getElementById('wlWidthA');
+  const elB = document.getElementById('wlHeightB');
+  if (!swEl || !shEl || !elA || !elB) return false;
+  const A = parseFloat(elA.value) || 400;
+  const B = parseFloat(elB.value) || 400;
+  const t = parseFloat(document.getElementById('wlThickness')?.value) || 18;
+  const nDrivers = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
+  const slotOrient = document.getElementById('wlSlotOrient')?.value || 'horizontal';
+  const portLayout = document.getElementById('wlPortLayout')?.value || 'standard';
+  const isShared = (nDrivers === 2 && portLayout === 'center_shared');
+  const spanMm = (slotOrient === 'vertical')
+    ? B
+    : ((nDrivers === 2 && !isShared) ? Math.max(100, (A - t) / 2.0) : A);
+  const targetSwCm = +(spanMm / 10.0).toFixed(1);
+  const curSw = Math.max(5, parseFloat(swEl.value) || 35);
+  const curSh = Math.max(1.5, parseFloat(shEl.value) || 6);
+  if (Math.abs(curSw - targetSwCm) < 0.25) return false;
+  const curArea = curSw * curSh;
+  const newSh = Math.max(1.8, Math.min(18.0, Math.round((curArea / targetSwCm) * 2) / 2));
+  swEl.value = targetSwCm.toFixed(1);
+  shEl.value = newSh.toFixed(1);
+  return true;
+}
+
+function onSlotOrientChange() {
+  syncSlotWidthToBoxSpan();
+  recalculate();
+  autofixWoodlockGeometry('orientação duto régua');
+  if (syncSlotWidthToBoxSpan()) {
+    recalculate();
+    updateWoodlock();
+  }
+}
+
 function onPortTypeChange() {
   const topo = document.getElementById('boxType')?.value || 'bass-reflex';
   const pType = document.getElementById('portType')?.value || 'round';
+  if (topo === 'bass-reflex' && pType === 'slot_wall') {
+    syncSlotWidthToBoxSpan();
+  }
   recalculate();
   if (topo === 'bp4' || topo === 'bp6') {
     autoSizeBandPassPorts(topo, true);
@@ -7447,7 +7498,9 @@ function updateWoodlock() {
         pieces.push(pLine);
         portBom.push(pLine);
       } else {
-        const a4Mm = (slotOrient === 'horizontal') ? Math.min(A, slotW * 10.0) : Math.min(B, slotW * 10.0);
+        const a4Mm = (portType === 'slot_wall')
+          ? ((slotOrient === 'horizontal') ? A : B)
+          : ((slotOrient === 'horizontal') ? Math.min(A, slotW * 10.0) : Math.min(B, slotW * 10.0));
         const pLine = {
           kind: 'port', orient: 'DUTO', name: `Divisória Duto Régua [A4×R] (${slotOrient === 'horizontal' ? 'Horiz.' : 'Vert.'})`,
           qty: 1, w: a4Mm, h: lvMm, t: slotWallThick, bev: 0.0, area: (a4Mm * lvMm) / 1e6,
