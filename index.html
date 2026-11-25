@@ -3540,6 +3540,14 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
   recalculate();
   autofixWoodlockGeometry(`auto-design ${boxType}/${profile}`);
 
+  // Em micro-gabinetes vindos do Banco DB onde nenhum duto reto cabe fisicamente na profundidade C, migra automaticamente para Selada B2
+  if (source === 'db' && boxType === 'bass-reflex' && lastBuildPack && !lastBuildPack.validation.valid && lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION')) {
+    const btEl = document.getElementById('boxType');
+    if (btEl) btEl.value = 'sealed';
+    lastActiveTopology = 'sealed';
+    return runAutoDesignForCurrentState('db_sealed_fallback', opts);
+  }
+
   const adSt = document.getElementById('autoDesignStatus');
   if (adSt) {
     adSt.style.display = 'block';
@@ -3547,7 +3555,8 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
       ? ` · Ar ${(currentCurves?.meta?.airVel || 0).toFixed(1)} m/s`
       : '';
     const hpfTxt = (boxType !== 'free-air') ? ` · HPF ${hpfPlan.hpfHz}Hz${hpfPlan.needed ? ' (Xmax✓)' : ''}` : '';
-    adSt.innerHTML = `<span style="color:#4ade80;">⚡ ${plan.alignTag}</span>${velTxt}${hpfTxt}`;
+    const fbNote = (source === 'db_sealed_fallback') ? ' (micro-caixa)' : '';
+    adSt.innerHTML = `<span style="color:#4ade80;">⚡ ${plan.alignTag}${fbNote}</span>${velTxt}${hpfTxt}`;
   }
   return plan;
 }
