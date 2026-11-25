@@ -2734,7 +2734,7 @@ function onFbVrInputChange(val) {
 
 function onBp6ModeChange() {
   recalculate();
-  autofixWoodlockGeometry('acoplamento BP6');
+  autofixWoodlockGeometry('acoplamento BP6', { resetToMin: true });
 }
 
 // ============================================================================
@@ -4497,7 +4497,7 @@ function applyBandPassSynthesis() {
   isAutoTune = (boxType === 'bp4');
   recalculate();
   autoSizeBandPassPorts(boxType, true);
-  autofixWoodlockGeometry('síntese Band-Pass');
+  autofixWoodlockGeometry('síntese Band-Pass', { resetToMin: true });
 }
 
 function analyzeTransferAlignment(p) {
@@ -6602,12 +6602,35 @@ function computeWoodlockFloors(opts) {
       minB = Math.max(minB, rows * flangeOD + ductHoleDia + minGap + 2 * edgeMargin);
     }
   } else if (isBp) {
-    // Em BP4/BP6, o(s) driver(s) ficam na(s) divisória(s) interna(s) B×C (não na largura frontal A) e os dutos saem pelo tampo
-    const maxPortDia = Math.max(ductHoleDia, boxType === 'bp6' ? ductHoleDiaVr : 0);
-    const bpSlotA = isBpSlot ? ((isBp6Parallel ? 2 : 1) * (slotHmm + slotWallThick + 90) + (nDrivers === 2 ? 260 : 180)) : 0;
-    const bpRoundA = (nDrivers === 2 ? 3.2 : 2.3) * (maxPortDia + 2 * edgeMargin) + (nDrivers === 2 ? 120 : 60);
-    minA = Math.max(320, bpSlotA, bpRoundA);
+    // Em BP4/BP6, o baffle é a divisória interna B×C (driver na divisória, dutos no tampo)
     minB = Math.max(minB, rows * flangeOD + (rows - 1) * minGap + 20);
+    const nDivBp = (nDrivers === 2) ? 2 : 1;
+    const minRearW = Math.max(
+      Math.round(0.36 * flangeOD + 20),
+      isBp6Parallel
+        ? (isBpSlot ? (slotHmm + slotWallThick + 2 * edgeMargin) : (ductHoleDiaVr + 2 * edgeMargin))
+        : 90
+    );
+    const minFrontW = Math.max(
+      85,
+      isBpSlot ? (slotHmm + slotWallThick + 2 * edgeMargin) : (ductHoleDia + 2 * edgeMargin)
+    );
+    const bpVR = Math.max(1.0, parseFloat(opts.bpVR) || 50.0);
+    const bpVF = Math.max(1.0, parseFloat(opts.bpVF) || 50.0);
+    const fRear = bpVR / (bpVR + bpVF);
+    const fFront = bpVF / (bpVR + bpVF);
+    const minANetRear = (nDrivers === 2 ? 2 : 1) * minRearW / Math.max(0.18, fRear);
+    const minANetFront = minFrontW / Math.max(0.18, fFront);
+    let minABp = Math.max(280, minANetRear + nDivBp * t, minANetFront + nDivBp * t);
+    // Garante que A não cresça tanto a ponto de reduzir C abaixo do flange do driver na divisória B×C
+    const vBrutoBp = parseFloat(opts.VbrutoExact) || 0;
+    if (vBrutoBp > 0) {
+      const maxAForDivider = (vBrutoBp * 1e6) / Math.max(1, minB * (flangeOD + 15)) + nDivBp * t;
+      if (Number.isFinite(maxAForDivider) && maxAForDivider >= 240) {
+        minABp = Math.min(minABp, Math.floor(maxAForDivider));
+      }
+    }
+    minA = Math.max(240, minABp);
   } else if (isPlanar && planarStyle === 'square') {
     // Em Planar Quadrada, o baffle útil tem altura C4 = B - min(110, 0.18*B) - t acima da divisória
     const throatReserve = 110 + t;
@@ -6848,7 +6871,17 @@ function autofixWoodlockGeometry(reason = '', opts = {}) {
           updateWoodlock();
         }
       }
+      // Atualiza floors após ajuste de Ø/H do duto BP e recolhe A ao mínimo físico se resetToMin
+      floors = lastWoodlockFloors;
+      if (opts.resetToMin && A > floors.minA) {
+        const prevA = A;
+        A = floors.minA;
+        elA.value = A;
+        changes.push(`A ${prevA.toFixed(0)}→${A} mm (mín. BP)`);
+        updateWoodlock();
+      }
     }
+    floors = lastWoodlockFloors;
     const needsMoreDepth = () => isBpActive ? hasBpDivDepthErr() : (hasPortDepthErr() || hasBpDivDepthErr());
     let hasDepthErr = needsMoreDepth();
     if (hasDepthErr && A > floors.minA) {
@@ -8083,6 +8116,7 @@ function updateWoodlock() {
   const sdVal = parseFloat(document.getElementById('tsSd')?.value) || 500;
   lastWoodlockFloors = computeWoodlockFloors({
     driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType, planarStyle, t,
+    VbrutoExact, bpVR: VbpRear + Vsub + VdutoRear, bpVF: Vb + Vduto,
     portType, numDucts, ductDia, ductThick, numDuctsVr, ductDiaVr, ductThickVr, slotW, slotH, slotWallThick, slotOrient, portLayout, bp6Mode, triCount, triA, triB
   });
   const wlAEl = document.getElementById('wlWidthA');
