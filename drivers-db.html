@@ -692,7 +692,7 @@
             <button class="btn" onclick="excluirTodos()">
               ⚠️ EXCLUIR TODOS
             </button>
-            <button class="btn" onclick="restaurarCatalogoFabrica()" title="Restaurar os 77 drivers de fábrica">
+            <button class="btn" onclick="restaurarCatalogoFabrica()" title="Restaurar o catálogo oficial de fábrica">
               ↺ RESTAURAR FÁBRICA
             </button>
           </div>
@@ -1969,6 +1969,7 @@
       try {
         localStorage.setItem(STORAGE_DB_KEY, JSON.stringify({
           schema: 'bassforge-driver-db/v1',
+          factoryCount: FACTORY_CATALOG.length,
           updatedAt: new Date().toISOString(),
           drivers: DRIVER_CATALOG
         }));
@@ -1988,6 +1989,22 @@
               if (!s.id) s.id = idx + 1;
               return s;
             });
+            const savedFactoryCount = Number(parsed?.factoryCount || 0);
+            if (arr.length > 0 && savedFactoryCount < FACTORY_CATALOG.length) {
+              const existingKeys = new Set(DRIVER_CATALOG.map(x => CLAudioDatabaseAgent.driverKey(x.brand, x.model)));
+              let nextId = CLAudioDatabaseAgent.nextId(DRIVER_CATALOG);
+              for (const fd of FACTORY_CATALOG) {
+                const k = CLAudioDatabaseAgent.driverKey(fd.brand, fd.model);
+                if (!existingKeys.has(k)) {
+                  existingKeys.add(k);
+                  const s = CLAudioDatabaseAgent.sanitize(fd);
+                  s.id = nextId++;
+                  DRIVER_CATALOG.push(s);
+                }
+              }
+              saveCatalogStorage();
+              return;
+            }
             updateCatalogCounters();
             return;
           }
@@ -1998,7 +2015,7 @@
         if (!s.id) s.id = idx + 1;
         return s;
       });
-      updateCatalogCounters();
+      saveCatalogStorage();
     }
 
     /**
