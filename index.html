@@ -1436,11 +1436,11 @@
           <div class="input-row" style="margin-bottom:10px;">
             <div class="form-group">
               <label for="wlWidthA">Cota [A] Largura Interna Livre (mm) <small id="wlMinALabel" style="color:var(--accent);"></small></label>
-              <input type="number" id="wlWidthA" value="800" min="150" max="2000" step="10" onchange="onWoodlockDimChange('A')">
+              <input type="number" id="wlWidthA" value="150" min="150" max="2000" step="5" onchange="onWoodlockDimChange('A')">
             </div>
             <div class="form-group">
               <label for="wlHeightB">Cota [B] Altura Interna Livre (mm) <small id="wlMinBLabel" style="color:var(--accent);"></small></label>
-              <input type="number" id="wlHeightB" value="490" min="150" max="1500" step="10" onchange="onWoodlockDimChange('B')">
+              <input type="number" id="wlHeightB" value="150" min="150" max="1500" step="5" onchange="onWoodlockDimChange('B')">
             </div>
           </div>
           <div class="input-row" style="margin-bottom:10px;">
@@ -2902,7 +2902,7 @@ function applyDbDriver(drv) {
     runAutoDesignForCurrentState('db', { enableHpfIfNeeded: true });
   } else {
     setTuningMode(true);
-    autofixWoodlockGeometry('driver do Banco DB');
+    autofixWoodlockGeometry('driver do Banco DB', { resetToMin: true });
   }
 }
 
@@ -3122,7 +3122,7 @@ function loadPreset() {
   if (adSt) adSt.style.display = 'none';
   isAutoTune = useAuto;
   setTuningMode(useAuto);
-  autofixWoodlockGeometry(`preset ${p.name}`);
+  autofixWoodlockGeometry(`preset ${p.name}`, { resetToMin: true });
 }
 
 function switchTab(tabId) {
@@ -3595,7 +3595,7 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
     }
   }
 
-  autofixWoodlockGeometry(`auto-design ${boxType}/${profile}`);
+  autofixWoodlockGeometry(`auto-design ${boxType}/${profile}`, { resetToMin: true });
 
   // Em micro-gabinetes vindos do Banco DB onde nenhum duto reto cabe fisicamente na profundidade C, migra automaticamente para Selada B2
   if (source === 'db' && boxType === 'bass-reflex' && lastBuildPack && !lastBuildPack.validation.valid && lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION')) {
@@ -3773,7 +3773,7 @@ function selectTopology(topo) {
   if ((topo === 'bp4' || topo === 'bp6') && isAutoTune) {
     autoSizeBandPassPorts(topo, enteringBp);
   }
-  autofixWoodlockGeometry(`topologia ${topo}`);
+  autofixWoodlockGeometry(`topologia ${topo}`, { resetToMin: true });
 }
 
 function syncSlotWidthToBoxSpan() {
@@ -6634,7 +6634,7 @@ function showWlAutofixBanner(msg, isGuard = false) {
   el.innerHTML = msg;
 }
 
-function autofixWoodlockGeometry(reason = '') {
+function autofixWoodlockGeometry(reason = '', opts = {}) {
   const elA = document.getElementById('wlWidthA');
   const elB = document.getElementById('wlHeightB');
   if (!elA || !elB) return { fixed: false, changes: [] };
@@ -6644,8 +6644,8 @@ function autofixWoodlockGeometry(reason = '') {
 
   let floors = lastWoodlockFloors;
   const changes = [];
-  let A = parseFloat(elA.value) || 800;
-  let B = parseFloat(elB.value) || 490;
+  let A = parseFloat(elA.value) || floors.minA;
+  let B = parseFloat(elB.value) || floors.minB;
   const origA = A, origB = B;
 
   // 0. Corrige tsDia se inconsistente com Sd / nome (sem alterar parâmetros acústicos)
@@ -6754,19 +6754,32 @@ function autofixWoodlockGeometry(reason = '') {
   }
 
   floors = lastWoodlockFloors;
-  // 1. Sobe B até o piso do flange + margem (arredondando em múltiplos de 5 mm)
+  // 1. Sobe B (ou inicia no mínimo exato quando resetToMin=true)
   const roundUp5 = v => Math.ceil(v / 5) * 5;
-  if (B < floors.minB) {
-    B = roundUp5(floors.minB);
-    elB.value = B;
-    changes.push(`B ${origB.toFixed(0)}→${B} mm`);
-  }
+  if (opts.resetToMin) {
+    if (B !== floors.minB) {
+      B = floors.minB;
+      elB.value = B;
+      changes.push(`B ${origB.toFixed(0)}→${B} mm (mín.)`);
+    }
+    if (A !== floors.minA) {
+      A = floors.minA;
+      elA.value = A;
+      changes.push(`A ${origA.toFixed(0)}→${A} mm (mín.)`);
+    }
+  } else {
+    if (B < floors.minB) {
+      B = floors.minB;
+      elB.value = B;
+      changes.push(`B ${origB.toFixed(0)}→${B} mm`);
+    }
 
-  // 2. Sobe A até o piso de drivers + dutos + gaps
-  if (A < floors.minA) {
-    A = roundUp5(floors.minA);
-    elA.value = A;
-    changes.push(`A ${origA.toFixed(0)}→${A} mm`);
+    // 2. Sobe A até o piso de drivers + dutos + gaps
+    if (A < floors.minA) {
+      A = floors.minA;
+      elA.value = A;
+      changes.push(`A ${origA.toFixed(0)}→${A} mm`);
+    }
   }
 
   // 3. Revalida; em BP4/BP6 dutos descem do tampo ao longo de B (cresce B se PORT_DEPTH_COLLISION); em dutada frontal/divisória BP reduz A/B p/ crescer C
