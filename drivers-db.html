@@ -429,6 +429,7 @@
       position: fixed;
       inset: 0;
       background: rgba(5, 8, 12, 0.80);
+      -webkit-backdrop-filter: blur(3px);
       backdrop-filter: blur(3px);
       z-index: 1000;
       display: none;
@@ -509,12 +510,12 @@
     </div>
 
     <div class="h-actions">
-      <button class="btn" id="btn-catalog-open" onclick="openCatalogModal()">Catálogo (...)</button>
-      <button class="btn" onclick="openImportTSVModal()">Importar</button>
-      <button class="btn" onclick="exportTSV()">TSV</button>
-      <button class="btn" onclick="exportCSV()">CSV</button>
-      <button class="btn" onclick="exportJSON()">JSON</button>
-      <button class="btn btn-primary" onclick="openReportModal()">Relatório PDF</button>
+      <button type="button" class="btn" id="btn-catalog-open" onclick="openCatalogModal()">Catálogo (...)</button>
+      <button type="button" class="btn" onclick="openImportTSVModal()">Importar</button>
+      <button type="button" class="btn" onclick="exportTSV()">TSV</button>
+      <button type="button" class="btn" onclick="exportCSV()">CSV</button>
+      <button type="button" class="btn" onclick="exportJSON()">JSON</button>
+      <button type="button" class="btn btn-primary" onclick="openReportModal()">Relatório PDF</button>
     </div>
   </header>
 
@@ -525,52 +526,52 @@
     <aside class="pane-form">
       <div class="pane-header">
         <div class="pane-title">CADASTRO DO TRANSDUTOR</div>
-        <button class="btn" style="height:22px; padding:2px 8px; font-size:10.5px;" onclick="resetForm()">Limpar</button>
+        <button type="button" class="btn" style="height:22px; padding:2px 8px; font-size:10.5px;" onclick="resetForm()">Limpar</button>
       </div>
 
       <div class="form-scroll">
         <!-- 1. Identificação -->
         <div class="field-grid-2">
           <div class="field-group">
-            <label class="field-label">FABRICANTE / MARCA *</label>
+            <label class="field-label" for="inp-brand">FABRICANTE / MARCA *</label>
             <input type="text" id="inp-brand" class="field-input" value="JBL" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">MODELO *</label>
+            <label class="field-label" for="inp-model">MODELO *</label>
             <input type="text" id="inp-model" class="field-input" value="15SWT2200" oninput="onParamInput()">
           </div>
         </div>
 
         <div class="field-grid-4">
           <div class="field-group">
-            <label class="field-label">SÉRIE / LINHA</label>
+            <label class="field-label" for="inp-series">SÉRIE / LINHA</label>
             <input type="text" id="inp-series" class="field-input" value="Tornado" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">ANO</label>
+            <label class="field-label" for="inp-year">ANO</label>
             <input type="number" id="inp-year" class="field-input" value="2023" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">DIÂMETRO (″)</label>
+            <label class="field-label" for="inp-dia">DIÂMETRO (″)</label>
             <input type="number" id="inp-dia" class="field-input" value="15" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">ZNOM (Ω)</label>
+            <label class="field-label" for="inp-znom">ZNOM (Ω)</label>
             <input type="number" id="inp-znom" class="field-input" value="4" oninput="onParamInput()">
           </div>
         </div>
 
         <div class="field-grid-3">
           <div class="field-group">
-            <label class="field-label">PE (W RMS) *</label>
+            <label class="field-label" for="inp-pe">PE (W RMS) *</label>
             <input type="number" id="inp-pe" class="field-input" value="1100" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">SD (cm²) *</label>
+            <label class="field-label" for="inp-sd">SD (cm²) *</label>
             <input type="number" id="inp-sd" class="field-input" value="841" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">ORIGEM DADOS</label>
+            <label class="field-label" for="inp-origin">ORIGEM DADOS</label>
             <select id="inp-origin" class="field-input" onchange="onParamInput()">
               <option value="datasheet" selected>[D] Datasheet</option>
               <option value="measured">[M] Medido (Lab)</option>
@@ -582,62 +583,62 @@
         <!-- 2. Parâmetros Thiele/Small Primários -->
         <div class="field-grid-4">
           <div class="field-group">
-            <label class="field-label">FS (Hz) *</label>
+            <label class="field-label" for="inp-fs">FS (Hz) *</label>
             <input type="number" id="inp-fs" class="field-input" value="41.0" step="0.1" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">VAS (L) *</label>
+            <label class="field-label" for="inp-vas">VAS (L) *</label>
             <input type="number" id="inp-vas" class="field-input" value="76.3" step="0.1" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">QES *</label>
+            <label class="field-label" for="inp-qes">QES *</label>
             <input type="number" id="inp-qes" class="field-input" value="0.45" step="0.01" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">QMS *</label>
+            <label class="field-label" for="inp-qms">QMS *</label>
             <input type="number" id="inp-qms" class="field-input" value="16.32" step="0.01" oninput="onParamInput()">
           </div>
         </div>
 
         <div class="field-grid-4">
           <div class="field-group">
-            <label class="field-label">XMAX (mm)</label>
+            <label class="field-label" for="inp-xmax">XMAX (mm)</label>
             <input type="number" id="inp-xmax" class="field-input" value="10.6" step="0.1" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">RE (Ω)</label>
+            <label class="field-label" for="inp-re">RE (Ω)</label>
             <input type="number" id="inp-re" class="field-input" value="3.39" step="0.01" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">LE (mH)</label>
+            <label class="field-label" for="inp-le">LE (mH)</label>
             <input type="number" id="inp-le" class="field-input" value="2.79" step="0.01" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">HVC / HGAP</label>
+            <label class="field-label" for="inp-coils">HVC / HGAP</label>
             <input type="text" id="inp-coils" class="field-input" value="29 / 12" placeholder="Hvc / Hgap" oninput="onParamInput()">
           </div>
         </div>
 
         <div class="field-grid-3">
           <div class="field-group">
-            <label class="field-label">MMS CAT. (g) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <label class="field-label" for="inp-mms">MMS CAT. (g) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
             <input type="number" id="inp-mms" class="field-input" value="" step="0.1" placeholder="Opcional" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">BL CAT. (T·m) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <label class="field-label" for="inp-bl">BL CAT. (T·m) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
             <input type="number" id="inp-bl" class="field-input" value="" step="0.01" placeholder="Opcional" oninput="onParamInput()">
           </div>
           <div class="field-group">
-            <label class="field-label">VSUB (L) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <label class="field-label" for="inp-vsub">VSUB (L) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
             <input type="number" id="inp-vsub" class="field-input" value="" step="0.1" placeholder="Auto" oninput="onParamInput()">
           </div>
         </div>
 
         <div class="field-grid-2">
-          <button class="btn btn-primary" onclick="adicionarTabela()" style="width:100%; justify-content:center; height:30px;">
+          <button type="button" class="btn btn-primary" onclick="adicionarTabela()" style="width:100%; justify-content:center; height:30px;">
             Salvar no Banco
           </button>
-          <button class="btn btn-success" onclick="enviarFormularioParaSimulador()" style="width:100%; justify-content:center; height:30px;">
+          <button type="button" class="btn btn-success" onclick="enviarFormularioParaSimulador()" style="width:100%; justify-content:center; height:30px;">
             Abrir no Simulador
           </button>
         </div>
@@ -758,18 +759,18 @@
           </div>
 
           <div style="display:flex; align-items:center; gap:5px; flex-wrap:nowrap; flex:1; justify-content:flex-end;">
-            <button class="btn btn-primary" id="btn-load-driver" disabled onclick="carregarLinhaSelecionada()" title="Carregar driver selecionado no formulário (ou duplo clique na linha)">Carregar</button>
-            <button class="btn btn-success" id="btn-send-sim" disabled onclick="enviarLinhaParaSimulador()" title="Enviar driver selecionado direto ao Simulador">Enviar ao Simulador</button>
-            <button class="btn" id="btn-del-driver" disabled onclick="excluirSelecionado()">Excluir</button>
-            <button class="btn" onclick="restaurarCatalogoFabrica()" title="Restaurar o catálogo padrão de fábrica">Restaurar</button>
-            <button class="btn btn-danger" onclick="excluirTodos()" style="margin-left:4px;">Excluir Todos</button>
+            <button type="button" class="btn btn-primary" id="btn-load-driver" disabled onclick="carregarLinhaSelecionada()" title="Carregar driver selecionado no formulário (ou duplo clique na linha)">Carregar</button>
+            <button type="button" class="btn btn-success" id="btn-send-sim" disabled onclick="enviarLinhaParaSimulador()" title="Enviar driver selecionado direto ao Simulador">Enviar ao Simulador</button>
+            <button type="button" class="btn" id="btn-del-driver" disabled onclick="excluirSelecionado()">Excluir</button>
+            <button type="button" class="btn" onclick="restaurarCatalogoFabrica()" title="Restaurar o catálogo padrão de fábrica">Restaurar</button>
+            <button type="button" class="btn btn-danger" onclick="excluirTodos()" style="margin-left:4px;">Excluir Todos</button>
           </div>
         </div>
 
         <!-- FILTROS PARAMÉTRICOS COMBINADOS + APTIDÃO DE CAIXA -->
         <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 14px; background:var(--bg0); border-bottom:1px solid var(--bdr); font-family:var(--mono); font-size:11px; color:var(--txt3);">
           <span>FILTROS:</span>
-          <select id="flt-topo" class="field-input" style="width:146px;" onchange="renderTable()">
+          <select id="flt-topo" aria-label="Filtrar por topologia de caixa" class="field-input" style="width:146px;" onchange="renderTable()">
             <option value="all">Caixa: Todas</option>
             <option value="sealed">Ideal p/ Selada</option>
             <option value="bass-reflex">Ideal p/ Dutada</option>
@@ -777,7 +778,7 @@
             <option value="bp6">Ideal p/ BP6</option>
             <option value="planar">Ideal p/ Planar</option>
           </select>
-          <select id="flt-dia" class="field-input" style="width:110px;" onchange="renderTable()">
+          <select id="flt-dia" aria-label="Filtrar por diâmetro nominal" class="field-input" style="width:110px;" onchange="renderTable()">
             <option value="0">Diâm: Todos</option>
             <option value="8">8″</option>
             <option value="10">10″</option>
@@ -819,7 +820,7 @@
     <div class="modal-box">
       <div class="modal-hdr">
         <span id="modal-catalog-title">CATÁLOGO DE DRIVERS</span>
-        <button class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-catalog')">Fechar</button>
+        <button type="button" class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-catalog')">Fechar</button>
       </div>
       <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
         <input type="text" id="cat-search" class="field-input" placeholder="Filtrar marca, modelo ou série..." oninput="renderCatalogList()">
@@ -835,17 +836,17 @@
     <div class="modal-box">
       <div class="modal-hdr">
         <span>IMPORTAÇÃO TSV / JSON COM PRÉ-VISUALIZAÇÃO</span>
-        <button class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-import')">Fechar</button>
+        <button type="button" class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-import')">Fechar</button>
       </div>
       <div class="modal-body">
-        <input type="file" id="tsvFileInput" accept=".json,.tsv,.txt,.csv" onchange="handleTSVFileSelect(this)" style="margin-bottom:12px;">
+        <input type="file" id="tsvFileInput" aria-label="Selecionar arquivo TSV ou JSON" accept=".json,.tsv,.txt,.csv" onchange="handleTSVFileSelect(this)" style="margin-bottom:12px;">
         <div id="tsv-preview-area" style="font-family:var(--mono); font-size:11px; max-height:300px; overflow:auto;">
           Selecione um arquivo .json (BassForge) ou .tsv para pré-visualizar os drivers antes de confirmar.
         </div>
       </div>
       <div class="modal-foot">
-        <button class="btn" onclick="closeModal('modal-import')">Cancelar</button>
-        <button class="btn btn-primary" id="btn-confirm-import" disabled onclick="confirmTSVImport()">Confirmar Importação</button>
+        <button type="button" class="btn" onclick="closeModal('modal-import')">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-confirm-import" disabled onclick="confirmTSVImport()">Confirmar Importação</button>
       </div>
     </div>
   </div>
@@ -855,7 +856,7 @@
     <div class="modal-box" style="width:900px;">
       <div class="modal-hdr">
         <span>RELATÓRIO TÉCNICO DE TRANSDUTOR (PDF)</span>
-        <button class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-report')">Fechar</button>
+        <button type="button" class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-report')">Fechar</button>
       </div>
       <div class="modal-body">
         <div id="report-printable" style="background:#fff; color:#000; padding:24px; font-family:var(--sans); border-radius:4px;">
@@ -863,8 +864,8 @@
         </div>
       </div>
       <div class="modal-foot">
-        <button class="btn" onclick="window.print()">Imprimir</button>
-        <button class="btn btn-primary" onclick="downloadReportPDF()">Baixar PDF</button>
+        <button type="button" class="btn" onclick="window.print()">Imprimir</button>
+        <button type="button" class="btn btn-primary" onclick="downloadReportPDF()">Baixar PDF</button>
       </div>
     </div>
   </div>

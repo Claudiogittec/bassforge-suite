@@ -241,6 +241,7 @@
   .prop-ro b { color: var(--text-main); font-weight: 600; }
   .prop-slider {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
     height: 4px !important;
     margin: 1px 0 3px !important;
@@ -456,6 +457,7 @@
     position: fixed;
     inset: 0;
     background: rgba(5, 8, 12, 0.78);
+    -webkit-backdrop-filter: blur(3px);
     backdrop-filter: blur(3px);
     z-index: 200;
     align-items: center;
@@ -663,6 +665,7 @@
   }
   input[type=range] {
     -webkit-appearance: none;
+    appearance: none;
     width: 100%;
     background: #222b38;
     border-radius: 3px;
@@ -10486,7 +10489,7 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl, explodedDataUr
 <body>
   <div class="print-bar no-print">
     <span>DOSSIÊ TÉCNICO A4 · ${escapeHtmlStr(docCode)} · Pronto para impressão em folha A4 (Retrato)</span>
-    <button class="print-btn" onclick="window.print()">Imprimir / Salvar PDF (A4)</button>
+    <button type="button" class="print-btn" onclick="window.print()">Imprimir / Salvar PDF (A4)</button>
   </div>
 
   <!-- CARIMBO TÉCNICO DE ENGENHARIA -->
