@@ -2856,6 +2856,7 @@ function applyDbDriver(drv) {
   document.getElementById('tsVas').value = Vas;
   document.getElementById('tsRe').value = Re;
   document.getElementById('tsPe').value = Pe;
+  autoDesignNominalPe = Pe;
   document.getElementById('tsSd').value = Sd;
   document.getElementById('tsXmax').value = Xmax;
   document.getElementById('tsVsub').value = Vsub;
@@ -3076,6 +3077,7 @@ function loadPreset() {
   document.getElementById('tsVas').value = p.Vas;
   document.getElementById('tsRe').value = p.Re;
   document.getElementById('tsPe').value = p.Pe;
+  autoDesignNominalPe = p.Pe;
   document.getElementById('tsSd').value = p.Sd;
   document.getElementById('tsXmax').value = p.Xmax;
   document.getElementById('tsVsub').value = p.Vsub;
@@ -3188,6 +3190,7 @@ function computeTopologySuitability({ EBP, Qts, dia }) {
 let lastActiveTopology = 'bass-reflex';
 let autoDesignExactFb = null;
 let autoDesignVbRef = null;
+let autoDesignNominalPe = null;
 
 function chooseBestTopologyForDriver({ Fs, Qes, Qms, Qts, EBP, dia }) {
   const q = Number.isFinite(Qts) ? Qts : ((Qms * Qes) / Math.max(1e-6, Qms + Qes));
@@ -3467,19 +3470,21 @@ function computeOptimalHpfHz(boxType, Fb, FbVr, fc, Xmax_mm) {
     }
     return g8[i];
   });
-  let maxRaw = 0;
+  const isVentedHpf = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6');
+  const fSubHi = isVentedHpf ? (fRef * 0.96) : 200;
+  let maxRawSub = 0;
   for (let i = 0; i < freqs.length; i++) {
-    if (freqs[i] >= 12 && freqs[i] <= 200 && rawG8[i] > maxRaw) maxRaw = rawG8[i];
+    if (freqs[i] >= 12 && freqs[i] <= fSubHi && rawG8[i] > maxRawSub) maxRawSub = rawG8[i];
   }
-  if (maxRaw <= Xmax_mm * 1.02) {
+  if (maxRawSub <= Xmax_mm * 1.02) {
     return { hpfHz: fallback, needed: false };
   }
-  const fHiSearch = Math.min(85, Math.max(fallback + 10, Math.round(fRef * 0.96)));
+  const fHiSearch = Math.min(85, Math.max(fallback + 6, Math.round(fRef * 0.90)));
   for (let fTry = 16; fTry <= fHiSearch; fTry += 1) {
     let peak = 0;
     for (let i = 0; i < freqs.length; i++) {
       const f = freqs[i];
-      if (f < 10 || f > 200) continue;
+      if (f < 10 || f > fSubHi) continue;
       const r4 = Math.pow(f / fTry, 4);
       const x = rawG8[i] * (r4 / (r4 + 1.0));
       if (x > peak) peak = x;
@@ -3504,6 +3509,11 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
   const Vas = Math.max(1.0, (parseFloat(document.getElementById('tsVas')?.value) || 100) * nDrivers);
   const QL = Math.max(3.0, parseFloat(document.getElementById('qlInput')?.value) || 15);
   const Xmax_mm = Math.max(1.0, parseFloat(document.getElementById('tsXmax')?.value) || 10);
+  const peEl = document.getElementById('tsPe');
+  const curPeVal = Math.max(10, parseFloat(peEl?.value) || 500);
+  if (!(autoDesignNominalPe > 0) || curPeVal > autoDesignNominalPe) autoDesignNominalPe = curPeVal;
+  const peNominal = (opts.enableHpfIfNeeded && autoDesignNominalPe > 0) ? autoDesignNominalPe : curPeVal;
+  if (opts.enableHpfIfNeeded && peEl) peEl.value = String(peNominal);
 
   const dia = Math.max(4, parseFloat(document.getElementById('tsDia')?.value) || 12);
   const plan = synthesizeOptimalEnclosure({ Fs, Qes, Qms, Qts, Vas, QL, nDrivers, dia, boxType, profile });
@@ -3542,7 +3552,7 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
     autoSizeBandPassPorts(boxType, true);
   }
 
-  // Calcula HPF subsônico ótimo para proteger Xmax
+  // Calcula HPF subsônico ótimo para proteger Xmax na região subsônica
   const hpfPlan = computeOptimalHpfHz(boxType, plan.Fb, plan.FbVr, currentCurves?.meta?.fc || Fs, Xmax_mm);
   const hpfEl = document.getElementById('hpfCutoff');
   if (hpfEl) hpfEl.value = String(hpfPlan.hpfHz);
@@ -3550,6 +3560,29 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
     if (typeof setHpfEnabled === 'function') setHpfEnabled(true, false);
   }
   recalculate();
+
+  // Etapa 4: se ainda houver excursão acima de Xmax na banda útil (pico acima de Fb/Fc), ajusta Pe para o limite real seguro
+  let peAdjusted = null;
+  if (opts.enableHpfIfNeeded && boxType !== 'free-air' && peEl && currentCurves && Array.isArray(currentCurves.G8_ConeExcursion)) {
+    let maxXpk = 0;
+    for (let i = 0; i < currentCurves.frequencies.length; i++) {
+      const f = currentCurves.frequencies[i];
+      if (f >= 10 && f <= 300 && currentCurves.G8_ConeExcursion[i] > maxXpk) {
+        maxXpk = currentCurves.G8_ConeExcursion[i];
+      }
+    }
+    if (maxXpk > Xmax_mm * 1.005) {
+      const peSafe = Math.max(10, Math.floor(peNominal * Math.pow(Xmax_mm / maxXpk, 2)));
+      if (peSafe < peNominal) {
+        peEl.value = String(peSafe);
+        const ampPowEl = document.getElementById('elAmpPower');
+        if (ampPowEl) ampPowEl.value = Math.round(peSafe * nDrivers * 1.25);
+        peAdjusted = { from: peNominal, to: peSafe };
+        recalculate();
+      }
+    }
+  }
+
   autofixWoodlockGeometry(`auto-design ${boxType}/${profile}`);
 
   // Em micro-gabinetes vindos do Banco DB onde nenhum duto reto cabe fisicamente na profundidade C, migra automaticamente para Selada B2
@@ -3566,9 +3599,10 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
     const velTxt = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6')
       ? ` · Ar ${(currentCurves?.meta?.airVel || 0).toFixed(1)} m/s`
       : '';
-    const hpfTxt = (boxType !== 'free-air') ? ` · HPF ${hpfPlan.hpfHz}Hz${hpfPlan.needed ? ' (Xmax✓)' : ''}` : '';
+    const hpfTxt = (boxType !== 'free-air') ? ` · HPF ${hpfPlan.hpfHz}Hz` : '';
+    const peTxt = peAdjusted ? ` · <span style="color:#facc15;">Pe ${peAdjusted.from}→${peAdjusted.to}W (Xmax✓)</span>` : (hpfPlan.needed ? ' (Xmax✓)' : '');
     const fbNote = (source === 'db_sealed_fallback') ? ' (micro-caixa)' : '';
-    adSt.innerHTML = `<span style="color:#4ade80;">⚡ ${plan.alignTag}${fbNote}</span>${velTxt}${hpfTxt}`;
+    adSt.innerHTML = `<span style="color:#4ade80;">⚡ ${plan.alignTag}${fbNote}</span>${velTxt}${hpfTxt}${peTxt}`;
   }
   return plan;
 }

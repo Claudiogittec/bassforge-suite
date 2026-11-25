@@ -1264,6 +1264,16 @@ runSuite('25. Max Acoustic SPL Real (Thermal Pe vs Mechanical Xmax Limit)', () =
 
   const sG6 = vm.runInContext("getBp6DualPortVelSeries(CHARTS_INFO.find(c => c.id === 'G6'))", ctx);
   assert(Array.isArray(sG6) && sG6.length === 2, 'G6 deve retornar 2 séries (SPL Real + Teto Térmico Pe)');
+
+  // 25.2 Etapa 4 do Auto-Design: driver com Xmax curto (LAB-12R 200W, Xmax 3.5mm) deve ajustar Pe automaticamente p/ Xpk <= Xmax
+  vm.runInContext(`applyDbDriver({ name: 'LAB-12R Test', fs: 39, qes: 0.44, qms: 7.5, vas: 52, re: 7.0, pe: 200, sd: 510, xmax: 3.5, diameter_in: 12 })`, ctx);
+  const cLab = vm.runInContext('currentCurves', ctx);
+  const peAfter = parseFloat(elements.get('tsPe').value);
+  const maxXAfter = Math.max(...cLab.G8_ConeExcursion);
+  assert(peAfter < 200 && peAfter >= 60, `Auto-Design deve limitar Pe real do LAB-12R abaixo de 200W, obtido ${peAfter}W`);
+  assert(maxXAfter <= 3.55, `Após ajuste automático de Pe (${peAfter}W), excursão máxima deve ficar <= Xmax (3.5mm), obtido ${maxXAfter.toFixed(2)}mm`);
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('setHpfEnabled(false, false); loadPreset();', ctx);
 });
 
 console.log('\n---------------------------------------------------------------');
