@@ -3377,7 +3377,8 @@ function synthesizeOptimalEnclosure(params) {
   const qc = Math.max(0.20, Math.min(0.68, Qts));
   let vbSeed, fbSeed, baseFamily;
   if (qc <= 0.38) {
-    vbSeed = 15.0 * Math.pow(qc, 3.3) * Vas;
+    // Keele (1975) / Bullock (1985) QB3: Vb = 15 * Qts^2.87 * Vas
+    vbSeed = 15.0 * Math.pow(qc, 2.87) * Vas;
     fbSeed = 0.42 * Math.pow(qc, -0.9) * Fs;
     baseFamily = 'QB3';
   } else if (qc <= 0.42) {
@@ -3393,8 +3394,8 @@ function synthesizeOptimalEnclosure(params) {
   const volMult = profile === 'subgrave' ? 1.25 : (profile === 'spl' ? 0.88 : 1.0);
   const fbMult = profile === 'subgrave' ? 0.86 : (profile === 'spl' ? 1.14 : 1.0);
   const diaIn = Math.max(4, params.dia || 12);
-  const minVbByDia = nDrivers * (diaIn >= 21 ? 120 : (diaIn >= 18 ? 92 : (diaIn >= 15 ? 55 : (diaIn >= 12 ? 28 : (diaIn >= 10 ? 16 : (diaIn >= 8 ? 8 : 4))))));
-  Vb = Math.max(Math.max(minVbByDia, Vas * 0.22), Math.min(Math.min(360.0 * nDrivers, Math.max(60.0 * nDrivers, Vas * 2.2)), vbSeed * volMult));
+  const minVbByDia = nDrivers * (diaIn >= 21 ? 140 : (diaIn >= 18 ? 115 : (diaIn >= 15 ? 65 : (diaIn >= 12 ? 30 : (diaIn >= 10 ? 16 : (diaIn >= 8 ? 8 : 4))))));
+  Vb = Math.max(Math.max(minVbByDia, Vas * 0.28), Math.min(Math.min(360.0 * nDrivers, Math.max(60.0 * nDrivers, Vas * 2.2)), vbSeed * volMult));
   const alpha = Vas / Vb;
   const fMin = Math.max(18.0, fbSeed * fbMult * 0.74);
   const fMax = Math.min(Fs * 1.9, fbSeed * fbMult * 1.26);
@@ -3659,11 +3660,12 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
     const origPassPk = getPassPeak();
     if (origPassPk > Xmax_mm * 0.95) {
       let bestVb = plan.Vb, bestFb = plan.Fb, bestScore = Infinity;
+      const minVbFloor = nDrivers * (dia >= 21 ? 140 : (dia >= 18 ? 115 : (dia >= 15 ? 65 : (dia >= 12 ? 28 : (dia >= 10 ? 16 : (dia >= 8 ? 8 : 4))))));
       const vScales = [0.92, 0.84, 0.76];
       const fScales = [1.03, 1.08, 1.14];
       for (const sv of vScales) {
         for (const sf of fScales) {
-          const tryVb = Math.max(4.0, +(plan.Vb * sv).toFixed(1));
+          const tryVb = Math.max(minVbFloor, +(plan.Vb * sv).toFixed(1));
           const tryFb = Math.max(20.0, Math.min(95.0, +(plan.Fb * sf).toFixed(2)));
           if (vbEl) vbEl.value = tryVb.toFixed(1);
           if (fbEl) fbEl.value = tryFb.toFixed(2);
@@ -4073,7 +4075,7 @@ function computePortGeometry(opts) {
   }
 
   const omega_b = 2.0 * Math.PI * Fb;
-  const LeffM = (Math.pow(339.8, 2) * Sp) / (Math.pow(omega_b, 2) * (Vb / 1000.0));
+  const LeffM = (cVal * cVal * Sp) / (Math.pow(omega_b, 2) * (Vb / 1000.0));
   const deltaL = kEnd * DeqM;
   const LvM = LeffM - deltaL;
   const LvCm = LvM * 100.0;

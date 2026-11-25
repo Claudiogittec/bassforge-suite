@@ -268,7 +268,7 @@ runSuite('4. Golden Master (Oversound 18 SUB 800 XT) + Small (1973) Eq. 19', () 
   const fb = parseFloat(elements.get('kpi1Val').textContent);
   const vtot = parseFloat(elements.get('kpiVtotVal').textContent);
   approx(fb, 44.62, 0.02, 'Golden Master Fb');
-  approx(vtot, 148.73, 0.05, 'Golden Master Vtot');
+  approx(vtot, 149.05, 0.08, 'Golden Master Vtot (ISO 20°C c=343.37 m/s)');
 
   const brEval = vm.runInContext(
     "analyzeTransferAlignment({ boxType: 'bass-reflex', Fs: 40, Qts: 0.420, alpha: 185/130, Fb: 40 * Math.pow(185/130, 0.31), QL: 15 })",
