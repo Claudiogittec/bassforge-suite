@@ -4344,7 +4344,7 @@ function generateSimulationData(p) {
   }
 
   const G1 = [], G2 = [], G3 = [], G4 = [], G5 = [], G6 = [];
-  const G7 = [], G8 = [], G9 = [], G10 = [], G11 = [], G12 = [], G13 = [];
+  const G7 = [], G8 = [], G9 = [], G9_front = [], G9_rear = [], G10 = [], G11 = [], G12 = [], G13 = [];
   const phaseRadRaw = [];
 
   const Fs_s = Math.max(1e-3, p.Fs || 0);
@@ -4475,7 +4475,10 @@ function generateSimulationData(p) {
       // G9: Port Air Velocity #9 (m/s) — Transferência de velocidade de Small |sn / D(sn)| * |H_HPF|
       const v_peak_ref = p.airVel || 12.5963;
       const hv_f = (rel_w / Math.sqrt(den_mag2)) * hpf_lin;
-      G9.push(v_peak_ref * (hv_f / max_hv));
+      const vBr = v_peak_ref * (hv_f / max_hv);
+      G9.push(vBr);
+      G9_front.push(vBr);
+      G9_rear.push(0);
 
       // G11: In Box Impedance #11 (Ohms) — Identidade de Polinômios Acoplados de Small (1973) Eq. 11
       const dm_re = Math.pow(rel_w, 4) - a2_m*Math.pow(rel_w, 2) + 1.0;
@@ -4519,6 +4522,8 @@ function generateSimulationData(p) {
       const vFront = (ev.Upf_mag / bpModel.SpFront) * hpf_lin;
       const vRear = (p.boxType === 'bp6') ? ((ev.Upr_mag / bpModel.SpRear) * hpf_lin) : 0.0;
       G9.push(Math.max(vFront, vRear));
+      G9_front.push(vFront);
+      G9_rear.push(vRear);
 
       // Impedância complexa real Zin(jw) e EPDR real
       const zBoxVal = Math.hypot(ev.Zin_re, ev.Zin_im);
@@ -4555,6 +4560,8 @@ function generateSimulationData(p) {
       G2.push(0);
       G10.push(spl_th);
       G9.push(0);
+      G9_front.push(0);
+      G9_rear.push(0);
 
       const c_tot = Cms / (1.0 + p.alpha);
       const r_tot = (2.0 * Math.PI * p.fc * Mms) / p.qtc;
@@ -4625,6 +4632,8 @@ function generateSimulationData(p) {
     G7_CabinGain: G7,
     G8_ConeExcursion: G8,
     G9_PortAirVel: G9,
+    G9_PortAirVel_VF: G9_front,
+    G9_PortAirVel_VR: G9_rear,
     G10_ConeSPL: G10,
     G11_InBoxZ: G11,
     G12_Phase: G12,
@@ -5116,21 +5125,23 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
     ctx.setLineDash([]);
   });
 
-  // Legenda para múltiplas curvas no modo expandido
+  // Legenda para múltiplas curvas (adaptativa p/ grade e modo expandido)
   if (seriesList.length > 1) {
-    let lx = padL + 10;
-    const ly = padT + ph - 18;
-    ctx.font = `700 10.5px ${CHART_FONT_MONO}`;
+    let lx = padL + (isExpanded ? 10 : 6);
+    const legH = isExpanded ? 15 : 13;
+    const ly = padT + ph - (legH + 3);
+    ctx.font = `700 ${isExpanded ? 10.5 : 8.5}px ${CHART_FONT_MONO}`;
     seriesList.forEach(s => {
-      const tw = ctx.measureText(s.label).width + 20;
+      const txt = isExpanded ? s.label : (s.shortLabel || s.label);
+      const tw = ctx.measureText(txt).width + (isExpanded ? 20 : 16);
       ctx.fillStyle = 'rgba(6, 9, 15, 0.85)';
-      ctx.fillRect(lx, ly, tw, 15);
+      ctx.fillRect(lx, ly, tw, legH);
       ctx.fillStyle = s.color;
-      ctx.fillRect(lx + 4, ly + 6, 8, 3);
+      ctx.fillRect(lx + 4, ly + Math.floor(legH / 2) - 1, isExpanded ? 8 : 6, 3);
       ctx.fillStyle = '#e2e8f0';
       ctx.textAlign = 'left';
-      ctx.fillText(s.label, lx + 16, ly + 11);
-      lx += tw + 8;
+      ctx.fillText(txt, lx + (isExpanded ? 16 : 13), ly + (isExpanded ? 11 : 9.5));
+      lx += tw + (isExpanded ? 8 : 5);
     });
   }
 
@@ -5247,6 +5258,16 @@ function bindInteractiveChart(canvas, drawFn, getReadout, onLeave) {
   };
 }
 
+function getBp6DualPortVelSeries(cfg) {
+  if (!cfg || cfg.id !== 'G9' || !currentCurves || !currentCurves.meta) return null;
+  if (currentCurves.meta.boxType !== 'bp6') return null;
+  if (!Array.isArray(currentCurves.G9_PortAirVel_VF) || !Array.isArray(currentCurves.G9_PortAirVel_VR)) return null;
+  return [
+    { shortLabel: 'Duto VF', label: 'Duto VF (Frontal)', unit: cfg.unit, color: '#00d4ff', values: currentCurves.G9_PortAirVel_VF, primary: true },
+    { shortLabel: 'Duto VR', label: 'Duto VR (Traseiro)', unit: cfg.unit, color: '#a855f7', values: currentCurves.G9_PortAirVel_VR, primary: false }
+  ];
+}
+
 function getExpandedOverlayConfig(baseCfg) {
   const ovEl = document.getElementById('expandedOverlay');
   const mode = ovEl ? ovEl.value : 'none';
@@ -5285,7 +5306,17 @@ function getExpandedOverlayConfig(baseCfg) {
       ]
     };
   }
+  const bp6VelSeries = getBp6DualPortVelSeries(baseCfg);
   if (referenceSnapshot && referenceSnapshot.curves[baseCfg.key]) {
+    if (bp6VelSeries) {
+      return {
+        cfg: baseCfg,
+        series: [
+          ...bp6VelSeries,
+          { shortLabel: 'Ref (A)', label: referenceSnapshot.label, unit: baseCfg.unit, color: '#fbbf24', dash: [6, 4], values: referenceSnapshot.curves[baseCfg.key], primary: false, isRefA: true }
+        ]
+      };
+    }
     return {
       cfg: baseCfg,
       series: [
@@ -5293,6 +5324,9 @@ function getExpandedOverlayConfig(baseCfg) {
         { shortLabel: 'Ref (A)', label: referenceSnapshot.label, unit: baseCfg.unit, color: '#fbbf24', dash: [6, 4], values: referenceSnapshot.curves[baseCfg.key], primary: false, isRefA: true }
       ]
     };
+  }
+  if (bp6VelSeries) {
+    return { cfg: baseCfg, series: bp6VelSeries };
   }
   return { cfg: baseCfg, series: null };
 }
@@ -5314,21 +5348,38 @@ function drawAllCharts() {
     const cv = document.getElementById('cv_' + c.id);
     const infoEl = document.getElementById('info_' + c.id);
     if (!cv) return;
-    const abSeries = (referenceSnapshot && referenceSnapshot.curves[c.key])
-      ? [
-          { shortLabel: 'B', label: c.title, unit: c.unit, color: c.color, values: currentCurves[c.key], primary: true },
-          { shortLabel: 'A', label: referenceSnapshot.label, unit: c.unit, color: '#fbbf24', dash: [5, 3], values: referenceSnapshot.curves[c.key], primary: false, isRefA: true }
-        ]
-      : null;
+    const bp6VelSeries = getBp6DualPortVelSeries(c);
+    const hasRefA = Boolean(referenceSnapshot && referenceSnapshot.curves[c.key]);
+    const abSeries = hasRefA
+      ? (bp6VelSeries
+          ? [
+              ...bp6VelSeries,
+              { shortLabel: 'A', label: referenceSnapshot.label, unit: c.unit, color: '#fbbf24', dash: [5, 3], values: referenceSnapshot.curves[c.key], primary: false, isRefA: true }
+            ]
+          : [
+              { shortLabel: 'B', label: c.title, unit: c.unit, color: c.color, values: currentCurves[c.key], primary: true },
+              { shortLabel: 'A', label: referenceSnapshot.label, unit: c.unit, color: '#fbbf24', dash: [5, 3], values: referenceSnapshot.curves[c.key], primary: false, isRefA: true }
+            ])
+      : bp6VelSeries;
     const setSummary = () => {
       if (!infoEl) return;
+      if (bp6VelSeries) {
+        const pkF = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[0].values, chartOpts.fMin, chartOpts.fMax);
+        const pkR = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[1].values, chartOpts.fMin, chartOpts.fMax);
+        infoEl.innerHTML = `<span><b style="color:#00d4ff">VF ${pkF.maxV.toFixed(1)}</b>@${pkF.maxF.toFixed(0)}Hz · <b style="color:#a855f7">VR ${pkR.maxV.toFixed(1)}</b>@${pkR.maxF.toFixed(0)}Hz</span><span>${hasRefA ? 'A/B · ⤢' : '⤢'}</span>`;
+        return;
+      }
       const pk = computeVisiblePeak(currentCurves.frequencies, currentCurves[c.key], chartOpts.fMin, chartOpts.fMax);
-      infoEl.innerHTML = `<span>Pico: <b style="color:${c.color}">${pk.maxV.toFixed(1)} ${c.unit}</b> @ ${pk.maxF.toFixed(0)} Hz</span><span>${abSeries ? 'A/B Ativo · ⤢' : 'Duplo-clique ⤢'}</span>`;
+      infoEl.innerHTML = `<span>Pico: <b style="color:${c.color}">${pk.maxV.toFixed(1)} ${c.unit}</b> @ ${pk.maxF.toFixed(0)} Hz</span><span>${hasRefA ? 'A/B Ativo · ⤢' : 'Duplo-clique ⤢'}</span>`;
     };
     const setReadout = (f, _x, pinned) => {
       const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[c.key], f);
       const pinTag = pinned ? '📌 ' : '';
-      if (abSeries) {
+      if (bp6VelSeries) {
+        const vF = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[0].values, f);
+        const vR = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[1].values, f);
+        if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${pinTag}${f.toFixed(1)}Hz</b> <span style="color:#00d4ff">VF:${vF.toFixed(1)}</span> | <span style="color:#a855f7">VR:${vR.toFixed(1)}</span> ${c.unit}</span><span>${pinned ? 'Soltar' : 'Fixar'}</span>`;
+      } else if (hasRefA) {
         const valA = interpolateSeriesAtFreq(currentCurves.frequencies, abSeries[1].values, f);
         const dv = val - valA;
         if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${pinTag}${f.toFixed(1)}Hz</b> B:${val.toFixed(1)} | <span style="color:#fbbf24">A:${valA.toFixed(1)}</span> (Δ${dv >= 0 ? '+' : ''}${dv.toFixed(1)})</span>`;
@@ -5409,9 +5460,13 @@ function exportExpandedPNG() {
   const driverEl = document.getElementById('driverPreset');
   const driverName = driverEl && driverEl.selectedIndex >= 0 ? driverEl.options[driverEl.selectedIndex].text : 'Driver';
   const m = currentCurves.meta || {};
-  const tuneStr = m.boxType === 'bass-reflex'
-    ? `Dutada Vb=${(m.Vb || 0).toFixed(1)}L | Fb=${(m.Fb || 0).toFixed(1)}Hz | F3=${(m.F3 || 0).toFixed(1)}Hz`
-    : `Selada Vb=${(m.Vb || 0).toFixed(1)}L | Fc=${(m.fc || 0).toFixed(1)}Hz | F3=${(m.F3 || 0).toFixed(1)}Hz`;
+  const tuneStr = m.boxType === 'bp6'
+    ? `BP6 VF=${(m.Vb || 0).toFixed(1)}L @ ${(m.Fb || 0).toFixed(1)}Hz | FbVR=${(m.FbVr || 0).toFixed(1)}Hz`
+    : (m.boxType === 'bp4'
+        ? `BP4 VF=${(m.Vb || 0).toFixed(1)}L @ ${(m.Fb || 0).toFixed(1)}Hz`
+        : (m.boxType === 'bass-reflex'
+            ? `Dutada Vb=${(m.Vb || 0).toFixed(1)}L | Fb=${(m.Fb || 0).toFixed(1)}Hz | F3=${(m.F3 || 0).toFixed(1)}Hz`
+            : `Selada Vb=${(m.Vb || 0).toFixed(1)}L | Fc=${(m.fc || 0).toFixed(1)}Hz | F3=${(m.F3 || 0).toFixed(1)}Hz`));
 
   const offscreen = document.createElement('canvas');
   drawLogChart(offscreen, currentCurves.frequencies, currentCurves[cfg.key], cfg, {
@@ -8806,7 +8861,8 @@ function generateBuildPackHtml() {
       const off = document.createElement('canvas');
       drawLogChart(off, currentCurves.frequencies, currentCurves[cfg.key], cfg, {
         isExpanded: true, exportW: 720, exportH: 380, exportHeaderH: 36,
-        exportTitle: displayTitle, exportSubtitle
+        exportTitle: displayTitle, exportSubtitle,
+        overlaySeries: getBp6DualPortVelSeries(cfg)
       });
       if (typeof off.toDataURL === 'function') {
         chartImages.push({ id, title: displayTitle, dataUrl: off.toDataURL('image/png') });
