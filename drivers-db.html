@@ -3,28 +3,47 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>BassForge SUITE — Banco Oficial &amp; Auditoria Eletroacústica</title>
+  <title>BassForge — Banco de Drivers e Auditoria T/S</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect x='1' y='1' width='26' height='26' rx='6' fill='%2310141b' stroke='%2338a3d1' stroke-width='1.5'/%3E%3Ccircle cx='14' cy='14' r='7.5' fill='none' stroke='%2338a3d1' stroke-width='1.6'/%3E%3Ccircle cx='14' cy='14' r='3' fill='%2338a3d1'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
   <style>
     :root {
-      --bg0: #06090f;
-      --bg1: #0b111d;
-      --bg2: #111927;
-      --bg3: #172235;
-      --bdr: rgba(148, 163, 184, 0.14);
-      --bdr2: rgba(0, 212, 255, 0.28);
-      --bdr3: rgba(0, 212, 255, 0.45);
-      --acc: #00d4ff;        /* Ciano elétrico */
-      --acc2: #f59e0b;       /* Laranja aviso */
-      --acc3: #10b981;       /* Verde acústico sucesso */
-      --acc4: #a855f7;       /* Roxo lab */
-      --dng: #ef4444;        /* Vermelho erro */
-      --txt: #f1f5f9;
-      --txt2: #94a3b8;
-      --txt3: #64748b;
+      /* ── Design System Unificado — BassForge Lab / CAD ── */
+      --bg-canvas:     #0b0e13;
+      --bg-app:        #10141b;
+      --bg-panel:      #151a23;
+      --bg-elevated:   #1c2330;
+      --bg-input:      #0d1117;
+      --border-subtle: rgba(203, 213, 225, 0.08);
+      --border-default:rgba(203, 213, 225, 0.14);
+      --border-strong: rgba(203, 213, 225, 0.24);
+      --accent:        #38a3d1;
+      --accent-hover:  #4eb4df;
+      --accent-muted:  rgba(56, 163, 209, 0.14);
+      --accent-border: rgba(56, 163, 209, 0.40);
+      --status-ok:     #2ea070;
+      --status-warn:   #d4942a;
+      --status-err:    #d94f57;
+      --status-ref:    #9370db;
+      /* Aliases legados p/ compatibilidade interna */
+      --bg0: var(--bg-canvas);
+      --bg1: var(--bg-app);
+      --bg2: var(--bg-panel);
+      --bg3: var(--bg-elevated);
+      --bdr: var(--border-default);
+      --bdr2: var(--border-strong);
+      --bdr3: var(--accent-border);
+      --acc: var(--accent);
+      --acc2: var(--status-warn);
+      --acc3: var(--status-ok);
+      --acc4: var(--status-ref);
+      --dng: var(--status-err);
+      --txt: #e6edf3;
+      --txt2: #9aa6b5;
+      --txt3: #6b7788;
       --sans: 'Inter', 'Segoe UI', -apple-system, sans-serif;
       --mono: 'JetBrains Mono', 'Consolas', monospace;
     }
@@ -33,13 +52,20 @@
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg0); }
     ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.22); border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: rgba(0, 212, 255, 0.45); }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.38); }
+
+    :focus-visible { outline: 1.5px solid var(--accent); outline-offset: 1px; }
+    button:disabled, input:disabled, select:disabled {
+      opacity: 0.38;
+      cursor: not-allowed !important;
+      pointer-events: none;
+    }
 
     body {
       background: var(--bg0);
       color: var(--txt);
       font-family: var(--sans);
-      font-size: 11.5px;
+      font-size: 12px;
       line-height: 1.4;
       height: 100vh;
       display: flex;
@@ -47,15 +73,15 @@
       overflow: hidden;
     }
 
-    /* ═══════════ HEADER UNIFICADO — BASSFORGE SUITE ═══════════ */
+    /* ═══════════ HEADER UNIFICADO (44px) ═══════════ */
     header {
-      background: linear-gradient(180deg, #0d1524 0%, var(--bg1) 100%);
+      background: var(--bg1);
       border-bottom: 1px solid var(--bdr);
-      height: 52px;
+      height: 44px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      padding: 0 18px;
+      padding: 0 14px;
       gap: 10px;
       flex-shrink: 0;
       z-index: 100;
@@ -66,18 +92,18 @@
       gap: 10px;
       color: var(--txt);
     }
-    .brand-title { font-family: var(--mono); font-weight: 800; font-size: 14px; letter-spacing: 0.6px; color: #fff; }
-    .brand-accent { color: var(--acc); }
-    .brand-sub { font-family: var(--mono); font-size: 8.5px; color: var(--txt3); letter-spacing: 0.9px; }
-    .brand-sep { width: 1px; height: 24px; background: var(--bdr); margin: 0 4px; }
+    .brand-title { font-family: var(--mono); font-weight: 700; font-size: 13.5px; letter-spacing: 0.4px; color: var(--txt); }
+    .brand-accent { color: var(--acc); font-weight: 600; }
+    .brand-sub { font-family: var(--mono); font-size: 10px; color: var(--txt3); letter-spacing: 0.04em; }
+    .brand-sep { width: 1px; height: 20px; background: var(--bdr); margin: 0 2px; }
     .suite-nav {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      background: #080d16;
+      gap: 3px;
+      background: var(--bg-input);
       border: 1px solid var(--bdr);
-      border-radius: 6px;
-      padding: 3px;
+      border-radius: 5px;
+      padding: 2px;
     }
     .suite-pill {
       font-family: var(--mono);
@@ -86,37 +112,30 @@
       color: var(--txt2);
       text-decoration: none;
       padding: 4px 10px;
-      border-radius: 4px;
-      transition: all 0.15s ease;
+      border-radius: 3px;
+      border: 1px solid transparent;
+      transition: background 0.15s ease, color 0.15s ease;
       white-space: nowrap;
     }
     .suite-pill:hover { color: var(--txt); background: var(--bg3); }
     .suite-pill.active {
-      background: rgba(0, 212, 255, 0.16);
+      background: var(--accent-muted);
       color: var(--acc);
-      border: 1px solid rgba(0, 212, 255, 0.35);
-      box-shadow: 0 0 10px rgba(0, 212, 255, 0.12);
-    }
-    .brand-badge {
-      background: rgba(0, 212, 255, 0.12);
-      color: var(--acc);
-      border: 1px solid rgba(0, 212, 255, 0.3);
-      font-family: var(--mono);
-      font-size: 9.5px;
-      padding: 2px 7px;
-      border-radius: 4px;
-      font-weight: 700;
+      border-color: var(--accent-border);
     }
     .h-actions {
       display: flex;
       align-items: center;
       gap: 6px;
+      flex-wrap: wrap;
     }
     .btn {
       font-family: var(--mono);
-      font-size: 10.5px;
-      padding: 5px 10px;
-      border-radius: 5px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 9px;
+      height: 26px;
+      border-radius: 4px;
       border: 1px solid var(--bdr);
       background: var(--bg2);
       color: var(--txt);
@@ -124,24 +143,45 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
-      transition: all 0.15s ease;
+      transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
       white-space: nowrap;
     }
     .btn:hover {
       background: var(--bg3);
-      border-color: var(--acc);
-      color: var(--acc);
+      border-color: var(--bdr2);
+      color: var(--txt);
     }
     .btn-primary {
       background: var(--acc);
-      color: #000;
-      font-weight: 700;
+      color: #0b0e13;
+      font-weight: 600;
       border-color: var(--acc);
     }
     .btn-primary:hover {
-      background: #33ddff;
-      color: #000;
-      box-shadow: 0 0 12px rgba(0, 212, 255, 0.4);
+      background: var(--accent-hover);
+      border-color: var(--accent-hover);
+      color: #0b0e13;
+    }
+    .btn-success {
+      border-color: rgba(46, 160, 112, 0.45);
+      color: var(--status-ok);
+      background: rgba(46, 160, 112, 0.10);
+      font-weight: 600;
+    }
+    .btn-success:hover {
+      background: rgba(46, 160, 112, 0.18);
+      border-color: var(--status-ok);
+      color: #4ade80;
+    }
+    .btn-danger {
+      border-color: rgba(217, 79, 87, 0.42);
+      color: var(--status-err);
+      background: rgba(217, 79, 87, 0.08);
+    }
+    .btn-danger:hover {
+      background: rgba(217, 79, 87, 0.16);
+      border-color: var(--status-err);
+      color: #f87171;
     }
 
     /* ═══════════ MAIN LAYOUT ═══════════ */
@@ -154,7 +194,7 @@
 
     /* ═══════════ PAINEL ESQUERDO: CADASTRO DO TRANSDUTOR ═══════════ */
     .pane-form {
-      width: 450px;
+      width: 376px;
       flex-shrink: 0;
       background: var(--bg1);
       border-right: 1px solid var(--bdr);
@@ -163,19 +203,19 @@
       overflow: hidden;
     }
     .pane-header {
-      padding: 10px 14px;
+      padding: 8px 12px;
       border-bottom: 1px solid var(--bdr);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: var(--bg0);
+      background: var(--bg2);
     }
     .pane-title {
       font-family: var(--mono);
       font-size: 11px;
-      font-weight: 700;
-      color: var(--acc);
-      letter-spacing: 0.5px;
+      font-weight: 600;
+      color: var(--txt);
+      letter-spacing: 0.4px;
       display: flex;
       align-items: center;
       gap: 6px;
@@ -183,96 +223,91 @@
     .form-scroll {
       flex: 1;
       overflow-y: auto;
-      padding: 12px 14px;
+      padding: 10px 12px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 9px;
     }
 
     .field-group {
       display: flex;
       flex-direction: column;
-      gap: 2px;
+      gap: 3px;
     }
     .field-label {
       font-family: var(--mono);
-      font-size: 9px;
-      color: var(--txt3);
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
+      font-size: 11px;
+      color: var(--txt2);
+      letter-spacing: 0.2px;
       display: flex;
       justify-content: space-between;
     }
     .field-input {
-      background: var(--bg0);
+      background: var(--bg-input);
       border: 1px solid var(--bdr);
       border-radius: 3px;
       color: var(--txt);
       font-family: var(--mono);
-      font-size: 11px;
-      padding: 5px 7px;
-      outline: none;
-      transition: border-color 0.15s;
+      font-size: 11.5px;
+      font-variant-numeric: tabular-nums lining-nums;
+      height: 26px;
+      padding: 3px 7px;
+      transition: border-color 0.12s;
       width: 100%;
     }
     .field-input:focus {
       border-color: var(--acc);
+      outline: none;
     }
-    .field-grid-2 {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 6px;
-    }
-    .field-grid-3 {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 6px;
-    }
-    .field-grid-4 {
-      display: grid;
-      grid-template-columns: repeat(4, 1fr);
-      gap: 6px;
-    }
+    .field-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .field-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+    .field-grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 
     /* Cards de Informações Físicas & Validação */
     .card-box {
       background: var(--bg2);
       border: 1px solid var(--bdr);
-      border-radius: 4px;
+      border-radius: 5px;
       padding: 8px 10px;
       display: flex;
       flex-direction: column;
-      gap: 4px;
+      gap: 5px;
     }
     .card-hdr {
       font-family: var(--mono);
-      font-size: 9.5px;
-      font-weight: 700;
-      color: var(--acc);
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--txt);
       display: flex;
       align-items: center;
       justify-content: space-between;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 4px;
     }
     .grid-derived {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 3px 8px;
+      gap: 3px 10px;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums lining-nums;
     }
     .row-derived {
       display: flex;
       justify-content: space-between;
-      border-bottom: 1px dashed rgba(255, 255, 255, 0.05);
-      padding: 1.5px 0;
+      gap: 4px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 2px 0;
+      color: var(--txt2);
     }
     .val-derived {
-      font-weight: 700;
-      color: var(--acc3);
+      font-weight: 600;
+      color: var(--txt);
       white-space: nowrap;
+      font-variant-numeric: tabular-nums lining-nums;
     }
 
-    /* ═══════════ PAINEL DIREITO: AUDITORIA CIENTÍFICA + TABELA MASTER ═══════════ */
+    /* ═══════════ PAINEL DIREITO: AUDITORIA + TABELA MASTER ═══════════ */
     .pane-right {
       flex: 1;
       display: flex;
@@ -282,30 +317,46 @@
       overflow: hidden;
     }
 
-    .sec-audit {
+    details.sec-audit {
       background: var(--bg1);
       border-bottom: 1px solid var(--bdr);
-      padding: 10px 14px;
-      display: flex;
-      flex-direction: column;
-      gap: 8px;
+      padding: 7px 14px;
       flex-shrink: 0;
     }
+    details.sec-audit > summary {
+      list-style: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      user-select: none;
+    }
+    details.sec-audit > summary::-webkit-details-marker { display: none; }
     .audit-grid {
       display: grid;
       grid-template-columns: 1.1fr 1.1fr 1fr;
-      gap: 10px;
+      gap: 8px;
+      margin-top: 8px;
     }
     .audit-card {
       background: var(--bg2);
       border: 1px solid var(--bdr);
-      border-radius: 4px;
+      border-radius: 5px;
       padding: 8px 10px;
       display: flex;
       flex-direction: column;
       gap: 4px;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums lining-nums;
+    }
+    .status-dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: var(--status-ok);
+      flex-shrink: 0;
     }
 
     .sec-table {
@@ -318,11 +369,12 @@
     .table-toolbar {
       background: var(--bg2);
       border-bottom: 1px solid var(--bdr);
-      padding: 8px 14px;
+      padding: 7px 14px;
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
+      flex-wrap: wrap;
       flex-shrink: 0;
     }
     .table-scroll {
@@ -334,14 +386,16 @@
       width: 100%;
       border-collapse: collapse;
       font-family: var(--mono);
-      font-size: 10px;
+      font-size: 11px;
+      font-variant-numeric: tabular-nums lining-nums;
       white-space: nowrap;
     }
     .db-table th {
       position: sticky;
       top: 0;
       background: var(--bg2);
-      color: var(--txt3);
+      color: var(--txt2);
+      font-weight: 600;
       padding: 6px 8px;
       text-align: center;
       border-bottom: 1px solid var(--bdr);
@@ -350,22 +404,32 @@
     .db-table td {
       padding: 5px 8px;
       text-align: center;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      border-bottom: 1px solid var(--border-subtle);
       color: var(--txt2);
     }
+    .db-table th:nth-child(3), .db-table td:nth-child(3) {
+      position: sticky; left: 0; z-index: 3; background: var(--bg1); text-align: left;
+      border-right: 1px solid var(--border-subtle);
+    }
+    .db-table th:nth-child(3) { z-index: 5; background: var(--bg2); }
+    .db-table th:nth-child(4), .db-table td:nth-child(4) {
+      text-align: left;
+    }
     .db-table tbody tr { cursor: pointer; }
-    .db-table tbody tr:hover { background: rgba(0, 212, 255, 0.06); }
-    .db-table tbody tr.selected { background: rgba(0, 212, 255, 0.14); }
-    .db-table td.calc { color: var(--acc); font-weight: 500; }
-    .db-table td.cell-warn { color: var(--acc2) !important; font-weight: 700; }
-    .db-table td.cell-err { color: var(--dng) !important; font-weight: 700; }
+    .db-table tbody tr:hover { background: rgba(56, 163, 209, 0.08); }
+    .db-table tbody tr:hover td:nth-child(3) { background: #16202d; }
+    .db-table tbody tr.selected { background: rgba(56, 163, 209, 0.16); }
+    .db-table tbody tr.selected td:nth-child(3) { background: #172736; color: var(--txt); }
+    .db-table td.calc { color: var(--txt); font-weight: 500; }
+    .db-table td.cell-warn { color: var(--acc2) !important; font-weight: 600; }
+    .db-table td.cell-err { color: var(--dng) !important; font-weight: 600; }
 
     /* Modais */
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.85);
-      backdrop-filter: blur(4px);
+      background: rgba(5, 8, 12, 0.80);
+      backdrop-filter: blur(3px);
       z-index: 1000;
       display: none;
       align-items: center;
@@ -376,13 +440,14 @@
     .modal-box {
       background: var(--bg1);
       border: 1px solid var(--bdr2);
-      border-radius: 6px;
+      border-radius: 7px;
       width: 850px;
       max-width: 96vw;
       max-height: 90vh;
       display: flex;
       flex-direction: column;
       overflow: hidden;
+      box-shadow: 0 16px 48px rgba(0, 0, 0, 0.60);
     }
     .modal-hdr {
       background: var(--bg2);
@@ -392,9 +457,9 @@
       align-items: center;
       justify-content: space-between;
       font-family: var(--mono);
-      font-weight: 700;
+      font-weight: 600;
       font-size: 12px;
-      color: var(--acc);
+      color: var(--txt);
     }
     .modal-body { padding: 16px; overflow-y: auto; flex: 1; }
     .modal-foot {
@@ -403,39 +468,53 @@
       padding: 10px 16px;
       display: flex;
       justify-content: flex-end;
-      gap: 10px;
+      gap: 8px;
+    }
+    .bf-toast {
+      position: fixed; right: 16px; bottom: 16px; z-index: 2000;
+      background: var(--bg3); border: 1px solid var(--accent-border);
+      color: var(--txt); font-family: var(--mono); font-size: 11.5px;
+      padding: 9px 14px; border-radius: 5px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5);
+      opacity: 0; transform: translateY(8px); pointer-events: none;
+      transition: opacity 0.18s ease, transform 0.18s ease;
+    }
+    .bf-toast.show { opacity: 1; transform: translateY(0); }
+
+    @media (max-width: 1200px) {
+      .pane-form { width: 320px; }
+      header { height: auto; min-height: 44px; padding: 6px 12px; flex-wrap: wrap; }
     }
   </style>
 </head>
 <body>
 
-  <!-- ═══════════ HEADER UNIFICADO — BASSFORGE SUITE ═══════════ -->
+  <!-- ═══════════ HEADER UNIFICADO ═══════════ -->
   <header>
     <div class="brand">
-      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
-        <rect x="1" y="1" width="26" height="26" rx="6" fill="#080d16" stroke="#00d4ff" stroke-opacity="0.5" stroke-width="1.4"/>
-        <circle cx="14" cy="14" r="7.5" stroke="#00d4ff" stroke-width="1.6"/>
-        <circle cx="14" cy="14" r="3" fill="#00d4ff" fill-opacity="0.25" stroke="#00d4ff" stroke-width="1.4"/>
-        <path d="M5 20.5C8 20.5 9.5 17 11.5 17C13.5 17 14.5 21 16.5 21C18.5 21 20 17.5 23 17.5" stroke="#10b981" stroke-width="1.4" stroke-linecap="round"/>
+      <svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="26" height="26" rx="5" fill="#10141b" stroke="#38a3d1" stroke-opacity="0.6" stroke-width="1.4"/>
+        <circle cx="14" cy="14" r="7.5" stroke="#38a3d1" stroke-width="1.5"/>
+        <circle cx="14" cy="14" r="3" fill="#38a3d1" fill-opacity="0.25" stroke="#38a3d1" stroke-width="1.3"/>
       </svg>
       <div style="display:flex; flex-direction:column; line-height:1.15;">
-        <span class="brand-title">BassForge <span class="brand-accent">SUITE</span></span>
-        <span class="brand-sub">ECOSSISTEMA ELETROACÚSTICO OFICIAL</span>
+        <span class="brand-title">BassForge</span>
+        <span class="brand-sub">ENGENHARIA ELETROACÚSTICA</span>
       </div>
       <span class="brand-sep"></span>
       <nav class="suite-nav" aria-label="Alternar módulo BassForge">
-        <a href="./drivers-db.html" class="suite-pill active">🗄️ Banco de Drivers</a>
-        <a href="./index.html" class="suite-pill">📊 Simulador 4ª Ordem</a>
+        <a href="./drivers-db.html" class="suite-pill active">Banco de Drivers</a>
+        <a href="./index.html" class="suite-pill">Simulador 4ª Ordem</a>
       </nav>
     </div>
 
     <div class="h-actions">
-      <button class="btn" id="btn-catalog-open" onclick="openCatalogModal()">📚 CATÁLOGO (77)</button>
-      <button class="btn" onclick="openImportTSVModal()">📥 TSV/JSON</button>
-      <button class="btn" onclick="exportTSV()">📤 TSV</button>
-      <button class="btn" onclick="exportCSV()">📤 CSV</button>
-      <button class="btn" style="border-color:rgba(16,185,129,0.45); color:#34d399;" onclick="exportJSON()">📦 JSON (SIM)</button>
-      <button class="btn btn-primary" onclick="openReportModal()">📑 LAUDO PDF</button>
+      <button class="btn" id="btn-catalog-open" onclick="openCatalogModal()">Catálogo (...)</button>
+      <button class="btn" onclick="openImportTSVModal()">Importar</button>
+      <button class="btn" onclick="exportTSV()">TSV</button>
+      <button class="btn" onclick="exportCSV()">CSV</button>
+      <button class="btn" onclick="exportJSON()">JSON</button>
+      <button class="btn btn-primary" onclick="openReportModal()">Relatório PDF</button>
     </div>
   </header>
 
@@ -445,10 +524,8 @@
     <!-- ═══ PAINEL ESQUERDO: CADASTRO E DERIVAÇÃO DE PARÂMETROS ═══ -->
     <aside class="pane-form">
       <div class="pane-header">
-        <div class="pane-title">
-          <span>⚙️</span> CADASTRO DO TRANSDUTOR
-        </div>
-        <button class="btn" style="padding:2px 6px; font-size:9.5px;" onclick="resetForm()">LIMPAR</button>
+        <div class="pane-title">CADASTRO DO TRANSDUTOR</div>
+        <button class="btn" style="height:22px; padding:2px 8px; font-size:10.5px;" onclick="resetForm()">Limpar</button>
       </div>
 
       <div class="form-scroll">
@@ -557,19 +634,19 @@
         </div>
 
         <div class="field-grid-2">
-          <button class="btn btn-primary" onclick="adicionarTabela()" style="width:100%; justify-content:center; padding:7px 8px;">
-            💾 SALVAR NO BANCO
+          <button class="btn btn-primary" onclick="adicionarTabela()" style="width:100%; justify-content:center; height:30px;">
+            Salvar no Banco
           </button>
-          <button class="btn" onclick="enviarFormularioParaSimulador()" style="width:100%; justify-content:center; padding:7px 8px; border-color:var(--acc3); color:var(--acc3); background:rgba(57,255,20,0.08); font-weight:700;">
-            🚀 ABRIR NO SIMULADOR
+          <button class="btn btn-success" onclick="enviarFormularioParaSimulador()" style="width:100%; justify-content:center; height:30px;">
+            Abrir no Simulador
           </button>
         </div>
 
         <!-- 3. Card de Parâmetros Eletromecânicos & Acústicos Fundamentais -->
         <div class="card-box">
           <div class="card-hdr">
-            <span>🔬 1. MECÂNICA, ACÚSTICA & MASSA</span>
-            <span id="badge-ebp" style="background:var(--bg0); color:var(--acc); padding:1px 5px; border-radius:2px; font-size:9.5px;">EBP: 91.1</span>
+            <span>01 · MECÂNICA, ACÚSTICA E MASSA</span>
+            <span id="badge-ebp" style="background:var(--bg-input); color:var(--acc); padding:1px 6px; border-radius:3px; font-size:10.5px;">EBP: 91.1</span>
           </div>
           <div class="grid-derived">
             <div class="row-derived"><span>Qts (Total):</span><span class="val-derived" id="drv-qts">0.438</span></div>
@@ -586,10 +663,10 @@
         </div>
 
         <!-- 4. Card de Dinâmica do Motor & Resposta a Transientes -->
-        <div class="card-box" style="border-color:var(--acc2);">
-          <div class="card-hdr" style="color:var(--acc2);">
-            <span>⚡ 2. MOTOR, DINÂMICA & TRANSIENTES</span>
-            <span id="drv-motor-dense" style="color:var(--acc3); font-size:9.5px; font-weight:700;">Bl²/Re: 115.6 N²/W</span>
+        <div class="card-box">
+          <div class="card-hdr">
+            <span>02 · MOTOR, DINÂMICA E TRANSIENTES</span>
+            <span id="drv-motor-dense" style="color:var(--txt2); font-size:10.5px;">Bl²/Re: 115.6 N²/W</span>
           </div>
           <div class="grid-derived">
             <div class="row-derived"><span>Bl (Força Motor):</span><span class="val-derived" id="drv-bl">19.80 T·m</span></div>
@@ -602,10 +679,10 @@
         </div>
 
         <!-- 5. Card de Eficiência, Potência & Limites Térmicos -->
-        <div class="card-box" style="border-color:var(--acc4);">
-          <div class="card-hdr" style="color:var(--acc4);">
-            <span>🔊 3. EFICIÊNCIA, POTÊNCIA & LIMITES</span>
-            <span id="drv-splmax-badge" style="color:var(--acc); font-size:9.5px; font-weight:700;">SPL Max: 126.1 dB</span>
+        <div class="card-box">
+          <div class="card-hdr">
+            <span>03 · EFICIÊNCIA, POTÊNCIA E LIMITES</span>
+            <span id="drv-splmax-badge" style="color:var(--acc); font-size:10.5px;">SPL Max: 126.1 dB</span>
           </div>
           <div class="grid-derived">
             <div class="row-derived"><span>η₀ (Eficiência):</span><span class="val-derived" id="drv-eta">2.24 %</span></div>
@@ -625,22 +702,23 @@
     <!-- ═══ PAINEL DIREITO: AUDITORIA CIENTÍFICA & TABELA MASTER ═══ -->
     <main class="pane-right">
 
-      <!-- 1. SEÇÃO DE AUDITORIA CRUZADA CIENTÍFICA (VALIDATOR LAB) -->
-      <div class="sec-audit">
-        <div style="display:flex; align-items:center; justify-content:space-between;">
-          <div style="font-family:var(--mono); font-weight:700; font-size:11px; color:var(--acc4); display:flex; align-items:center; gap:6px;">
-            <span>🔬</span> AUDITORIA CRUZADA E CONSISTÊNCIA DE DATASHEET (ISO 9613-1)
+      <!-- 1. SEÇÃO DE AUDITORIA CRUZADA (RECOLHÍVEL) -->
+      <details class="sec-audit" open>
+        <summary>
+          <div style="font-family:var(--mono); font-weight:600; font-size:11px; color:var(--txt); display:flex; align-items:center; gap:6px;">
+            <span>AUDITORIA CRUZADA DE DATASHEET (ISO 9613-1)</span>
+            <span style="font-size:10px; color:var(--txt3); font-weight:400;">[clique para recolher]</span>
           </div>
-          <div style="font-family:var(--mono); font-size:10px; color:var(--txt3);" id="lbl-atmo-cond">
+          <div style="font-family:var(--mono); font-size:11px; color:var(--txt3);" id="lbl-atmo-cond">
             c = 343.21 m/s · ρ = 1.2041 kg/m³ · P₀ = 1013.25 hPa
           </div>
-        </div>
+        </summary>
 
         <div class="audit-grid">
           <!-- Card 1: Rotas Classe I de Fs -->
-          <div class="audit-card" style="border-color:var(--acc4);">
-            <div style="font-weight:700; color:var(--acc4); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:2px; margin-bottom:3px;">
-              1. ROTAS INDEPENDENTES DE FS (CLASSE I)
+          <div class="audit-card">
+            <div style="font-weight:600; color:var(--txt2); border-bottom:1px solid var(--border-subtle); padding-bottom:3px; margin-bottom:2px;">
+              01 · ROTAS INDEPENDENTES DE FS
             </div>
             <div style="display:flex; justify-content:space-between;"><span>FS-01 (Mecânica Mms·Cms):</span><b id="aud-fs-1" style="color:var(--txt)">41.0 Hz (0.0%)</b></div>
             <div style="display:flex; justify-content:space-between;"><span>FS-02 (Acústica Vas·Sd):</span><b id="aud-fs-2" style="color:var(--txt)">41.0 Hz (0.0%)</b></div>
@@ -649,59 +727,49 @@
 
           <!-- Card 2: Derivação Algébrica & Impedância -->
           <div class="audit-card">
-            <div style="font-weight:700; color:var(--acc); border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:2px; margin-bottom:3px;">
-              2. DERIVAÇÕES & CURVA DE IMPEDÂNCIA
+            <div style="font-weight:600; color:var(--txt2); border-bottom:1px solid var(--border-subtle); padding-bottom:3px; margin-bottom:2px;">
+              02 · DERIVAÇÕES E IMPEDÂNCIA
             </div>
-            <div style="display:flex; justify-content:space-between;"><span>Pico Impedância (R0):</span><b id="aud-r0" style="color:var(--acc3)">126.3 Ω</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Pico Impedância (R0):</span><b id="aud-r0" style="color:var(--txt)">126.3 Ω</b></div>
             <div style="display:flex; justify-content:space-between;"><span>Largura Banda (Δf = f2 - f1):</span><b id="aud-deltaf" style="color:var(--acc)">15.3 Hz</b></div>
-            <div style="display:flex; justify-content:space-between;"><span>ENV-05 Pressão Implícita:</span><b id="aud-p-imp" style="color:var(--txt)">1013 hPa</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Pressão Implícita (ENV-05):</span><b id="aud-p-imp" style="color:var(--txt)">1013 hPa</b></div>
           </div>
 
-          <!-- Card 3: Semáforo e Diagnóstico de Consenso -->
-          <div class="audit-card" id="aud-veredito-card" style="border-color:var(--acc3); background:rgba(57,255,20,0.04);">
-            <div style="font-weight:700; color:var(--acc3); display:flex; justify-content:space-between;">
-              <span id="aud-ver-title">✓ AUDITORIA CONSISTENTE</span>
-              <span>🟢</span>
+          <!-- Card 3: Veredito de Consistência -->
+          <div class="audit-card" id="aud-veredito-card" style="border-left:3px solid var(--status-ok);">
+            <div style="font-weight:600; color:var(--status-ok); display:flex; align-items:center; justify-content:space-between;">
+              <span id="aud-ver-title">CONSISTENTE</span>
+              <span class="status-dot" id="aud-ver-dot"></span>
             </div>
-            <div style="font-size:9.5px; color:var(--txt2); line-height:1.4;" id="aud-ver-desc">
-              Parâmetros consistentes entre as 3 formulações físicas (Desvio global ≤ 0.8%).
+            <div style="font-size:11px; color:var(--txt2); line-height:1.4;" id="aud-ver-desc">
+              Parâmetros consistentes entre as 3 formulações físicas.
             </div>
           </div>
         </div>
-      </div>
+      </details>
 
-      <!-- 2. SEÇÃO DA TABELA MESTRE (32 COLUNAS) -->
+      <!-- 2. SEÇÃO DA TABELA MESTRE -->
       <div class="sec-table">
         <div class="table-toolbar">
           <div style="display:flex; align-items:center; gap:8px;">
             <span style="font-family:var(--mono); font-size:11px; color:var(--txt3);">TOTAL:</span>
-            <b id="db-total-count" style="font-family:var(--mono); font-size:13px; color:var(--acc);">77</b>
-            <input type="text" id="db-search" class="field-input" placeholder="🔍 Buscar por marca, modelo, série..." style="width:240px;" oninput="renderTable()">
+            <b id="db-total-count" style="font-family:var(--mono); font-size:12.5px; color:var(--acc); font-variant-numeric:tabular-nums;">—</b>
+            <input type="text" id="db-search" class="field-input" placeholder="Buscar marca, modelo ou série..." style="width:210px;" oninput="renderTable()">
           </div>
 
-          <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
-            <button class="btn btn-primary" id="btn-load-driver" disabled onclick="carregarLinhaSelecionada()">
-              📥 CARREGAR NO FORMULÁRIO
-            </button>
-            <button class="btn" id="btn-send-sim" disabled onclick="enviarLinhaParaSimulador()" style="border-color:var(--acc3); color:var(--acc3);">
-              🚀 ENVIAR AO SIMULADOR
-            </button>
-            <button class="btn" id="btn-del-driver" disabled onclick="excluirSelecionado()">
-              🗑 EXCLUIR ITEM
-            </button>
-            <button class="btn" onclick="excluirTodos()">
-              ⚠️ EXCLUIR TODOS
-            </button>
-            <button class="btn" onclick="restaurarCatalogoFabrica()" title="Restaurar o catálogo oficial de fábrica">
-              ↺ RESTAURAR FÁBRICA
-            </button>
+          <div style="display:flex; align-items:center; gap:5px; flex-wrap:nowrap; flex:1; justify-content:flex-end;">
+            <button class="btn btn-primary" id="btn-load-driver" disabled onclick="carregarLinhaSelecionada()" title="Carregar driver selecionado no formulário (ou duplo clique na linha)">Carregar</button>
+            <button class="btn btn-success" id="btn-send-sim" disabled onclick="enviarLinhaParaSimulador()" title="Enviar driver selecionado direto ao Simulador">Enviar ao Simulador</button>
+            <button class="btn" id="btn-del-driver" disabled onclick="excluirSelecionado()">Excluir</button>
+            <button class="btn" onclick="restaurarCatalogoFabrica()" title="Restaurar o catálogo padrão de fábrica">Restaurar</button>
+            <button class="btn btn-danger" onclick="excluirTodos()" style="margin-left:4px;">Excluir Todos</button>
           </div>
         </div>
 
         <!-- FILTROS PARAMÉTRICOS COMBINADOS + APTIDÃO DE CAIXA -->
-        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 12px; background:var(--bg0); border-bottom:1px solid var(--bdr); font-family:var(--mono); font-size:10px; color:var(--txt3);">
+        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 14px; background:var(--bg0); border-bottom:1px solid var(--bdr); font-family:var(--mono); font-size:11px; color:var(--txt3);">
           <span>FILTROS:</span>
-          <select id="flt-topo" class="field-input" style="width:142px; padding:3px 6px;" onchange="renderTable()">
+          <select id="flt-topo" class="field-input" style="width:146px;" onchange="renderTable()">
             <option value="all">Caixa: Todas</option>
             <option value="sealed">Ideal p/ Selada</option>
             <option value="bass-reflex">Ideal p/ Dutada</option>
@@ -709,7 +777,7 @@
             <option value="bp6">Ideal p/ BP6</option>
             <option value="planar">Ideal p/ Planar</option>
           </select>
-          <select id="flt-dia" class="field-input" style="width:108px; padding:3px 6px;" onchange="renderTable()">
+          <select id="flt-dia" class="field-input" style="width:110px;" onchange="renderTable()">
             <option value="0">Diâm: Todos</option>
             <option value="8">8″</option>
             <option value="10">10″</option>
@@ -718,10 +786,10 @@
             <option value="18">18″</option>
             <option value="21">21″</option>
           </select>
-          <input type="number" id="flt-pe-min" class="field-input" placeholder="Pe ≥ (W)" style="width:82px; padding:3px 6px;" oninput="renderTable()">
-          <input type="number" id="flt-fs-max" class="field-input" placeholder="Fs ≤ (Hz)" style="width:82px; padding:3px 6px;" oninput="renderTable()">
-          <input type="number" id="flt-qts-max" class="field-input" placeholder="Qts ≤" step="0.05" style="width:74px; padding:3px 6px;" oninput="renderTable()">
-          <button type="button" class="btn" style="padding:3px 7px; font-size:9.5px;" onclick="resetDbFilters()">✕ Limpar</button>
+          <input type="number" id="flt-pe-min" class="field-input" placeholder="Pe ≥ (W)" style="width:86px;" oninput="renderTable()">
+          <input type="number" id="flt-fs-max" class="field-input" placeholder="Fs ≤ (Hz)" style="width:86px;" oninput="renderTable()">
+          <input type="number" id="flt-qts-max" class="field-input" placeholder="Qts ≤" step="0.05" style="width:78px;" oninput="renderTable()">
+          <button type="button" class="btn" onclick="resetDbFilters()">Limpar</button>
         </div>
 
         <div class="table-scroll">
@@ -747,15 +815,15 @@
   </div>
 
   <!-- ════════ MODAL: CATÁLOGO DE DRIVERS ════════ -->
-  <div class="modal-overlay" id="modal-catalog">
+  <div class="modal-overlay" id="modal-catalog" onclick="if(event.target===this) closeModal('modal-catalog')">
     <div class="modal-box">
       <div class="modal-hdr">
-        <span id="modal-catalog-title">📚 CATÁLOGO OFICIAL BASSFORGE (77 DRIVERS)</span>
-        <button class="btn" style="padding:2px 6px;" onclick="closeModal('modal-catalog')">✕</button>
+        <span id="modal-catalog-title">CATÁLOGO DE DRIVERS</span>
+        <button class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-catalog')">Fechar</button>
       </div>
       <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
-        <input type="text" id="cat-search" class="field-input" placeholder="🔍 Filtrar no catálogo..." oninput="renderCatalogList()">
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; max-height:400px; overflow-y:auto;" id="cat-list-container">
+        <input type="text" id="cat-search" class="field-input" placeholder="Filtrar marca, modelo ou série..." oninput="renderCatalogList()">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; max-height:420px; overflow-y:auto;" id="cat-list-container">
           <!-- Drivers do Catálogo -->
         </div>
       </div>
@@ -763,11 +831,11 @@
   </div>
 
   <!-- ════════ MODAL: IMPORTAÇÃO TSV / JSON COM PREVIEW SELETIVO ════════ -->
-  <div class="modal-overlay" id="modal-import">
+  <div class="modal-overlay" id="modal-import" onclick="if(event.target===this) closeModal('modal-import')">
     <div class="modal-box">
       <div class="modal-hdr">
-        <span>📥 IMPORTAÇÃO TSV / JSON COM PRÉ-VISUALIZAÇÃO</span>
-        <button class="btn" style="padding:2px 6px;" onclick="closeModal('modal-import')">✕</button>
+        <span>IMPORTAÇÃO TSV / JSON COM PRÉ-VISUALIZAÇÃO</span>
+        <button class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-import')">Fechar</button>
       </div>
       <div class="modal-body">
         <input type="file" id="tsvFileInput" accept=".json,.tsv,.txt,.csv" onchange="handleTSVFileSelect(this)" style="margin-bottom:12px;">
@@ -782,12 +850,12 @@
     </div>
   </div>
 
-  <!-- ════════ MODAL: LAUDO TÉCNICO OFICIAL EM PDF ════════ -->
-  <div class="modal-overlay" id="modal-report">
+  <!-- ════════ MODAL: RELATÓRIO TÉCNICO EM PDF ════════ -->
+  <div class="modal-overlay" id="modal-report" onclick="if(event.target===this) closeModal('modal-report')">
     <div class="modal-box" style="width:900px;">
       <div class="modal-hdr">
-        <span>📑 GERADOR DE LAUDO TÉCNICO OFICIAL (PDF)</span>
-        <button class="btn" style="padding:2px 6px;" onclick="closeModal('modal-report')">✕</button>
+        <span>RELATÓRIO TÉCNICO DE TRANSDUTOR (PDF)</span>
+        <button class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-report')">Fechar</button>
       </div>
       <div class="modal-body">
         <div id="report-printable" style="background:#fff; color:#000; padding:24px; font-family:var(--sans); border-radius:4px;">
@@ -795,11 +863,12 @@
         </div>
       </div>
       <div class="modal-foot">
-        <button class="btn" onclick="window.print()">🖨 IMPRIMIR</button>
-        <button class="btn btn-primary" onclick="downloadReportPDF()">📥 BAIXAR PDF</button>
+        <button class="btn" onclick="window.print()">Imprimir</button>
+        <button class="btn btn-primary" onclick="downloadReportPDF()">Baixar PDF</button>
       </div>
     </div>
   </div>
+  <div class="bf-toast" id="bf-toast" role="status" aria-live="polite"></div>
 
   <!-- ══════════════════════════════════════════════════════════════════════════
        MOTOR COMPLETO DE FÍSICA ELETROACÚSTICA AVANÇADA (28 PARÂMETROS)
@@ -1960,9 +2029,9 @@
     function updateCatalogCounters() {
       const n = DRIVER_CATALOG.length;
       const btn = document.getElementById('btn-catalog-open');
-      if (btn) btn.textContent = `📚 CATÁLOGO (${n})`;
+      if (btn) btn.textContent = `Catálogo (${n})`;
       const hdr = document.getElementById('modal-catalog-title');
-      if (hdr) hdr.textContent = `📚 CATÁLOGO OFICIAL (${n} DRIVERS)`;
+      if (hdr) hdr.textContent = `CATÁLOGO DE DRIVERS (${n})`;
     }
 
     function saveCatalogStorage() {
@@ -2096,12 +2165,12 @@
 
         let veredito = 'VERIFIED';
         let vereditoClass = 'good';
-        let vereditoLabel = hasCatalogAudit ? '✓ Consistente (≤ 5%)' : '✓ T/S Derivado (sem Mms/Bl cat.)';
+        let vereditoLabel = hasCatalogAudit ? 'Consistente (≤ 5%)' : 'T/S Derivado (sem Mms/Bl cat.)';
 
         if (worst_dev > 10.0) {
-          veredito = 'INCONSISTENT'; vereditoClass = 'bad'; vereditoLabel = '❌ Inconsistente (> 10%)';
+          veredito = 'INCONSISTENT'; vereditoClass = 'bad'; vereditoLabel = 'Inconsistente (> 10%)';
         } else if (worst_dev > 5.0) {
-          veredito = 'TOLERATED'; vereditoClass = 'warn'; vereditoLabel = '⚠ Tolerado (≤ 10%)';
+          veredito = 'TOLERATED'; vereditoClass = 'warn'; vereditoLabel = 'Tolerado (5–10%)';
         }
 
         return {
@@ -2212,8 +2281,13 @@
       document.getElementById('aud-p-imp').textContent = Math.round(c.p_implied / 100) + ' hPa';
 
       const vCard = document.getElementById('aud-veredito-card');
-      vCard.style.borderColor = (c.vereditoClass === 'good' ? 'var(--acc3)' : (c.vereditoClass === 'warn' ? 'var(--acc2)' : 'var(--dng)'));
-      document.getElementById('aud-ver-title').textContent = c.vereditoLabel.toUpperCase();
+      const vColor = (c.vereditoClass === 'good' ? 'var(--status-ok)' : (c.vereditoClass === 'warn' ? 'var(--status-warn)' : 'var(--status-err)'));
+      vCard.style.borderLeftColor = vColor;
+      const vTitle = document.getElementById('aud-ver-title');
+      vTitle.style.color = vColor;
+      vTitle.textContent = c.vereditoLabel.toUpperCase();
+      const vDot = document.getElementById('aud-ver-dot');
+      if (vDot) vDot.style.background = vColor;
       if (c.hasCatalogAudit) {
         const parts = [];
         if (c.dev_mms_pct !== null) parts.push(`ΔMms: ${c.dev_mms_pct >= 0 ? '+' : ''}${c.dev_mms_pct.toFixed(2)}%`);
@@ -2247,7 +2321,27 @@
       const bLoad = document.getElementById('btn-load-driver'); if (bLoad) bLoad.disabled = false;
       const bDel = document.getElementById('btn-del-driver'); if (bDel) bDel.disabled = false;
       const bSim = document.getElementById('btn-send-sim'); if (bSim) bSim.disabled = false;
-      alert(`Driver ${d.brand} ${d.model} salvo no banco oficial (localStorage)!`);
+      showToast(`Driver ${d.brand} ${d.model} salvo no banco local.`);
+    }
+
+    let _toastTimer = null;
+    function showToast(msg) {
+      const el = document.getElementById('bf-toast');
+      if (!el) return;
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+
+    const _auditCache = new WeakMap();
+    function getCachedAudit(d) {
+      let res = _auditCache.get(d);
+      if (!res) {
+        res = CLAudioCrossValidation.audit(d);
+        _auditCache.set(d, res);
+      }
+      return res;
     }
 
     function resetDbFilters() {
@@ -2296,14 +2390,15 @@
 
       tbody.innerHTML = filtered.map(d => {
         const isSel = (d.id === selectedDBId);
-        const aud = CLAudioCrossValidation.audit(d);
+        const aud = getCachedAudit(d);
         const origCode = d.origin === 'measured' ? 'M' : (d.origin === 'hybrid' ? 'H' : 'D');
-        const origBg = d.origin === 'measured' ? 'var(--acc3)' : (d.origin === 'hybrid' ? 'var(--acc2)' : 'var(--acc4)');
+        const origBg = d.origin === 'measured' ? 'rgba(46,160,112,0.22)' : (d.origin === 'hybrid' ? 'rgba(212,148,42,0.22)' : 'rgba(148,163,184,0.16)');
+        const origFg = d.origin === 'measured' ? 'var(--status-ok)' : (d.origin === 'hybrid' ? 'var(--status-warn)' : 'var(--txt2)');
 
         return `
-          <tr class="${isSel ? 'selected' : ''}" onclick="selectRow(${d.id})">
+          <tr data-id="${d.id}" class="${isSel ? 'selected' : ''}" onclick="selectRow(${d.id})" ondblclick="selectRow(${d.id}); carregarLinhaSelecionada();" title="Duplo clique para carregar no formulário">
             <td>${d.id}</td>
-            <td><span style="background:${origBg};color:#000;padding:1px 4px;border-radius:2px;font-size:8.5px;font-weight:700;">${origCode}</span></td>
+            <td><span style="background:${origBg};color:${origFg};padding:1px 5px;border-radius:2px;font-size:10px;font-weight:600;">${origCode}</span></td>
             <td><b>${d.brand}</b></td><td>${d.model}</td><td>${d.series || '—'}</td><td>${d.year || 2024}</td><td>${d.diameter_in}″</td>
             <td>${d.znom || 4}</td><td>${d.pe}</td><td>${d.sd}</td><td>${d.fs}</td><td>${d.vas}</td><td>${d.qes}</td><td>${d.qms}</td>
             <td>${d.xmax}</td><td>${d.re}</td><td>${d.le}</td><td>${d.hvc || 0}</td><td>${d.hgap || 0}</td>
@@ -2314,15 +2409,15 @@
             <td class="calc">${aud.Mms_g.toFixed(1)}</td>
             <td class="calc">${aud.Bl.toFixed(2)}</td>
             <td class="calc">${aud.Rms.toFixed(2)}</td>
-            <td class="calc" style="color:var(--acc2)">${aud.bl2_re.toFixed(1)}</td>
-            <td class="calc" style="color:var(--acc2)">${aud.accel_factor.toFixed(0)}</td>
+            <td class="calc">${aud.bl2_re.toFixed(1)}</td>
+            <td class="calc">${aud.accel_factor.toFixed(0)}</td>
             <td class="calc">${aud.eta0_pct.toFixed(2)}%</td>
             <td class="calc">${aud.SPL1W.toFixed(1)}</td>
             <td class="calc">${aud.SPL2_83.toFixed(1)}</td>
-            <td class="calc" style="color:var(--acc3)">${aud.SPL_max_term.toFixed(1)}</td>
+            <td class="calc" style="color:var(--acc)">${aud.SPL_max_term.toFixed(1)}</td>
             <td class="calc">${aud.Vd.toFixed(3)}</td>
             <td class="calc">${aud.EBP.toFixed(0)}</td>
-            <td style="color:${aud.vereditoClass === 'good' ? 'var(--acc3)' : (aud.vereditoClass === 'warn' ? 'var(--acc2)' : 'var(--dng)')}">${aud.vereditoLabel}</td>
+            <td style="color:${aud.vereditoClass === 'good' ? 'var(--status-ok)' : (aud.vereditoClass === 'warn' ? 'var(--status-warn)' : 'var(--status-err)')}">${aud.vereditoLabel}</td>
           </tr>
         `;
       }).join('');
@@ -2330,11 +2425,16 @@
 
     function selectRow(id) {
       selectedDBId = id;
-      document.getElementById('btn-load-driver').disabled = false;
-      document.getElementById('btn-del-driver').disabled = false;
-      const bSim = document.getElementById('btn-send-sim');
-      if (bSim) bSim.disabled = false;
-      renderTable();
+      const bLoad = document.getElementById('btn-load-driver'); if (bLoad) bLoad.disabled = false;
+      const bDel = document.getElementById('btn-del-driver'); if (bDel) bDel.disabled = false;
+      const bSim = document.getElementById('btn-send-sim'); if (bSim) bSim.disabled = false;
+      const tbody = document.getElementById('db-table-body');
+      if (tbody) {
+        const prev = tbody.querySelector('tr.selected');
+        if (prev) prev.classList.remove('selected');
+        const next = tbody.querySelector(`tr[data-id="${id}"]`);
+        if (next) next.classList.add('selected');
+      }
     }
 
     function carregarLinhaSelecionada() {
@@ -2640,24 +2740,35 @@
     function openImportTSVModal() { document.getElementById('modal-import').classList.add('open'); }
     function openReportModal() { document.getElementById('modal-report').classList.add('open'); renderPrintableReport(); }
     function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        document.querySelectorAll('.modal-overlay.open').forEach(m => m.classList.remove('open'));
+      }
+    });
+
+    function selectCatalogDriverById(id) {
+      const drv = DRIVER_CATALOG.find(x => x.id === id);
+      if (drv) carregarNoFormulario(drv);
+      closeModal('modal-catalog');
+    }
 
     function renderCatalogList() {
       const cont = document.getElementById('cat-list-container');
       const search = (document.getElementById('cat-search')?.value || '').toLowerCase();
       if (!cont) return;
 
-      const filtered = DRIVER_CATALOG.filter(d => 
+      const filtered = DRIVER_CATALOG.filter(d =>
         (d.brand + ' ' + d.model + ' ' + (d.series || '')).toLowerCase().includes(search)
-      );
+      ).slice(0, 150);
 
       cont.innerHTML = filtered.map(d => `
-        <div style="background:var(--bg2); border:1px solid var(--bdr); border-radius:4px; padding:10px; display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="carregarNoFormulario(${JSON.stringify(d).replace(/"/g, '&quot;')}); closeModal('modal-catalog');">
+        <div style="background:var(--bg2); border:1px solid var(--bdr); border-radius:4px; padding:9px 10px; display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="selectCatalogDriverById(${d.id})">
           <div>
-            <div style="font-weight:700; color:var(--acc); font-family:var(--mono);">${d.brand} ${d.model}</div>
-            <div style="font-size:10px; color:var(--txt3); font-family:var(--mono);">${d.diameter_in}″ · ${d.znom || 4}Ω · ${d.pe}W RMS</div>
+            <div style="font-weight:600; color:var(--txt); font-family:var(--mono); font-size:11.5px;">${d.brand} ${d.model}</div>
+            <div style="font-size:11px; color:var(--txt3); font-family:var(--mono); font-variant-numeric:tabular-nums;">${d.diameter_in}″ · ${d.znom || 4}Ω · ${d.pe}W RMS</div>
           </div>
-          <div style="text-align:right; font-family:var(--mono); font-size:10px; color:var(--acc3);">
-            Fs ${d.fs}Hz<br>Qts ${(d.qes > 0 && d.qms > 0 ? (d.qes * d.qms) / (d.qes + d.qms) : 0).toFixed(3)}
+          <div style="text-align:right; font-family:var(--mono); font-size:11px; color:var(--acc); font-variant-numeric:tabular-nums;">
+            Fs ${d.fs} Hz<br>Qts ${(d.qes > 0 && d.qms > 0 ? (d.qes * d.qms) / (d.qes + d.qms) : 0).toFixed(3)}
           </div>
         </div>
       `).join('');
@@ -2672,8 +2783,8 @@
       rep.innerHTML = `
         <div style="border-bottom:2px solid #000; padding-bottom:8px; margin-bottom:14px; display:flex; justify-content:space-between;">
           <div>
-            <h2 style="margin:0; font-size:20px; font-weight:800; color:#0a3a55;">BassForge SUITE — LAUDO ELETROACÚSTICO OFICIAL</h2>
-            <div style="font-size:11px; color:#666;">Auditoria Física, Dinâmica do Motor &amp; Validação Cruzada (Banco Oficial de Drivers)</div>
+            <h2 style="margin:0; font-size:19px; font-weight:700; color:#0f2a3d;">BassForge — Relatório Técnico de Transdutor</h2>
+            <div style="font-size:11px; color:#555;">Auditoria Física, Dinâmica do Motor e Validação Cruzada</div>
           </div>
           <div style="text-align:right; font-size:11px; font-family:monospace;">
             Data: ${new Date().toLocaleDateString('pt-BR')}<br>Veredito: <b>${a.vereditoLabel}</b>
