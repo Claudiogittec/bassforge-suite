@@ -7938,15 +7938,16 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         ];
         pushPrismFaces(quadXY, z0, z1, rgb, scCol, xray ? 0.72 : 0.96);
       });
-    } else if (p.id === 'P_PLANAR_CHAMFER' && geom.planarGeom && geom.planarGeom.Z_leg) {
-      const zl = geom.planarGeom.Z_leg;
+    } else if (p.id === 'P_PLANAR_CHAMFER' && ac.planarGeom && ac.planarGeom.Z_leg) {
+      const zlBase = ac.planarGeom.Z_leg;
       const wT = p.thickness || t;
       const z0 = ozP;
-      const z1 = ozP + p.size[2];
+      const z1 = Math.max(z0 + 10, D + ez);
       const bays = p.dualPlanarTri
         ? [[t, (env.A - t) / 2], [t + (env.A - t) / 2 + t, (env.A - t) / 2]]
         : [[t, env.A]];
       bays.forEach(([oxB, bayW]) => {
+        const zl = p.dualPlanarTri ? Math.min(zlBase, bayW * 0.28) : zlBase;
         const clampX = x => Math.max(oxB, Math.min(oxB + bayW, x));
         const clampY = y => Math.max(t, Math.min(t + env.B, y));
         const cList = [
@@ -7961,10 +7962,10 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
           const quadXY = [
             [pt1[0] + ex, pt1[1] + ey],
             [pt2[0] + ex, pt2[1] + ey],
-            [clampX(pt2[0] + ux) + ex, clampY(pt2[1] + uy) + ey],
-            [clampX(pt1[0] + ux) + ex, clampY(pt1[1] + uy) + ey]
+            [clampX(pt2[0] - ux) + ex, clampY(pt2[1] - uy) + ey],
+            [clampX(pt1[0] - ux) + ex, clampY(pt1[1] - uy) + ey]
           ];
-          pushPrismFaces(quadXY, z0, z1, rgb, scCol, alpha);
+          pushPrismFaces(quadXY, z0, z1, rgb, scCol, xray ? 0.78 : 0.96);
         });
       });
     } else if (p.sharedCenterSlot) {
@@ -8028,6 +8029,17 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         if (!inSpan(cx)) return;
         loops.push({ pts: triPts.map(([px, py]) => project(px, py, zPlane)), stroke: '#fb923c' });
       });
+      if (ac.planarGeom && ac.planarGeom.style === 'triangle' && ac.planarGeom.Z_leg) {
+        const bx0 = Number.isFinite(fc.xMin) ? fc.xMin : t;
+        const bx1 = Number.isFinite(fc.xMax) ? fc.xMax : (t + env.A);
+        const zl = Math.min(ac.planarGeom.Z_leg, (bx1 - bx0) * 0.35);
+        [
+          [[bx0, t], [bx0 + zl, t], [bx0, t + zl]],
+          [[bx1, t], [bx1 - zl, t], [bx1, t + zl]],
+          [[bx0, t + env.B], [bx0 + zl, t + env.B], [bx0, t + env.B - zl]],
+          [[bx1, t + env.B], [bx1 - zl, t + env.B], [bx1, t + env.B - zl]]
+        ].forEach(tp => loops.push({ pts: tp.map(([px, py]) => project(px, py, zPlane)), stroke: '#c4b5fd' }));
+      }
     } else if (fc.cutoutFace === 'divider') {
       const host = (geom.parts || []).find(pp => pp.id === fc.partId);
       if (!host) return loops;
