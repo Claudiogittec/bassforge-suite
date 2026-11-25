@@ -1015,15 +1015,14 @@
       <button type="button" onclick="openConfigModal('modalDriver')" style="background:none; border:none; color:var(--accent); font-family:var(--mono); font-size:10px; font-weight:700; cursor:pointer;">T/S (F2) ▸</button>
     </div>
     <div style="margin-bottom:7px;">
-      <select id="driverPreset" aria-label="Selecionar Driver" onchange="loadPreset()" style="width:100%; background:var(--bg-input); border:1px solid var(--border); border-radius:5px; color:#fff; font-size:11.5px; padding:5px 7px;">
-        <optgroup label="⚙️ Presets Calibrados de Fábrica">
-          <option value="oversound">Oversound 18 SUB 800 XT (18" 800W Bass-Reflex)</option>
-          <option value="alumapro">Alumapro Alchemy 12-8 (12" 300W Caixa Selada)</option>
-          <option value="kicker">Kicker Comp 12 (12" 300W Selada Padrão)</option>
-          <option value="jbl">JBL 15SWT2200 (15" 1100W Subwoofer)</option>
-          <option value="jbl_opt_c">JBL 15SWT2200 — Opção C (85L @ 48Hz + HPF 38Hz)</option>
-          <option value="eighteen">18 Sound 18W1300 (18" 600W Woofer)</option>
-          <option value="dayton">Dayton Audio UMII12-22 (12" 800W Sub)</option>
+      <select id="driverPreset" aria-label="Selecionar Driver" onchange="loadPreset({ autoDesign: true })" style="width:100%; background:var(--bg-input); border:1px solid var(--border); border-radius:5px; color:#fff; font-size:11.5px; padding:5px 7px;">
+        <optgroup label="🔊 Drivers de Referência (Auto-Otimizados)">
+          <option value="oversound">Oversound 18 SUB 800 XT (18" · 800W)</option>
+          <option value="alumapro">Alumapro Alchemy 12-8 (12" · 300W)</option>
+          <option value="kicker">Kicker Comp 12 (12" · 300W)</option>
+          <option value="jbl">JBL 15SWT2200 (15" · 1100W)</option>
+          <option value="eighteen">18 Sound 18W1300 (18" · 600W)</option>
+          <option value="dayton">Dayton Audio UMII12-22 (12" · 800W)</option>
         </optgroup>
         <optgroup id="customDriversGroup" label="📚 Banco Oficial de Drivers (DB)"></optgroup>
       </select>
@@ -3053,11 +3052,11 @@ function initUI() {
   buildChartGridForEnv();
   loadDriversFromStorage();
   if (!checkIncomingDriverLink()) {
-    loadPreset();
+    loadPreset({ autoDesign: true });
   }
 }
 
-function loadPreset() {
+function loadPreset(opts = {}) {
   const key = document.getElementById('driverPreset').value;
   if (DB_DRIVERS_MAP[key]) {
     applyDbDriver(DB_DRIVERS_MAP[key]);
@@ -3065,6 +3064,15 @@ function loadPreset() {
   }
   const p = PRESETS[key];
   if (!p) return;
+  if (opts && opts.autoDesign) {
+    applyDbDriver({
+      name: p.name, diameter_in: p.dia || 15,
+      fs: p.Fs, qms: p.Qms, qes: p.Qes, re: p.Re,
+      sd: p.Sd, vas: p.Vas, xmax: p.Xmax, pe: p.Pe,
+      vsub: p.Vsub, le: p.Le || 1.5, znom: p.Znom || 4
+    });
+    return;
+  }
   activeDbDriverName = '';
   const badge = document.getElementById('dbDriverBadge');
   if (badge) badge.style.display = 'none';
