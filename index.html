@@ -1193,9 +1193,36 @@
           <label for="tempInput">Temp. (°C):</label>
           <input type="number" id="tempInput" value="20" step="1" oninput="recalculate()">
         </div>
-        <div class="prop-row">
+        <div class="prop-row" id="rowCabinLen">
           <label for="cabinLen">Cabine (m):</label>
           <input type="number" id="cabinLen" value="3.4" step="0.1" oninput="recalculate()">
+        </div>
+        <div id="roomControls" style="display:none; flex-direction:column; gap:5px; margin-top:3px; padding-top:5px; border-top:1px dashed var(--border);">
+          <div class="prop-row">
+            <label for="roomLen">Sala L (m):</label>
+            <input type="number" id="roomLen" value="5.0" min="2.0" max="25.0" step="0.2" oninput="recalculate()">
+          </div>
+          <div class="prop-row">
+            <label for="roomWid">Sala W (m):</label>
+            <input type="number" id="roomWid" value="4.0" min="2.0" max="25.0" step="0.2" oninput="recalculate()">
+          </div>
+          <div class="prop-row">
+            <label for="roomHgt">Sala H (m):</label>
+            <input type="number" id="roomHgt" value="2.7" min="2.0" max="10.0" step="0.1" oninput="recalculate()">
+          </div>
+          <div class="prop-row">
+            <label for="roomPlacement">Posição:</label>
+            <select id="roomPlacement" onchange="recalculate()">
+              <option value="free">Livre 4π (0 dB)</option>
+              <option value="half">Piso / Parede 2π (+3 dB)</option>
+              <option value="quarter" selected>Parede+Piso π (+6 dB)</option>
+              <option value="corner">Canto π/2 (+9 dB)</option>
+            </select>
+          </div>
+          <div class="prop-row">
+            <label for="roomRt60">RT60 (s):</label>
+            <input type="number" id="roomRt60" value="0.45" min="0.15" max="1.50" step="0.05" oninput="recalculate()">
+          </div>
         </div>
 
         <div style="border-top:1px dashed var(--border); margin-top:4px; padding-top:5px; display:flex; flex-direction:column; gap:2px;">
@@ -2103,18 +2130,18 @@ const CHART_REGISTRY = (() => {
   CHARTS_INFO.forEach(c => {
     reg[c.id] = Object.assign({}, c, chartMeta[c.id] || { label: c.title, availability: 'calculated' });
   });
-  // Slots exigidos pela spec que ainda NÃO possuem motor físico: nunca recebem curva.
-  reg.SLOT_SPL_ROOM = {
-    id: 'SLOT_SPL_ROOM', key: null, label: 'SPL in Room', unit: 'dB-SPL',
-    title: 'SPL in Room (dB-SPL)', availability: 'unimplemented',
-    placeholder: 'Modelo de sala não implementado',
-    placeholderDetail: 'Requer dimensões da sala (L×W×H), modos estacionários e posicionamento caixa/ouvinte.'
-  };
+  // Modelo físico de sala (Waterhouse Boundary Loading + Modos Axiais/Tangenciais L×W×H + RT60)
   reg.SLOT_ROOM_GAIN = {
-    id: 'SLOT_ROOM_GAIN', key: null, label: 'Room Gain', unit: 'dB',
-    title: 'Room Gain (dB)', availability: 'unimplemented',
-    placeholder: 'Room Gain não implementado',
-    placeholderDetail: 'Exige modelo físico de sala. Room Gain ≠ Cabin Gain — não é substituível.'
+    id: 'SLOT_ROOM_GAIN', key: 'G14_RoomGain', label: 'Room Gain', unit: 'dB',
+    title: 'Room Gain (dB)', kind: 'db', nonNeg: false, decimals: 1, min: -6, max: 18, color: '#38a3d1',
+    availability: 'modeled',
+    modelNote: 'Boundary Loading (Waterhouse) + Modos Axiais/Tangenciais (L×W×H, RT60)'
+  };
+  reg.SLOT_SPL_ROOM = {
+    id: 'SLOT_SPL_ROOM', key: 'G15_SPLinRoom', label: 'SPL in Room', unit: 'dB-SPL',
+    title: 'SPL in Room (dB-SPL)', kind: 'db', nonNeg: false, decimals: 0, min: 80, max: 150, color: '#e11d48',
+    availability: 'modeled',
+    modelNote: 'G6 SPL Thermic + G14 Room Gain (L×W×H, Posição e RT60)'
   };
   return reg;
 })();
@@ -2378,9 +2405,14 @@ function syncExpandedSelectForEnv() {
  */
 function setAnalysisEnvironment(env, opts = {}) {
   analysisEnv = ENV_PROFILES[env] ? env : 'automotive';
+  const isArch = (analysisEnv === 'architectural');
   document.querySelectorAll('[data-env-btn]').forEach(b => {
     b.classList.toggle('active', b.getAttribute('data-env-btn') === analysisEnv);
   });
+  const rowCab = document.getElementById('rowCabinLen');
+  const roomCtrls = document.getElementById('roomControls');
+  if (rowCab) rowCab.style.display = isArch ? 'none' : '';
+  if (roomCtrls) roomCtrls.style.display = isArch ? 'flex' : 'none';
   if (opts.skipRender) return analysisEnv;
   buildChartGridForEnv();
   if (currentCurves) {
@@ -2412,7 +2444,7 @@ function captureSnapshotA() {
     : `Selada ${(m.Vb || 0).toFixed(0)}L`;
   const extra = (m.nDrivers > 1 ? ` ${m.nDrivers}x` : '') + (m.deltaT > 0 ? ` +${m.deltaT}°C` : '');
   const cloned = {};
-  CHARTS_INFO.forEach(c => { cloned[c.key] = Array.from(currentCurves[c.key] || []); });
+  Object.values(CHART_REGISTRY).forEach(c => { if (c && c.key && currentCurves[c.key]) cloned[c.key] = Array.from(currentCurves[c.key]); });
   referenceSnapshot = {
     label: `Ref A: ${dName.slice(0, 18)} (${tuneTxt}${extra})`,
     shortLabel: 'Ref A',
@@ -5730,6 +5762,63 @@ function generateSimulationData(p) {
     return splTh + 10.0 * Math.log10(pMax / peSafeG6);
   });
 
+  // Modelo físico de sala (Architectural): Boundary Loading (Waterhouse) + Zona de Pressão + Modos L×W×H (RT60)
+  const roomL = Math.max(2.0, Math.min(25.0, parseFloat(document.getElementById('roomLen')?.value) || 5.0));
+  const roomW = Math.max(2.0, Math.min(25.0, parseFloat(document.getElementById('roomWid')?.value) || 4.0));
+  const roomH = Math.max(2.0, Math.min(10.0, parseFloat(document.getElementById('roomHgt')?.value) || 2.7));
+  const roomPlace = document.getElementById('roomPlacement')?.value || 'quarter';
+  const roomRt60 = Math.max(0.15, Math.min(1.50, parseFloat(document.getElementById('roomRt60')?.value) || 0.45));
+  const roomVol = roomL * roomW * roomH;
+  const fSchroeder = 2000.0 * Math.sqrt(roomRt60 / Math.max(1.0, roomVol));
+  const fRoomMin = c_val / (2.0 * Math.max(roomL, roomW, roomH));
+  const nBounds = roomPlace === 'corner' ? 3 : (roomPlace === 'quarter' ? 2 : (roomPlace === 'half' ? 1 : 0));
+  const fBoundTrans = c_val / (2.0 * Math.PI * 0.45);
+  const fLeakRoom = 12.0;
+  const roomModes = [];
+  const dfMode = 2.2 / roomRt60;
+  for (let nx = 0; nx <= 3; nx++) {
+    for (let ny = 0; ny <= 3; ny++) {
+      for (let nz = 0; nz <= 3; nz++) {
+        const nzCnt = (nx > 0 ? 1 : 0) + (ny > 0 ? 1 : 0) + (nz > 0 ? 1 : 0);
+        if (nzCnt === 0 || nzCnt === 3) continue; // apenas axiais (1) e tangenciais (2)
+        const fm = (c_val / 2.0) * Math.sqrt((nx / roomL) ** 2 + (ny / roomW) ** 2 + (nz / roomH) ** 2);
+        if (fm > fSchroeder * 1.45) continue;
+        const qm = Math.min(9.5, Math.max(1.8, fm / dfMode));
+        const wMode = (nzCnt === 1 ? 1.0 : 0.35) / Math.pow(nx + ny + nz, 0.45);
+        roomModes.push({ fm, qm, wMode });
+      }
+    }
+  }
+  const pzRefAtFmin = 10.0 * Math.log10(1.0 + 1.5 / (1.0 + (fLeakRoom / fRoomMin) ** 2));
+  const G14_roomGain = new Array(freqs.length);
+  const G15_splRoom = new Array(freqs.length);
+  for (let i = 0; i < freqs.length; i++) {
+    const f = freqs[i];
+    // 1. Waterhouse boundary loading (ganho de potência difusa por plano rígido: 0 / +3 / +6 / +9 dB)
+    const gBound = nBounds > 0
+      ? 10.0 * Math.log10(1.0 + (Math.pow(2, nBounds) - 1.0) / (1.0 + Math.pow(f / fBoundTrans, 2)))
+      : 0.0;
+    // 2. Pressurização suave abaixo do 1º modo axial (com shelf de vazamento estrutural em 12 Hz)
+    const gPz = f < fRoomMin * 2.5
+      ? Math.max(0.0, 10.0 * Math.log10(1.0 + 1.5 / (Math.pow(f / fRoomMin, 2) + Math.pow(fLeakRoom / fRoomMin, 2))) - pzRefAtFmin)
+      : 0.0;
+    // 3. Envelope modal discreto abaixo da frequência de Schroeder
+    let mEnergy = 0.0;
+    const modalRoll = Math.exp(-Math.pow(f / Math.max(40.0, fSchroeder * 1.25), 2));
+    if (modalRoll > 0.01 && roomModes.length > 0) {
+      for (let m = 0; m < roomModes.length; m++) {
+        const md = roomModes[m];
+        const r = f / md.fm;
+        const denom = Math.pow(1.0 - r * r, 2) + Math.pow(r / md.qm, 2);
+        mEnergy += md.wMode / Math.max(0.08, denom);
+      }
+    }
+    const gModal = modalRoll * (10.0 * Math.log10(1.0 + 0.14 * mEnergy) - 1.2);
+    const rg = gBound + gPz + gModal;
+    G14_roomGain[i] = rg;
+    G15_splRoom[i] = G6[i] + rg;
+  }
+
   currentCurves = {
     frequencies: freqs,
     G1_MaxPower: G1,
@@ -5750,7 +5839,10 @@ function generateSimulationData(p) {
     G11_InBoxZ: G11,
     G12_Phase: G12,
     G13_GroupDelay: G13,
+    G14_RoomGain: G14_roomGain,
+    G15_SPLinRoom: G15_splRoom,
     meta: {
+      room: { L: roomL, W: roomW, H: roomH, V: roomVol, fSchroeder, fMin: fRoomMin, placement: roomPlace, rt60: roomRt60 },
       boxType: p.boxType,
       Fs: p.Fs,
       Fb: p.Fb,
@@ -6482,7 +6574,7 @@ function onExpandedOverlayChange() {
 
 function drawAllCharts() {
   if (!currentCurves) return;
-  CHARTS_INFO.forEach(c => {
+  Object.values(CHART_REGISTRY).filter(c => c && c.key && c.availability !== 'unimplemented').forEach(c => {
     const cv = document.getElementById('cv_' + c.id);
     const infoEl = document.getElementById('info_' + c.id);
     if (!cv) return;
@@ -6575,7 +6667,7 @@ function drawAllCharts() {
 function renderExpanded() {
   if (!currentCurves) return;
   const sel = document.getElementById('expandedSelect').value;
-  const baseCfg = CHARTS_INFO.find(c => c.id === sel);
+  const baseCfg = CHART_REGISTRY[sel] || CHARTS_INFO.find(c => c.id === sel);
   const cv = document.getElementById('expandedCanvas');
   const cursorInfo = document.getElementById('expandedCursorInfo');
   if (!cv || !baseCfg) return;
@@ -6619,7 +6711,7 @@ function renderExpanded() {
 function exportExpandedPNG() {
   if (!currentCurves) return;
   const sel = document.getElementById('expandedSelect').value;
-  const baseCfg = CHARTS_INFO.find(c => c.id === sel);
+  const baseCfg = CHART_REGISTRY[sel] || CHARTS_INFO.find(c => c.id === sel);
   if (!baseCfg) return;
   const { cfg, series } = getExpandedOverlayConfig(baseCfg);
   const driverEl = document.getElementById('driverPreset');

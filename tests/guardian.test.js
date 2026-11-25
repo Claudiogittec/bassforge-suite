@@ -510,25 +510,43 @@ runSuite('12. Analysis Engine (Architectural/Automotive, slots N/D, invariância
   assert.strictEqual(displayCheck.auto13, '#13 Cone SPL (dB-SPL)', `Auto #13 title: ${displayCheck.auto13}`);
   assert.strictEqual(displayCheck.internalG4, '#4 Normalized Amplitude (dB)', 'Prefixo interno de CHARTS_INFO deve ser preservado');
 
-  // --- 12.2 Registro: todo slot calculado aponta para uma série real de 600 pontos ---
+  // --- 12.2 Registro: todo slot calculado/modelado aponta para uma série real de 600 pontos ---
   const registry = vm.runInContext('Object.keys(CHART_REGISTRY).map(id => ({ id, key: CHART_REGISTRY[id].key, av: CHART_REGISTRY[id].availability }))', ctx);
   const curves = vm.runInContext('currentCurves', ctx);
   const calculated = registry.filter(r => r.av !== 'unimplemented');
-  assert.strictEqual(calculated.length, 13, `Expected 13 calculated charts, got ${calculated.length}`);
+  assert.strictEqual(calculated.length, 15, `Expected 15 calculated/modeled charts (G1..G13 + RoomGain + SPLinRoom), got ${calculated.length}`);
   for (const r of calculated) {
     const arr = curves[r.key];
     assert(Array.isArray(arr) && arr.length === 600, `${r.id}: série ${r.key} ausente ou com tamanho inválido`);
+    assert(arr.every(v => Number.isFinite(v)), `${r.id}: série ${r.key} contém NaN/Infinity`);
   }
 
-  // --- 12.3 Slots não implementados: sem chave, sem curva, com placeholder explícito ---
-  for (const slot of ['SLOT_SPL_ROOM', 'SLOT_ROOM_GAIN']) {
-    const entry = vm.runInContext(`CHART_REGISTRY.${slot}`, ctx);
-    assert.strictEqual(entry.availability, 'unimplemented', `${slot} deve ser 'unimplemented'`);
-    assert.strictEqual(entry.key, null, `${slot} NÃO pode apontar para série existente`);
-    assert(entry.placeholder && entry.placeholderDetail, `${slot} precisa de texto de placeholder`);
-    assert.notStrictEqual(entry.key, 'G5_SPLinCar', `${slot} jamais pode reutilizar G5_SPLinCar`);
-    assert.notStrictEqual(entry.key, 'G7_CabinGain', `${slot} jamais pode reutilizar G7_CabinGain`);
-  }
+  // --- 12.3 Modelo Físico de Sala (L×W×H + Waterhouse Boundary Loading) independente de Cabin Gain ---
+  const rgEntry = vm.runInContext('CHART_REGISTRY.SLOT_ROOM_GAIN', ctx);
+  const srEntry = vm.runInContext('CHART_REGISTRY.SLOT_SPL_ROOM', ctx);
+  assert.strictEqual(rgEntry.availability, 'modeled', 'SLOT_ROOM_GAIN deve ser modeled');
+  assert.strictEqual(srEntry.availability, 'modeled', 'SLOT_SPL_ROOM deve ser modeled');
+  assert.strictEqual(rgEntry.key, 'G14_RoomGain', 'SLOT_ROOM_GAIN deve usar série dedicada G14_RoomGain');
+  assert.strictEqual(srEntry.key, 'G15_SPLinRoom', 'SLOT_SPL_ROOM deve usar série dedicada G15_SPLinRoom');
+  assert.notStrictEqual(rgEntry.key, 'G7_CabinGain', 'Room Gain jamais pode reutilizar G7_CabinGain');
+  assert.notStrictEqual(srEntry.key, 'G5_SPLinCar', 'SPL in Room jamais pode reutilizar G5_SPLinCar');
+  // Verifica monotonicidade física de Boundary Loading: corner > quarter > half > free em ~30 Hz
+  const rg30 = vm.runInContext(`(() => {
+    const out = {};
+    const el = document.getElementById('roomPlacement');
+    const orig = el.value;
+    for (const pl of ['free', 'half', 'quarter', 'corner']) {
+      el.value = pl;
+      recalculate();
+      const idx = currentCurves.frequencies.findIndex(f => f >= 30);
+      out[pl] = currentCurves.G14_RoomGain[idx];
+    }
+    el.value = orig;
+    recalculate();
+    return out;
+  })()`, ctx);
+  assert(rg30.corner > rg30.quarter && rg30.quarter > rg30.half && rg30.half > rg30.free,
+    `Boundary Loading fora de ordem física em 30Hz: ${JSON.stringify(rg30)}`);
 
   // --- 12.4 Invariância: alternar ambiente NÃO recalcula física nem toca inputs ---
   const fieldIds = ['vbInput', 'fbInput', 'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsXmax', 'boxType'];
