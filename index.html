@@ -3654,7 +3654,7 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
       }
     }
     if (maxXpk > Xmax_mm * 0.97) {
-      const peSafe = Math.max(10, Math.floor(peNominal * Math.pow((Xmax_mm * 0.95) / maxXpk, 2)));
+      const peSafe = Math.max(2, Math.floor(peNominal * Math.pow((Xmax_mm * 0.95) / maxXpk, 2)));
       if (peSafe < peNominal) {
         peEl.value = String(peSafe);
         const ampPowEl = document.getElementById('elAmpPower');
@@ -3667,11 +3667,12 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
 
   autofixWoodlockGeometry(`auto-design ${boxType}/${profile}`, { resetToMin: true });
 
-  // Em micro-gabinetes vindos do Banco DB onde nenhum duto reto cabe fisicamente na profundidade C, migra automaticamente para Selada B2
-  if (source === 'db' && boxType === 'bass-reflex' && lastBuildPack && !lastBuildPack.validation.valid && lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION')) {
+  // Em micro-gabinetes vindos do Banco DB onde nenhum duto reto cabe fisicamente (BR ou BP6), migra automaticamente
+  if (source === 'db' && (boxType === 'bass-reflex' || boxType === 'bp6') && lastBuildPack && !lastBuildPack.validation.valid && lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION')) {
     const btEl = document.getElementById('boxType');
-    if (btEl) btEl.value = 'sealed';
-    lastActiveTopology = 'sealed';
+    const nextTopo = (boxType === 'bp6') ? 'bass-reflex' : 'sealed';
+    if (btEl) btEl.value = nextTopo;
+    lastActiveTopology = nextTopo;
     return runAutoDesignForCurrentState('db_sealed_fallback', opts);
   }
 
@@ -5347,7 +5348,7 @@ function generateSimulationData(p) {
   const x_ref_peak_mm = Math.sqrt((2.0 * p.Pe * Cms) / (ws * Qts_s)) * 1000.0;
   const x_ref_box_mm = x_ref_peak_mm / (1.0 + alpha_s);
 
-  // Normalizador da função de transferência de velocidade |sn / D(sn)| * |H_DSP| para G9
+  // Normalizador da função de transferência de velocidade |sn / D(sn)| (sem HPF, para que HPF atenue G9)
   let max_hv = 1e-9;
   if (isBrLike) {
     freqs.forEach(f => {
@@ -5355,11 +5356,17 @@ function generateSimulationData(p) {
       const d_re = Math.pow(rw, 4) - a2*Math.pow(rw, 2) + 1.0;
       const d_im = -a3*Math.pow(rw, 3) + a1*rw;
       const d_mag = Math.sqrt(d_re*d_re + d_im*d_im);
-      const h_lin = hpfOn ? (Math.pow(f / p.hpfHz, 4) / (Math.pow(f / p.hpfHz, 4) + 1.0)) : 1.0;
-      const hv_val = (rw / d_mag) * h_lin;
+      const hv_val = rw / d_mag;
       if (hv_val > max_hv) max_hv = hv_val;
     });
   }
+
+  // EPDR exato segundo AES (Eric Benjamin, JAES 1994 / Keith Howard 2007)
+  const computeEpdrAes = (zMag, phaseRad) => {
+    const absPhi = Math.min(Math.PI / 2 - 1e-4, Math.abs(phaseRad || 0));
+    const den = (1.0 - Math.sin((5.0 * Math.PI) / 6.0 + (2.0 * absPhi) / 3.0)) * Math.sin((5.0 * Math.PI) / 6.0 - absPhi / 3.0);
+    return (den > 1e-9) ? (0.25 * zMag) / den : zMag;
+  };
 
   // Modelo físico acoplado Band-Pass (pré-computado uma vez por varredura)
   const bpModel = (p.boxType === 'bp4' || p.boxType === 'bp6')
@@ -5458,7 +5465,7 @@ function generateSimulationData(p) {
       G11.push(z_box);
 
       const theta_z = Math.atan2(z_in_im, z_in_re);
-      const epdr_f = z_box / (1.0 + Math.abs(Math.sin(theta_z)));
+      const epdr_f = computeEpdrAes(z_box, theta_z);
       if (epdr_f < minEpdrVal) {
         minEpdrVal = epdr_f;
         minEpdrFreq = f;
@@ -5501,7 +5508,7 @@ function generateSimulationData(p) {
       const zBoxVal = Math.hypot(ev.Zin_re, ev.Zin_im);
       G11.push(zBoxVal);
       const zPhase = Math.atan2(ev.Zin_im, ev.Zin_re);
-      const epdr_f = zBoxVal / (1.0 + Math.abs(Math.sin(zPhase)));
+      const epdr_f = computeEpdrAes(zBoxVal, zPhase);
       if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
 
       // Fase acústica real do gabinete (unwrapped em G13 para atraso de grupo real)
@@ -5545,7 +5552,7 @@ function generateSimulationData(p) {
       const zBoxVal = Math.hypot(ev.Zin_re, ev.Zin_im);
       G11.push(zBoxVal);
       const zPhase = Math.atan2(ev.Zin_im, ev.Zin_re);
-      const epdr_f = zBoxVal / (1.0 + Math.abs(Math.sin(zPhase)));
+      const epdr_f = computeEpdrAes(zBoxVal, zPhase);
       if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
 
       // G12: Fase acústica real (unwrapped em G13 para atraso de grupo real)
@@ -5575,7 +5582,8 @@ function generateSimulationData(p) {
       G9_rear.push(0);
 
       const c_tot = Cms / (1.0 + p.alpha);
-      const r_tot = (2.0 * Math.PI * p.fc * Mms) / p.qtc;
+      // Small (1972): impedância mecânica pura Rms = ws * Mms / Qms (sem amortecimento elétrico Re)
+      const r_tot = (ws * Mms) / Qms_s;
       const z_m_re = r_tot;
       const z_m_im = (w * Mms) - (1.0 / (w * c_tot));
       const z_m_mag2 = z_m_re*z_m_re + z_m_im*z_m_im;
@@ -5585,7 +5593,7 @@ function generateSimulationData(p) {
       G11.push(z_box);
 
       const theta_z = Math.atan2(z_in_im, z_in_re);
-      const epdr_f = z_box / (1.0 + Math.abs(Math.sin(theta_z)));
+      const epdr_f = computeEpdrAes(z_box, theta_z);
       if (epdr_f < minEpdrVal) {
         minEpdrVal = epdr_f;
         minEpdrFreq = f;
@@ -7016,36 +7024,6 @@ function autofixWoodlockGeometry(reason = '', opts = {}) {
       if (A !== prevA) changes.push(`A ${prevA.toFixed(0)}→${A} mm`);
       if (B !== prevB) changes.push(`B ${prevB.toFixed(0)}→${B} mm`);
       updateWoodlock();
-    }
-  }
-
-  // 4.5. Em resetToMin, evita caixas excessivamente profundas ("túnel fino" C >> B, ex. BP4/BP6 com 160L+)
-  if (opts.resetToMin && lastBuildPack && lastBuildPack.dimensions) {
-    floors = lastWoodlockFloors;
-    const btReset = String(document.getElementById('boxType')?.value || '').toLowerCase();
-    const isBpReset = (btReset === 'bp4' || btReset === 'bp6');
-    const cNow = lastBuildPack.dimensions.C_top || 0;
-    const cCap = isBpReset
-      ? Math.max(floors.flangeOD + 90, 480)
-      : Math.max(580, Math.round(B * 1.55));
-    if (btReset !== 'free-air' && cNow > cCap && lastBuildPack.acoustics && lastBuildPack.acoustics.Vbruto > 0) {
-      const nDrvReset = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
-      const tReset = lastBuildPack.dimensions.t || 18;
-      const divThick = isBpReset ? (nDrvReset === 2 ? 2 * tReset : tReset) : 0;
-      const targetA = Math.min(1400, Math.max(floors.minA, Math.ceil((lastBuildPack.acoustics.Vbruto * 1e6) / Math.max(1, B * cCap) + divThick)));
-      if (targetA > A + 10) {
-        const prevA = A;
-        A = targetA;
-        elA.value = A;
-        updateWoodlock();
-        if (!lastBuildPack.validation.valid) {
-          A = prevA;
-          elA.value = A;
-          updateWoodlock();
-        } else {
-          changes.push(`A→${A} mm (proporção C≤${cCap} mm)`);
-        }
-      }
     }
   }
 
@@ -10365,8 +10343,8 @@ function buildPgsDxfString(pack) {
   if (ac.bpChambers && ac.bpChambers.isBp) {
     addRect('PECAS_CORTE', bx0 + t + ac.bpChambers.A_rear, by0 + t, t, B);
   }
-  // Furos reais (drivers, flanges e dutos)
-  (pack.baffleHoles || []).filter(hl => hl.panel !== 'divisoria').forEach(hl => {
+  // Furos reais no painel frontal (exclui divisórias internas BP e tampo superior)
+  (pack.baffleHoles || []).filter(hl => !String(hl.panel || '').startsWith('divisoria') && hl.panel !== 'topo').forEach(hl => {
     const cx = bx0 + hl.xExt;
     const cy = by0 + hl.yExt;
     if (hl.shape === 'round') {
@@ -10814,6 +10792,85 @@ def make_planar_chamfers(ox_box, oy_box, z0, A, B, z_len, zl, t):
     diag = [
         ((ox_box, oy_box + zl), (ox_box + zl, oy_box), (1.0, 1.0)),
         ((ox_box + A - zl, oy_box), (ox_box + A, oy_box + zl), (-1.0, 1.0)),
+        ((ox_box, oy_box + B - zl), (ox_box + zl, oy_box + B), (1.0, -1.0)),
+        ((ox_box + A - zl, oy_box + B), (ox_box + A, oy_box + B - zl), (-1.0, -1.0)),
+    ]
+    inv = 1.0 / math.sqrt(2.0)
+    for idx, ((x1, y1), (x2, y2), (nx, ny)) in enumerate(diag):
+        ux, uy = nx * inv * t, ny * inv * t
+        pts = [
+            pgs_vec(x1, y1, z0),
+            pgs_vec(x2, y2, z0),
+            pgs_vec(x2 - ux, y2 - uy, z0),
+            pgs_vec(x1 - ux, y1 - uy, z0),
+        ]
+        pts.append(pts[0])
+        face = Part.Face(Part.makePolygon(pts))
+        prism = face.extrude(FreeCAD.Vector(0.0, float(z_len), 0.0))
+        clipped = prism.common(inner_clip) if inner_clip else prism
+        if clipped and clipped.Volume > 10.0:
+            walls.append((f"P_PLANAR_CHAMFER_{idx + 1}", clipped))
+    return walls
+
+def build_all():
+    pack = json.loads(PACK_JSON)
+    geom = pack["geometry"]
+    env = geom["envelope"]
+    ac = pack.get("acoustics") or {}
+    t = float(geom["material"]["thickness"])
+    F, E, A, B, D_ext = float(env["F"]), float(env["E"]), float(env["A"]), float(env["B"]), float(env["D_ext"])
+    parts = geom.get("parts") or []
+    cutouts = geom.get("cutouts") or []
+
+    doc = FreeCAD.newDocument("BassForge_${safeDoc}")
+    solids = []
+
+    def add_solid(name, kind, shape, p_meta, rgb, transp=0):
+        if shape is None:
+            return
+        ed = (p_meta.get("explodeDir") if p_meta else None) or [0, 0, 0]
+        dist = float((p_meta.get("explodeDist") if p_meta else 0.0) or 0.0)
+        obj = doc.addObject("Part::Feature", name)
+        obj.Shape = shape
+        try:
+            obj.addProperty("App::PropertyVector", "BF_ExplodeVec", "BassForge", "Vetor de explosao 3D (mm)")
+            obj.BF_ExplodeVec = pgs_vec(ed[0] * dist, ed[1] * dist, ed[2] * dist)
+            if EXPLODE_RATIO > 0.001:
+                obj.Placement.Base = pgs_vec(ed[0] * dist * EXPLODE_RATIO, ed[1] * dist * EXPLODE_RATIO, ed[2] * dist * EXPLODE_RATIO)
+        except Exception:
+            if EXPLODE_RATIO > 0.001:
+                sh_c = shape.copy()
+                sh_c.translate(pgs_vec(ed[0] * dist * EXPLODE_RATIO, ed[1] * dist * EXPLODE_RATIO, ed[2] * dist * EXPLODE_RATIO))
+                obj.Shape = sh_c
+        if HAS_GUI and hasattr(obj, "ViewObject") and obj.ViewObject:
+            try:
+                obj.ViewObject.ShapeColor = rgb
+                obj.ViewObject.Transparency = int(transp)
+            except Exception:
+                pass
+        solids.append((name, kind, obj))
+
+    MDF_MAIN = (0.82, 0.67, 0.46)
+    MDF_SIDE = (0.76, 0.60, 0.40)
+    MDF_FRONT = (0.86, 0.72, 0.52)
+    BATTEN_COL = (0.28, 0.56, 0.90)
+    PORT_COL = (0.95, 0.45, 0.14)
+    DIV_COL = (0.58, 0.36, 0.88)
+
+    is_trap = (env.get("shape") == "trapezoidal" and abs(float(env.get("D", 0)) - float(env.get("C", 0))) > 0.5)
+    z_rb, z_rt = t, t + max(0.0, float(env.get("D", D_ext - 2 * t)) - float(env.get("C", D_ext - 2 * t)))
+    has_cross = any((pp.get("braceMeta") or {}).get("code") == "CROSS" for pp in parts)
+    has_tb = any((pp.get("braceMeta") or {}).get("code") == "TB" for pp in parts)
+    is_inv = (ac.get("mountMode") == "inverted")
+    drv_fc = [dc for dc in cutouts if dc.get("kind") == "driver" and dc.get("partId") == "P_FRONT_BAFFLE" and dc.get("dia")]
+    max_dd = max((float(dc["dia"]) for dc in drv_fc), default=0.0)
+    drv_ko = []
+    if not is_inv:
+        for dc in drv_fc:
+            dcx, dcy, dd = t + float(dc["xInt"]), t + float(dc["yInt"]), float(dc["dia"])
+            db = min(max(40.0, D_ext - 2.0 * t - 25.0), min(110.0, dd * 0.28))
+            dm = min(max(60.0, D_ext - 2.0 * t - 30.0), dd * 0.56)
+            drv_ko.append(Part.makeCylinder(dd * 0.50 + 10.0, db + 2.0, pgs_vec(dcx, dcy, D_ext - t - db), FreeCAD.Vector(0.0, 1.0, 0.0)))
             drv_ko.append(Part.makeCylinder(dd * 0.34 + 15.0, dm + 2.0, pgs_vec(dcx, dcy, D_ext - t - dm), FreeCAD.Vector(0.0, 1.0, 0.0)))
     def cut_ko(sh):
         for dk in drv_ko:
@@ -10861,6 +10918,25 @@ def make_planar_chamfers(ox_box, oy_box, z0, A, B, z_len, zl, t):
             add_solid("P_REAR", "mdf", cut_wa(make_trapezoid_rear(0.0, t, z_rb, z_rt, F, B, t)), p, MDF_MAIN)
             continue
 
+        if pid == "P_SIDES":
+            dy_l = dy + t if p.get("leftTopExtend") else dy
+            dy_r = dy + t if p.get("rightTopExtend") else dy
+            s_l = make_trapezoid_side(0.0, oy, z_rb, z_rt, oz + dz, dy_l, t) if is_trap else make_box(ox, oy, oz, dx, dy_l, dz)
+            s_r = make_trapezoid_side(F - t, oy, z_rb, z_rt, oz + dz, dy_r, t) if is_trap else make_box(F - t, oy, oz, dx, dy_r, dz)
+            add_solid("P_SIDE_LEFT", "mdf", cut_wa(s_l), p, MDF_SIDE)
+            p_r = dict(p, explodeDir=[1, 0, 0])
+            add_solid("P_SIDE_RIGHT", "mdf", cut_wa(s_r), p_r, MDF_SIDE)
+            continue
+
+        if pid == "P_MATRIX_V" and p.get("matrixMeta"):
+            mm = p["matrixMeta"]
+            cm, rm, z_fm, z_mm = max(2, int(mm.get("cols", 2))), max(1, int(mm.get("rows", 1))), D_ext - t, (z_rt + D_ext - t) / 2.0
+            for k in range(1, cm):
+                xk = t + k * (A / cm) - t / 2.0
+                sv = make_trapezoid_side(xk, t, z_rb, z_rt, z_fm, B, t) if is_trap else make_box(xk, t, t, t, B, z_fm - t)
+                for j in range(1, rm):
+                    yj = t + j * (B / rm) - t / 2.0
+                    sv = sv.cut(make_box(xk - 1.0, yj, z_rb - 1.0, t + 2.0, t, z_mm - (z_rb - 1.0)))
                 add_solid(f"P_MATRIX_V_{k}", "divider", cut_wa(sv), p, DIV_COL)
             continue
 
@@ -11288,7 +11364,8 @@ function updateElectrical(fromUser) {
   const l_mh = ((Math.SQRT2 * zTotal) / (2.0 * Math.PI * xoverHz)) * 1000.0;
   const c_uf = (1.0 / (Math.SQRT2 * 2.0 * Math.PI * xoverHz * zTotal)) * 1e6;
   const rZobel = 1.25 * reTotal;
-  const cZobelUf = ((leMh / 1000.0) / (rZobel * rZobel)) * 1e6;
+  const leTotalMh = leMh * (reTotal / Math.max(0.1, rePerSpk));
+  const cZobelUf = ((leTotalMh / 1000.0) / (rZobel * rZobel)) * 1e6;
 
   const dspBox = document.getElementById('elDspResult');
   if (dspBox) {

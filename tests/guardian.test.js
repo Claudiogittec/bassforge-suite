@@ -229,7 +229,7 @@ runSuite('1. Structural Integrity (JS syntax + 0 duplicate HTML IDs)', () => {
 
 // SUITE 2: Strict IP Hygiene
 runSuite('2. Strict IP Hygiene (0 third-party simulator trademarks)', () => {
-  const forbidden = /\b(bassbox|bb6|elisa|winisd|ht audio|hornresp)\b/gi;
+  const forbidden = /\b(bassbox|bb6|elisa|winisd|ht audio|hornresp|vituixcad|boxsim|unibox|akabak)\b/gi;
   const targets = [
     ['index.html', indexHtml],
     ['drivers-db.html', dbHtml],
