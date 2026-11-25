@@ -3066,6 +3066,8 @@ function loadPreset() {
   if (badge) badge.style.display = 'none';
 
   document.getElementById('boxType').value = p.type;
+  const ptPresetEl = document.getElementById('portType');
+  if (ptPresetEl) ptPresetEl.value = p.portType || 'round';
   document.getElementById('vbInput').value = p.Vb;
   document.getElementById('fbInput').value = p.Fb;
   document.getElementById('numDucts').value = p.numDucts;
