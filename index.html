@@ -1483,17 +1483,17 @@
         <!-- Desenho Técnico CAD 2D/Isométrico -->
         <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:8px; padding:16px; display:flex; flex-direction:column; align-self:start; position:sticky; top:10px;">
           <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-            <h3 id="wlCanvasTitle" style="font-size:14px; color:var(--accent); margin:0;">📐 Blueprint Técnico Lateral (Lv vs C) &amp; Frontal</h3>
+            <h3 id="wlCanvasTitle" style="font-size:14px; color:var(--accent); margin:0;">🧊 Vista 3D Montada (0%) — PGS Fonte Única</h3>
             <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
-              <button type="button" class="tb-btn active" data-wl-view="blueprint" onclick="setWoodlockViewMode('blueprint')" style="padding:3px 8px; font-size:11px;">📐 Blueprint 2D</button>
-              <button type="button" class="tb-btn" data-wl-view="exploded" onclick="setWoodlockViewMode('exploded')" style="padding:3px 8px; font-size:11px;">🧊 3D / Explodida</button>
+              <button type="button" class="tb-btn" data-wl-view="blueprint" onclick="setWoodlockViewMode('blueprint')" style="padding:3px 8px; font-size:11px;">📐 Blueprint 2D</button>
+              <button type="button" class="tb-btn active" data-wl-view="exploded" onclick="setWoodlockViewMode('exploded')" style="padding:3px 8px; font-size:11px;">🧊 3D / Explodida</button>
               <button type="button" class="tb-btn" data-wl-view="cutplan" onclick="setWoodlockViewMode('cutplan')" style="padding:3px 8px; font-size:11px;">🧩 Planificação</button>
               <button type="button" class="tb-btn" data-wl-view="nesting" onclick="setWoodlockViewMode('nesting')" style="padding:3px 8px; font-size:11px;">🪚 Chapa MDF</button>
-              <span id="wlExplodeBar" style="display:none; gap:2px; margin-left:4px; padding-left:6px; border-left:1px solid var(--border);">
-                <button type="button" class="tb-btn" data-wl-exp="0" onclick="setWoodlockExplode(0)" style="padding:2px 6px; font-size:10px;">0%</button>
+              <span id="wlExplodeBar" style="display:inline-flex; gap:2px; margin-left:4px; padding-left:6px; border-left:1px solid var(--border);">
+                <button type="button" class="tb-btn active" data-wl-exp="0" onclick="setWoodlockExplode(0)" style="padding:2px 6px; font-size:10px;">0%</button>
                 <button type="button" class="tb-btn" data-wl-exp="0.5" onclick="setWoodlockExplode(0.5)" style="padding:2px 6px; font-size:10px;">50%</button>
-                <button type="button" class="tb-btn active" data-wl-exp="1" onclick="setWoodlockExplode(1)" style="padding:2px 6px; font-size:10px;">100%</button>
-                <button type="button" id="btnWlXray" class="tb-btn" onclick="toggleWoodlockXray()" title="Alternar transparência Raio-X para ver o interior" style="padding:2px 6px; font-size:10px;">👁️ Raio-X</button>
+                <button type="button" class="tb-btn" data-wl-exp="1" onclick="setWoodlockExplode(1)" style="padding:2px 6px; font-size:10px;">100%</button>
+                <button type="button" id="btnWlXray" class="tb-btn active" onclick="toggleWoodlockXray()" title="Alternar transparência Raio-X para ver o interior" style="padding:2px 6px; font-size:10px;">👁️ Raio-X</button>
                 <button type="button" class="tb-btn" onclick="resetWoodlockCam()" title="Resetar ângulo da câmera 3D" style="padding:2px 6px; font-size:10px;">🔄 Reset</button>
               </span>
             </div>
@@ -8287,8 +8287,8 @@ function updateWoodlock() {
   renderActiveWoodlockCanvas();
 }
 
-let wlViewMode = 'blueprint';
-let wlExplodeRatio = 1.0;
+let wlViewMode = 'exploded';
+let wlExplodeRatio = 0.0;
 
 // ============================================================================
 // PGS — PARAMETRIC GEOMETRY SPECIFICATION & MANUFACTURING ENGINE (bassforge-pgs/v1)
@@ -8921,7 +8921,7 @@ function renderActiveWoodlockCanvas() {
 let wlCamYaw = -0.58;
 let wlCamPitch = 0.40;
 let wlCamZoom = 1.0;
-let wlCamXray = false;
+let wlCamXray = true;
 let _wlOrbitBound = false;
 
 function toggleWoodlockXray() {
