@@ -6945,6 +6945,36 @@ function autofixWoodlockGeometry(reason = '', opts = {}) {
     }
   }
 
+  // 4.5. Em resetToMin, evita caixas excessivamente profundas ("túnel fino" C >> B, ex. BP4/BP6 com 160L+)
+  if (opts.resetToMin && lastBuildPack && lastBuildPack.dimensions) {
+    floors = lastWoodlockFloors;
+    const btReset = String(document.getElementById('boxType')?.value || '').toLowerCase();
+    const isBpReset = (btReset === 'bp4' || btReset === 'bp6');
+    const cNow = lastBuildPack.dimensions.C_top || 0;
+    const cCap = isBpReset
+      ? Math.max(floors.flangeOD + 90, 480)
+      : Math.max(580, Math.round(B * 1.55));
+    if (btReset !== 'free-air' && cNow > cCap && lastBuildPack.acoustics && lastBuildPack.acoustics.Vbruto > 0) {
+      const nDrvReset = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
+      const tReset = lastBuildPack.dimensions.t || 18;
+      const divThick = isBpReset ? (nDrvReset === 2 ? 2 * tReset : tReset) : 0;
+      const targetA = Math.min(1400, Math.max(floors.minA, Math.ceil((lastBuildPack.acoustics.Vbruto * 1e6) / Math.max(1, B * cCap) + divThick)));
+      if (targetA > A + 10) {
+        const prevA = A;
+        A = targetA;
+        elA.value = A;
+        updateWoodlock();
+        if (!lastBuildPack.validation.valid) {
+          A = prevA;
+          elA.value = A;
+          updateWoodlock();
+        } else {
+          changes.push(`A→${A} mm (proporção C≤${cCap} mm)`);
+        }
+      }
+    }
+  }
+
   if (changes.length > 0) {
     const rTxt = reason ? ` (${escapeHtmlStr(reason)})` : '';
     showWlAutofixBanner(`🔧 <b>Projeto ajustado automaticamente${rTxt}:</b> ${escapeHtmlStr(changes.join(' · '))}. Motivo: flange ${floors.diaIn}″ (${floors.flangeOD} mm) e folga de dutos. Vb/Fb mantidos intactos.`);
