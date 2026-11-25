@@ -1412,10 +1412,14 @@
           <div class="input-row" style="margin-bottom:10px;">
             <div class="form-group">
               <label for="wlPlanarStyle">Geometria Planar Horn</label>
-              <select id="wlPlanarStyle" onchange="updateWoodlock()">
+              <select id="wlPlanarStyle" onchange="onPlanarGeomChange()">
                 <option value="square" selected>Planar Quadrado (CG, Baffle A×C4, Div. A4×R)</option>
                 <option value="triangle">Planar Triângulo / Euclides (Octogonal + 4× 45° V×Z)</option>
               </select>
+            </div>
+            <div class="form-group">
+              <label for="wlPlanarRecuoG" title="Profundidade do túnel frontal λ/4 (recuo do baffle). 0 = automático (~42% de B)">Recuo Túnel G (mm · 0=Auto)</label>
+              <input type="number" id="wlPlanarRecuoG" value="0" min="0" max="600" step="5" onchange="onPlanarGeomChange()">
             </div>
             <div class="form-group">
               <label>Travamento Estrutural (6 Eixos)</label>
@@ -2433,7 +2437,7 @@ const PROJECT_FIELD_IDS = [
   'cabinLen', 'hpfCutoff', 'thermalDeltaT',
   'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
   'tsLe', 'tsZnom', 'tsDia', 'tsCoils', 'tsMmsCat', 'tsBlCat',
-  'wlShape', 'wlMountMode', 'wlSlotOrient', 'wlPortLayout', 'wlPortOffset', 'wlPlanarStyle', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD', 'wlMatrixCols', 'wlMatrixRows', 'wlWheelK', 'wlWheelH', 'wlWheelJ',
+  'wlShape', 'wlMountMode', 'wlSlotOrient', 'wlPortLayout', 'wlPortOffset', 'wlPlanarStyle', 'wlPlanarRecuoG', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD', 'wlMatrixCols', 'wlMatrixRows', 'wlWheelK', 'wlWheelH', 'wlWheelJ',
   'wlBraceFF', 'wlBraceTB', 'wlBraceLR', 'wlBraceCross', 'wlBraceBaffle', 'wlBraceRear', 'wlWheelArch', 'wlProtectBar', 'elDerate70',
   'elNumSpk', 'elCoils', 'elZCoil', 'elCoilMode', 'elSpkMode',
   'elAmpPower', 'elVbat', 'elPwrLen', 'elPwrGauge', 'elSpkLen', 'elSpkGauge',
@@ -4131,6 +4135,272 @@ function evalBandPassFrequency(m, f) {
   return { H_re, H_im, Hf_mag, Hr_mag, Uc_mag, Upf_mag, Upr_mag, Zin_re, Zin_im };
 }
 
+// =========================================================================
+// MOTOR TMM / ABCD 1D ACOPLADO — PLANAR HORN / CAIXA EUCLIDES
+// Combina circuito eletromecânico Thiele-Small, câmara traseira dutada (Vb, Fb, QL),
+// guia de onda frontal 1D com atenuação visco-térmica e impedância de radiação
+// de Beranek em semi-espaço 2pi, diferenciando Planar Quadrado vs Triângulo/Euclides.
+// =========================================================================
+function resolvePlanarTunnelGeometry({ A, B, t, nDrivers, planarStyle, recuoGInput }) {
+  const A_mm = Math.max(150, parseFloat(A) || 550);
+  const B_mm = Math.max(150, parseFloat(B) || 480);
+  const t_mm = Math.max(6, parseFloat(t) || 18);
+  const nDrv = Math.max(1, parseInt(nDrivers, 10) || 1);
+  const style = (planarStyle === 'triangle') ? 'triangle' : 'square';
+  const rawG = parseFloat(recuoGInput);
+  const isAutoG = !Number.isFinite(rawG) || rawG <= 0;
+  const recuoG = isAutoG
+    ? Math.round(Math.max(120, Math.min(280, B_mm * 0.42)))
+    : Math.round(Math.max(80, Math.min(600, rawG)));
+
+  const nBays = (nDrv >= 2) ? 2 : 1;
+  const bayA_mm = (nBays === 2) ? Math.max(120, (A_mm - t_mm) / 2.0) : A_mm;
+
+  let C4 = null, Z_leg = null, S_side = null, Z_hyp = null;
+  let St_bay_m2, Pt_bay_m;
+
+  if (style === 'triangle') {
+    Z_leg = Math.round(Math.min(A_mm, B_mm) * 0.22);
+    S_side = Math.round(Math.max(40, B_mm - 2 * Z_leg));
+    Z_hyp = Math.round(Z_leg * Math.SQRT2);
+    // Seção octogonal do túnel por baia: A_bay*B - 4*(0.5*zl^2) = A_bay*B - 2*zl^2
+    const zlBay = (nBays === 2) ? Math.min(Z_leg, bayA_mm * 0.28) : Z_leg;
+    const a_m = bayA_mm / 1000.0;
+    const b_m = B_mm / 1000.0;
+    const z_m = zlBay / 1000.0;
+    St_bay_m2 = Math.max(0.01, a_m * b_m - 2.0 * z_m * z_m);
+    Pt_bay_m = Math.max(0.2, 2.0 * (a_m - 2.0 * z_m) + 2.0 * (b_m - 2.0 * z_m) + 4.0 * Math.SQRT2 * z_m);
+  } else {
+    C4 = Math.max(50.0, Math.round(B_mm - Math.min(110, B_mm * 0.18) - t_mm));
+    // Seção retangular do túnel frontal acima da divisória: bayA x C4
+    const a_m = bayA_mm / 1000.0;
+    const c4_m = C4 / 1000.0;
+    St_bay_m2 = Math.max(0.01, a_m * c4_m);
+    Pt_bay_m = Math.max(0.2, 2.0 * (a_m + c4_m));
+  }
+
+  const St_total_m2 = St_bay_m2 * nBays;
+  const rh_m = (2.0 * St_bay_m2) / Pt_bay_m;
+  const aMouth_m = Math.sqrt(St_total_m2 / Math.PI);
+  const Lt_m = recuoG / 1000.0;
+
+  return {
+    style, recuoG, isAutoG, C4, Z_leg, S_side, Z_hyp,
+    nBays, St_m2: St_total_m2, Pt_m: Pt_bay_m * nBays, rh_m, aMouth_m, Lt_m
+  };
+}
+
+function buildPlanarAcousticModel(p) {
+  const Fs = Math.max(10.0, p.Fs || 40.0);
+  const Qms = Math.max(0.2, p.Qms || 7.0);
+  const Qts_in = Math.max(0.05, Math.min(Qms * 0.95, p.Qts || 0.40));
+  const Qes = Math.max(0.05, p.Qes || ((Qts_in * Qms) / Math.max(0.05, Qms - Qts_in)));
+  const Qts = (Qms * Qes) / (Qms + Qes);
+  const Re = Math.max(0.2, p.Re || 4.0);
+  const Vas = Math.max(0.1, p.Vas || 50.0);
+  const Sd_m2 = Math.max(1e-4, p.Sd_m2 || 0.05);
+  const Pe = Math.max(1.0, p.Pe || 100.0);
+  const Vb = Math.max(0.5, p.Vb || 50.0);
+  const Fb = Math.max(10.0, p.Fb || Fs);
+  const QL = Math.max(1.0, p.QL || 7.0);
+  const Qp = Math.max(10.0, p.Qp || 60.0);
+  const rho = Math.max(0.5, p.rho || 1.205585);
+  const c = Math.max(200.0, p.c || 343.37);
+  const Sp = Math.max(1e-5, p.SpFront || p.Sp || 0.01);
+
+  const ws = 2.0 * Math.PI * Fs;
+  const rhoC2 = rho * c * c;
+  const Cas = (Vas / 1000.0) / rhoC2;
+  const Mas = 1.0 / (ws * ws * Cas);
+  const Ram = (ws * Mas) / Qms;
+  const Rae = (ws * Mas) / Qes;
+  const Rat = Ram + Rae;
+  const bl2OverSd2 = Rae * Re;
+  const Pg_pk = Math.sqrt(2.0 * Pe * Rae);
+
+  const Cab = (Vb / 1000.0) / rhoC2;
+  const wb = 2.0 * Math.PI * Fb;
+  const Map = 1.0 / (wb * wb * Cab);
+  const Rap = (wb * Map) / Qp;
+  const Gab = (wb * Cab) / QL;
+
+  const planarStyle = (p.planarStyle === 'triangle') ? 'triangle' : 'square';
+  const Lt_m = Math.max(0.05, (p.planarTunnelMm || 200) / 1000.0);
+  const St_m2 = Math.max(0.01, p.planarSt_m2 || Math.max(Sd_m2 * 1.45, 0.16));
+  const rh_m = Math.max(0.02, p.planarRh_m || Math.sqrt(St_m2 / Math.PI));
+  const aMouth_m = Math.max(0.05, p.planarAMouth_m || Math.sqrt(St_m2 / Math.PI));
+  const Z0 = (rho * c) / St_m2;
+
+  // Correção de extremidade de Beranek em semi-espaço 2pi: dEnd = (8 / 3pi) * aMouth
+  const dEnd_m = (8.0 / (3.0 * Math.PI)) * aMouth_m;
+  const Leff_m = Lt_m + dEnd_m;
+  const fQuarterWave = c / (4.0 * Leff_m);
+  const fHalfWave = c / (2.0 * Leff_m);
+
+  // Atenuação visco-térmica de Kirchhoff-Benade nas paredes do túnel (ar a 20°C)
+  const nuAir = 1.516e-5;
+  const thermoFactor = 1.4747; // 1 + (gamma - 1) / sqrt(Pr)
+  const alphaWallCoef = (thermoFactor * Math.sqrt(nuAir / 2.0)) / (rh_m * c);
+  const QtWaveguide = (planarStyle === 'triangle') ? 24.0 : 20.0;
+
+  return {
+    boxType: 'planar', planarStyle,
+    Fs, Qms, Qes, Qts, Re, Vas, Sd_m2, Pe, Vb, Fb, QL, Qp, rho, c, Sp,
+    Cas, Mas, Ram, Rae, Rat, bl2OverSd2, Pg_pk,
+    Cab, Map, Rap, Gab,
+    Lt_m, St_m2, rh_m, aMouth_m, Z0, dEnd_m, Leff_m,
+    fQuarterWave, fHalfWave, alphaWallCoef, QtWaveguide
+  };
+}
+
+function evalPlanarFrequency(m, f) {
+  const w = 2.0 * Math.PI * Math.max(1e-3, f);
+  const k = w / m.c;
+
+  // 1. Impedância acústica do transdutor
+  const zAdmRe = m.Ram;
+  const zAdmIm = (w * m.Mas) - (1.0 / (w * m.Cas));
+  const zAdRe = m.Rat;
+  const zAdIm = zAdmIm;
+
+  // 2. Câmara traseira dutada (Vb, QL, Fb)
+  const yCbRe = m.Gab;
+  const yCbIm = w * m.Cab;
+  const zPRe = m.Rap;
+  const zPIm = w * m.Map;
+  const zPMag2 = Math.max(1e-30, zPRe * zPRe + zPIm * zPIm);
+  const yPRe = zPRe / zPMag2;
+  const yPIm = -zPIm / zPMag2;
+
+  const yRRe = yCbRe + yPRe;
+  const yRIm = yCbIm + yPIm;
+  const yRMag2 = Math.max(1e-30, yRRe * yRRe + yRIm * yRIm);
+  const zRRe = yRRe / yRMag2;
+  const zRIm = -yRIm / yRMag2;
+
+  // 3. Matriz de Transferência Acústica 1D (ABCD) do Túnel Frontal
+  const alphaAtten = m.alphaWallCoef * Math.sqrt(w) + (k / (2.0 * m.QtWaveguide));
+  const aL = Math.min(20.0, alphaAtten * m.Lt_m);
+  const bL = k * m.Lt_m;
+  const chA = Math.cosh(aL);
+  const shA = Math.sinh(aL);
+  const cosB = Math.cos(bL);
+  const sinB = Math.sin(bL);
+
+  const aRe = chA * cosB;
+  const aIm = shA * sinB;
+  const sRe = shA * cosB;
+  const sIm = chA * sinB;
+  const bRe = m.Z0 * sRe;
+  const bIm = m.Z0 * sIm;
+  const cRe = sRe / m.Z0;
+  const cIm = sIm / m.Z0;
+
+  // 4. Impedância de radiação de boca em semi-espaço 2pi (Beranek)
+  const ka = k * m.aMouth_m;
+  const ka2 = ka * ka;
+  const rr = ka2 / (2.0 + ka2);
+  const xr = ((8.0 / (3.0 * Math.PI)) * ka) / (1.0 + 0.48 * ka2);
+  const zRadRe = m.Z0 * rr;
+  const zRadIm = m.Z0 * xr;
+
+  const numTRe = (aRe * zRadRe - aIm * zRadIm) + bRe;
+  const numTIm = (aRe * zRadIm + aIm * zRadRe) + bIm;
+  const denTRe = (cRe * zRadRe - cIm * zRadIm) + aRe;
+  const denTIm = (cRe * zRadIm + cIm * zRadRe) + aIm;
+  const denTMag2 = Math.max(1e-30, denTRe * denTRe + denTIm * denTIm);
+
+  const zThRe = (numTRe * denTRe + numTIm * denTIm) / denTMag2;
+  const zThIm = (numTIm * denTRe - numTRe * denTIm) / denTMag2;
+  const tuRe = denTRe / denTMag2;
+  const tuIm = -denTIm / denTMag2;
+
+  // 5. Solução da rede acoplada (Planar Quadrado vs Triângulo / Euclides)
+  let zLoadRe, zLoadIm;
+  let rMouthConeRe, rMouthConeIm;
+  let rMouthPortRe, rMouthPortIm;
+  let rPortRawRe, rPortRawIm;
+
+  const zrCbRe = zRRe * yCbRe - zRIm * yCbIm;
+  const zrCbIm = zRRe * yCbIm + zRIm * yCbRe;
+
+  if (m.planarStyle === 'triangle') {
+    // Triângulo / Euclides: duto acoplado na garganta do túnel octogonal (z = 0)
+    const yPZthRe = yPRe * zThRe - yPIm * zThIm;
+    const yPZthIm = yPRe * zThIm + yPIm * zThRe;
+    const dCoupRe = 1.0 + (zrCbRe * yPZthRe - zrCbIm * yPZthIm);
+    const dCoupIm = (zrCbRe * yPZthIm + zrCbIm * yPZthRe);
+    const dCoupMag2 = Math.max(1e-30, dCoupRe * dCoupRe + dCoupIm * dCoupIm);
+
+    const rU1Re = (zrCbRe * dCoupRe + zrCbIm * dCoupIm) / dCoupMag2;
+    const rU1Im = (zrCbIm * dCoupRe - zrCbRe * dCoupIm) / dCoupMag2;
+
+    const z1Re = rU1Re * zThRe - rU1Im * zThIm;
+    const z1Im = rU1Re * zThIm + rU1Im * zThRe;
+    zLoadRe = zRRe + (zrCbRe * z1Re - zrCbIm * z1Im);
+    zLoadIm = zRIm + (zrCbRe * z1Im + zrCbIm * z1Re);
+
+    rPortRawRe = rU1Re - 1.0;
+    rPortRawIm = rU1Im;
+
+    rMouthConeRe = tuRe;
+    rMouthConeIm = tuIm;
+    rMouthPortRe = tuRe * rPortRawRe - tuIm * rPortRawIm;
+    rMouthPortIm = tuRe * rPortRawIm + tuIm * rPortRawRe;
+  } else {
+    // Quadrado: cone alimenta o túnel frontal (A×C4); duto sai paralelo no plano da boca
+    zLoadRe = zRRe + zThRe;
+    zLoadIm = zRIm + zThIm;
+
+    rPortRawRe = zrCbRe - 1.0;
+    rPortRawIm = zrCbIm;
+
+    rMouthConeRe = tuRe;
+    rMouthConeIm = tuIm;
+    rMouthPortRe = rPortRawRe;
+    rMouthPortIm = rPortRawIm;
+  }
+
+  // Soma vetorial complexa das velocidades de volume na boca (túnel + duto)
+  const rOutRe = rMouthConeRe + rMouthPortRe;
+  const rOutIm = rMouthConeIm + rMouthPortIm;
+
+  // 6. Velocidade de volume do cone Uc / Pg = 1 / (Zad + Zload)
+  const zTotRe = zAdRe + zLoadRe;
+  const zTotIm = zAdIm + zLoadIm;
+  const zTotMag2 = Math.max(1e-30, zTotRe * zTotRe + zTotIm * zTotIm);
+  const ucRe = zTotRe / zTotMag2;
+  const ucIm = -zTotIm / zTotMag2;
+
+  const uOutRe = ucRe * rOutRe - ucIm * rOutIm;
+  const uOutIm = ucRe * rOutIm + ucIm * rOutRe;
+
+  // Transferência normalizada em semi-espaço 2pi: H(jw) = j*w*Mas * (Uout / Pg)
+  const wMas = w * m.Mas;
+  const H_re = -wMas * uOutIm;
+  const H_im = wMas * uOutRe;
+
+  const ucNormMag = Math.hypot(ucRe, ucIm);
+  const Uc_mag = m.Pg_pk * ucNormMag;
+  const Up_mag = Uc_mag * Math.hypot(rPortRawRe, rPortRawIm);
+  const Hcone_mag = wMas * ucNormMag * Math.hypot(rMouthConeRe, rMouthConeIm);
+  const Hvent_mag = wMas * ucNormMag * Math.hypot(rMouthPortRe, rMouthPortIm);
+
+  // Impedância elétrica real acoplada: Zin = Re + (Bl/Sd)^2 / (Zadm + Zload)
+  const zMechRe = zAdmRe + zLoadRe;
+  const zMechIm = zAdmIm + zLoadIm;
+  const zMechMag2 = Math.max(1e-30, zMechRe * zMechRe + zMechIm * zMechIm);
+  const Zin_re = m.Re + (m.bl2OverSd2 * zMechRe) / zMechMag2;
+  const Zin_im = -(m.bl2OverSd2 * zMechIm) / zMechMag2;
+
+  return { H_re, H_im, Hcone_mag, Hvent_mag, Uc_mag, Up_mag, Zin_re, Zin_im };
+}
+
+function onPlanarGeomChange() {
+  if (document.getElementById('boxType')?.value === 'planar') recalculate();
+  else updateWoodlock();
+}
+
 let bpSynthClampNote = '';
 
 function onBpAlignPresetChange() {
@@ -4350,33 +4620,42 @@ function analyzeTransferAlignment(p) {
   }
 
   if (p.boxType === 'planar') {
-    // Planar Horn / Euclides: Câmara Traseira Dutada (4ª Ordem Small 1973) + Túnel Frontal λ/4
-    const Fs_s = Math.max(1e-3, p.Fs || 40);
-    const Fb_s = Math.max(1e-3, p.Fb || Fs_s);
-    const Qts_s = Math.max(1e-3, p.Qts || 0.4);
-    const QL_s = Math.max(0.1, p.QL || 7.0);
-    const alpha_s = Math.max(0, p.alpha || 1.0);
-    const h = Math.max(1e-6, Fb_s / Fs_s);
-    const sh = Math.sqrt(h);
-    const w0 = 2.0 * Math.PI * Math.sqrt(Fs_s * Fb_s);
-    const a1 = (sh / Qts_s) + (1.0 / (sh * QL_s));
-    const a2 = ((1.0 + alpha_s + (h * h)) / h) + (1.0 / (Qts_s * QL_s));
-    const a3 = (1.0 / (sh * Qts_s)) + (sh / QL_s);
-    const fQW = Math.max(60, p.fQuarterWave || (Fb_s * 2.6));
+    // Planar Horn / Euclides: Solver TMM / ABCD 1D acoplado exato (Câmara Dutada + Túnel λ/4)
+    const planarModel = buildPlanarAcousticModel(p);
+    const hpfOn = Number.isFinite(p.hpfHz) && p.hpfHz > 0;
+    let maxUp = 0;
+    const peakLo = Math.max(planarModel.Fb * 1.35, 55.0);
+    const peakHi = Math.min(1800.0, Math.max(planarModel.fQuarterWave * 3.0, 600.0));
     for (let i = 0; i < N; i++) {
       const f = Math.pow(10, logMin + (i / (N - 1)) * (logMax - logMin));
       freqs[i] = f;
-      const rw = (2.0 * Math.PI * f) / w0;
-      const rw2 = rw * rw;
-      const dRe = rw2 * rw2 - a2 * rw2 + 1.0;
-      const dIm = -a3 * rw2 * rw + a1 * rw;
-      const octaveDist = Math.log2(Math.max(10, f) / fQW);
-      const hornBoostDb = 3.4 * Math.exp(-0.5 * Math.pow(octaveDist / 0.85, 2));
-      const db = 10.0 * Math.log10(Math.max(1e-12, Math.pow(rw, 8) / (dRe * dRe + dIm * dIm))) + hornBoostDb;
+      const ev = evalPlanarFrequency(planarModel, f);
+      const mag = Math.max(1e-6, Math.hypot(ev.H_re, ev.H_im));
+      const db = 20.0 * Math.log10(mag);
       dbs[i] = db;
-      if (db > peakDb) { peakDb = db; fPeak = f; peakIdx = i; }
+      if (f >= peakLo && f <= peakHi && db > peakDb) {
+        peakDb = db;
+        fPeak = f;
+        peakIdx = i;
+      }
+      const hpfLin = hpfOn ? (Math.pow(f / p.hpfHz, 4) / (Math.pow(f / p.hpfHz, 4) + 1.0)) : 1.0;
+      const upVal = ev.Up_mag * hpfLin;
+      if (upVal > maxUp) maxUp = upVal;
     }
-    let f3Planar = Fb_s;
+    if (peakDb < -900) { peakDb = 0; fPeak = planarModel.fQuarterWave; }
+    // Vale real λ/2 acoplado (mínimo local de |H(jw)| acima do pico λ/4 considerando dispersão de Beranek xr(ka))
+    let dipDb = 999;
+    let fDip = Math.min(2000.0, fPeak * 2.0);
+    const dipLo = fPeak * 1.15;
+    const dipHi = Math.min(2000.0, fPeak * 3.8);
+    for (let i = 0; i < N; i++) {
+      const f = freqs[i];
+      if (f >= dipLo && f <= dipHi && dbs[i] < dipDb) {
+        dipDb = dbs[i];
+        fDip = f;
+      }
+    }
+    let f3Planar = planarModel.Fb;
     for (let i = 1; i < N; i++) {
       if (dbs[i - 1] < -3.0 && dbs[i] >= -3.0) {
         const frac = (-3.0 - dbs[i - 1]) / Math.max(1e-9, dbs[i] - dbs[i - 1]);
@@ -4384,7 +4663,17 @@ function analyzeTransferAlignment(p) {
         break;
       }
     }
-    return { f3Exact: f3Planar, peakDb, fPeak };
+    return {
+      f3Exact: f3Planar,
+      peakDb,
+      fPeak,
+      dipDb: dipDb < 900 ? dipDb : 0,
+      fDip,
+      fQuarterWave: fPeak,
+      fHalfWave: fDip,
+      fQuarterWaveGeo: planarModel.fQuarterWave,
+      maxUp
+    };
   }
 
   return { f3Exact: 0, peakDb: 0, fPeak: p.Fs || 40 };
@@ -4529,7 +4818,7 @@ function recalculate() {
 
   let alpha = Vas / Vb;
   let Fb, F3, FH = 0, Vtot, LvCm = 0, DeqIn = 0, airVel = 0, airVelVr = 0, machPct = 0, qtc, fc, fgmax, fxmax, ripple = 0, alignName = '', alignSub = '', alignLabel = 'Alinhamento 4ª Ordem', alignColor = '#38bdf8', kpi2SubTxt = '';
-  let fPipe1 = 0, velLimit = 17.0, portGeom = null, portGeomVr = null, bpEval = null;
+  let fPipe1 = 0, velLimit = 17.0, portGeom = null, portGeomVr = null, bpEval = null, planarEval = null;
 
   const optimalFb = Fs * Math.pow(alpha, 0.31);
   const optimalF3 = Fs * Math.pow(alpha, 0.44);
@@ -4537,13 +4826,17 @@ function recalculate() {
   const vbBadgeGlobal = document.getElementById('vbValBadge');
   if (vbBadgeGlobal) vbBadgeGlobal.textContent = Vb.toFixed(1) + ' L';
 
-  const planarTunnelMm = (lastBuildPack && lastBuildPack.acoustics && lastBuildPack.acoustics.planarGeom && lastBuildPack.acoustics.planarGeom.recuoG)
-    ? lastBuildPack.acoustics.planarGeom.recuoG
-    : Math.max(180, Math.round(diaNom * 25.4 * 0.58));
   const wlAMm = parseFloat(document.getElementById('wlWidthA')?.value) || 550;
   const wlBMm = parseFloat(document.getElementById('wlHeightB')?.value) || 480;
-  const planarMouthR = Math.sqrt(Math.max(0.02, (wlAMm / 1000.0) * (wlBMm / 1000.0) / Math.PI));
-  const fQuarterWave = Math.max(75.0, Math.min(280.0, c / (4.0 * (planarTunnelMm / 1000.0 + 0.6 * planarMouthR))));
+  const wlTMm = parseFloat(document.getElementById('wlThickness')?.value) || 18;
+  const planarStyle = document.getElementById('wlPlanarStyle')?.value || 'square';
+  const planarRecuoInput = document.getElementById('wlPlanarRecuoG')?.value;
+  const planarTunnelGeom = resolvePlanarTunnelGeometry({
+    A: wlAMm, B: wlBMm, t: wlTMm, nDrivers, planarStyle, recuoGInput: planarRecuoInput
+  });
+  const planarTunnelMm = planarTunnelGeom.recuoG;
+  let fQuarterWave = c / (4.0 * (planarTunnelGeom.Lt_m + (8.0 / (3.0 * Math.PI)) * planarTunnelGeom.aMouth_m));
+  let fHalfWave = 2.0 * fQuarterWave;
 
   if (isVented) {
     const tuningModeCont = document.getElementById('tuningModeContainer');
@@ -4552,7 +4845,7 @@ function recalculate() {
     if (fbGroup) fbGroup.style.display = 'block';
 
     if (boxType === 'bass-reflex' || boxType === 'planar') {
-      alignLabel = (boxType === 'planar') ? 'Planar (Dutada + λ/4)' : 'Alinhamento 4ª Ordem';
+      alignLabel = (boxType === 'planar') ? 'Planar TMM (Dutada + λ/4)' : 'Alinhamento 4ª Ordem';
       if (isAutoTune) {
         const useExactAuto = (autoDesignExactFb !== null && autoDesignVbRef !== null && Math.abs(Vb - autoDesignVbRef) < 0.15);
         Fb = useExactAuto ? autoDesignExactFb : optimalFb;
@@ -4564,17 +4857,29 @@ function recalculate() {
         Fb = parseFloat(document.getElementById('fbInput').value) || optimalFb;
       }
       const h_ratio = Fb / Fs;
-      const brEval = analyzeTransferAlignment({ boxType, Fs, Qts, alpha, Fb, QL, fQuarterWave });
+      const brEval = analyzeTransferAlignment({
+        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vb, alpha, Fb, QL, rho, c, hpfHz,
+        planarStyle, planarTunnelMm,
+        planarSt_m2: planarTunnelGeom.St_m2,
+        planarRh_m: planarTunnelGeom.rh_m,
+        planarAMouth_m: planarTunnelGeom.aMouth_m
+      });
+      if (boxType === 'planar') {
+        planarEval = brEval;
+        if (brEval.fQuarterWave > 0) fQuarterWave = brEval.fQuarterWave;
+        if (brEval.fHalfWave > 0) fHalfWave = brEval.fHalfWave;
+      }
       ripple = Math.max(0, brEval.peakDb);
       F3 = (boxType === 'planar')
         ? (brEval.f3Exact > 0 ? brEval.f3Exact : optimalF3)
         : (isAutoTune ? optimalF3 : (brEval.f3Exact > 0 ? brEval.f3Exact : optimalF3 * Math.sqrt(Fb / optimalFb)));
 
       if (boxType === 'planar') {
-        alignName = `Planar Dutada + λ/4`;
+        const styleTag = (planarStyle === 'triangle') ? 'Triângulo/Euclides' : 'Quadrada';
+        alignName = `Planar ${styleTag} (TMM)`;
         alignColor = '#14b8a6';
-        alignSub = `Fb ${Fb.toFixed(1)}Hz · Túnel λ/4 @ ${fQuarterWave.toFixed(0)}Hz (L=${(planarTunnelMm/10).toFixed(0)}cm)`;
-        kpi2SubTxt = `F3/Fs = ${(F3 / Fs).toFixed(3)} · Túnel λ/4 ${fQuarterWave.toFixed(0)}Hz (+${brEval.peakDb.toFixed(1)}dB)`;
+        alignSub = `Fb ${Fb.toFixed(1)}Hz · λ/4 ${fQuarterWave.toFixed(0)}Hz · λ/2 ${fHalfWave.toFixed(0)}Hz (G=${planarTunnelMm}mm)`;
+        kpi2SubTxt = `F3/Fs = ${(F3 / Fs).toFixed(3)} · λ/4 ${fQuarterWave.toFixed(0)}Hz (+${brEval.peakDb.toFixed(1)}dB)`;
       } else if (brEval.peakDb > 2.5) {
         alignName = `C4 Pico Alto (+${brEval.peakDb.toFixed(1)} dB)`;
         alignColor = '#f59e0b';
@@ -4717,7 +5022,9 @@ function recalculate() {
 
     airVel = (isBP && bpEval && Number.isFinite(bpEval.maxUpf))
       ? (bpEval.maxUpf / Math.max(1e-6, portGeom.Sp))
-      : (4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb)));
+      : ((boxType === 'planar' && planarEval && Number.isFinite(planarEval.maxUp))
+        ? (planarEval.maxUp / Math.max(1e-6, portGeom.Sp))
+        : (4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb))));
     machPct = (airVel / c) * 100.0;
 
     const ptBox = document.getElementById('portTelemetryBox');
@@ -4869,9 +5176,9 @@ function recalculate() {
       document.getElementById('kpiAlignSub').textContent = alignSub;
     }
 
-    Vtot = (boxType === 'free-air') ? 0.0 : ((boxType === 'planar') ? (Vb * 1.45 + Vsub) : (Vb + Vsub));
+    Vtot = (boxType === 'free-air') ? 0.0 : (Vb + Vsub);
 
-    document.getElementById('kpi1Label').textContent = boxType === 'free-air' ? 'Free-Air Qts' : (boxType === 'planar' ? 'Planar Qtc' : 'Fator Q (Qtc)');
+    document.getElementById('kpi1Label').textContent = boxType === 'free-air' ? 'Free-Air Qts' : 'Fator Q (Qtc)';
     document.getElementById('kpi1Val').textContent = qtc.toFixed(3);
     document.getElementById('kpi1Sub').textContent = 'Fc = ' + fc.toFixed(2) + ' Hz' + (nDrivers > 1 ? ` · ${nDrivers}x` : '');
     document.getElementById('kpi2Label').textContent = 'Corte F3 (-3dB)';
@@ -4888,14 +5195,18 @@ function recalculate() {
   document.getElementById('kpiVtotVal').textContent = Vtot.toFixed(2) + ' L';
   document.getElementById('kpiF100Val').textContent = F100.toFixed(2) + ' Hz';
 
-  // Síntese dos 13 Gráficos (suporta Selada, Dutada, BP4, BP6 e Planar)
+  // Síntese dos 13 Gráficos (suporta Selada, Dutada, BP4, BP6 e Planar TMM)
   generateSimulationData({
     boxType, Fs, Qes, Qms, Re, Sd_m2, Vas, Xmax_mm, Pe, Qts,
     Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
-    fPipe1, velLimit, nDrivers, deltaT, powerCompDb, fQuarterWave, planarTunnelMm,
+    fPipe1, velLimit, nDrivers, deltaT, powerCompDb, fQuarterWave, fHalfWave, planarTunnelMm, planarStyle,
+    planarSt_m2: planarTunnelGeom.St_m2,
+    planarRh_m: planarTunnelGeom.rh_m,
+    planarAMouth_m: planarTunnelGeom.aMouth_m,
     SpFront: portGeom ? portGeom.Sp : 0.01,
     SpRear: portGeomVr ? portGeomVr.Sp : 0.01,
-    bpMetrics: bpEval
+    bpMetrics: bpEval,
+    planarMetrics: planarEval
   });
 
   drawAllCharts();
@@ -4903,7 +5214,7 @@ function recalculate() {
   updateWoodlock();
   updateElectrical();
   updateSimAdvancedTelemetry({ Fs, Qes: Qes_nom, Qms, Qts: (Qms * Qes_nom) / (Qms + Qes_nom), Vas: Vas_single, Re: Re_nom, Pe: Pe_single, Sd_m2: Sd_single_m2, Xmax_mm, c, rho, spl_1w, spl_rated, Vd, EBP: Fs / Qes_nom, no_frac });
-  updateDesktopStatusBar({ boxType, nDrivers, Vb, Vr, Fb, FbVr, bp6Mode, fc, F3, FH, LvCm, LvVrCm: portGeomVr ? portGeomVr.LvCm : 0, airVel, airVelVr: portGeomVr ? airVelVr : 0, fPipe1, fQuarterWave, deltaT, powerCompDb, EBP, alpha, Vtot, Qts, Xmax_mm, Pe });
+  updateDesktopStatusBar({ boxType, nDrivers, Vb, Vr, Fb, FbVr, bp6Mode, fc, F3, FH, LvCm, LvVrCm: portGeomVr ? portGeomVr.LvCm : 0, airVel, airVelVr: portGeomVr ? airVelVr : 0, fPipe1, fQuarterWave, fHalfWave, planarTunnelMm, planarStyle, deltaT, powerCompDb, EBP, alpha, Vtot, Qts, Xmax_mm, Pe });
 }
 
 function generateSimulationData(p) {
@@ -4929,8 +5240,7 @@ function generateSimulationData(p) {
   const alpha_s = Math.max(0, p.alpha || 0);
   const hpfOn = Number.isFinite(p.hpfHz) && p.hpfHz > 0;
 
-  const isBrLike = (p.boxType === 'bass-reflex' || p.boxType === 'planar');
-  const fQW = Math.max(60, p.fQuarterWave || (Fb_s * 2.6));
+  const isBrLike = (p.boxType === 'bass-reflex');
   const h = (isBrLike ? Math.max(1e-6, Fb_s / Fs_s) : 1.0);
   const sh = Math.sqrt(h);
   const w0 = 2.0 * Math.PI * Math.sqrt(Fs_s * (isBrLike ? Fb_s : fc_s));
@@ -4982,6 +5292,13 @@ function generateSimulationData(p) {
     ? buildBandPassAcousticModel(p)
     : null;
 
+  // Modelo físico TMM / ABCD 1D acoplado Planar Horn / Euclides
+  const planarModel = (p.boxType === 'planar')
+    ? buildPlanarAcousticModel(p)
+    : null;
+  const fQW = (p.fQuarterWave && p.fQuarterWave > 0) ? p.fQuarterWave : (planarModel ? planarModel.fQuarterWave : 0);
+  const fHW = (p.fHalfWave && p.fHalfWave > 0) ? p.fHalfWave : (planarModel ? planarModel.fHalfWave : 0);
+
   let minEpdrVal = 1e9;
   let minEpdrFreq = 40.0;
 
@@ -5010,15 +5327,8 @@ function generateSimulationData(p) {
       const den_im = -a3*Math.pow(rel_w, 3) + a1*rel_w;
       const den_mag2 = den_re*den_re + den_im*den_im;
 
-      // Em Planar Horn (Dutada + Túnel λ/4), soma o ganho de acoplamento do ressonador frontal de 1/4 de onda
-      let planarBoostDb = 0.0;
-      if (p.boxType === 'planar') {
-        const octQW = Math.log2(Math.max(10, f) / fQW);
-        planarBoostDb = 3.4 * Math.exp(-0.5 * Math.pow(octQW / 0.85, 2));
-      }
-
-      // G4: Normalized Amplitude Response (Small 1973 Eq. 19 + túnel λ/4 Planar + LR4 HPF)
-      const g_mag_db = 10.0 * Math.log10(Math.max(1e-12, Math.pow(rel_w, 8) / den_mag2)) + planarBoostDb + hpf_db;
+      // G4: Normalized Amplitude Response (Small 1973 Eq. 19 + LR4 HPF)
+      const g_mag_db = 10.0 * Math.log10(Math.max(1e-12, Math.pow(rel_w, 8) / den_mag2)) + hpf_db;
       G4.push(g_mag_db);
 
       // G6: SPL Thermic & G7: Cabin Gain (G4 + T_cabin) & G5: SPL in Car (G6 + T_cabin)
@@ -5029,7 +5339,7 @@ function generateSimulationData(p) {
       G5.push(spl_th + t_cabin_db);
 
       // G2: Vent SPL (Small 1973: |-h * sn^2 / D(sn)| * |H_HPF|, iguala G6 em Fb)
-      const vent_mag_db = 10.0 * Math.log10(Math.max(1e-12, (h * h * Math.pow(rel_w, 4)) / den_mag2)) + planarBoostDb + hpf_db;
+      const vent_mag_db = 10.0 * Math.log10(Math.max(1e-12, (h * h * Math.pow(rel_w, 4)) / den_mag2)) + hpf_db;
       const ventSplBr = p.spl_rated + vent_mag_db;
       G2.push(ventSplBr);
       G2_front.push(ventSplBr);
@@ -5039,18 +5349,17 @@ function generateSimulationData(p) {
       const c_num_re = h - Math.pow(rel_w, 2);
       const c_num_im = (sh / QL_s) * rel_w;
       const c_num_mag2 = Math.pow(rel_w, 4) * (c_num_re*c_num_re + c_num_im*c_num_im);
-      const cone_mag_db = 10.0 * Math.log10(Math.max(1e-9, c_num_mag2 / den_mag2)) + planarBoostDb + hpf_db;
+      const cone_mag_db = 10.0 * Math.log10(Math.max(1e-9, c_num_mag2 / den_mag2)) + hpf_db;
       G10.push(p.spl_rated + cone_mag_db);
 
-      // G8: Cone Displacement #8 (mm) (Small 1972/1973 Eq. 24 com QB = 7.0; túnel Planar amortece carga acústica)
+      // G8: Cone Displacement #8 (mm) (Small 1972/1973 Eq. 24 com QB = 7.0)
       const dd_re = Math.pow(rel_w, 4) - a2_disp*Math.pow(rel_w, 2) + 1.0;
       const dd_im = -a3_disp*Math.pow(rel_w, 3) + a1_disp*rel_w;
       const dd_mag2 = dd_re*dd_re + dd_im*dd_im;
       const nd_re = h - Math.pow(rel_w, 2);
       const nd_im = (sh / qb_disp) * rel_w;
       const nd_mag2 = nd_re*nd_re + nd_im*nd_im;
-      const planarLoadDamp = (p.boxType === 'planar') ? 0.86 : 1.0;
-      const exc_mm = x_ref_peak_mm * (Math.sqrt(nd_mag2 / dd_mag2) / h) * planarLoadDamp * hpf_lin;
+      const exc_mm = x_ref_peak_mm * (Math.sqrt(nd_mag2 / dd_mag2) / h) * hpf_lin;
       G8.push(exc_mm);
 
       // G1: Max Power #1 (Watts RMS) — Limitada por Pe e Xmax (Small 1973)
@@ -5125,20 +5434,57 @@ function generateSimulationData(p) {
       const phiRad = Math.atan2(ev.H_im, ev.H_re);
       phaseRadRaw.push(phiRad);
       G12.push(phiRad * 180.0 / Math.PI);
+    } else if (p.boxType === 'planar') {
+      // Planar Horn / Euclides: Solver TMM / ABCD 1D acoplado exato
+      const ev = evalPlanarFrequency(planarModel, f);
+      const plMag = Math.max(1e-6, Math.hypot(ev.H_re, ev.H_im));
+      const g_mag_db = 20.0 * Math.log10(plMag) + hpf_db;
+      G4.push(g_mag_db);
+
+      const spl_th = p.spl_rated + g_mag_db;
+      G6.push(spl_th);
+      G7.push(g_mag_db + t_cabin_db);
+      G5.push(spl_th + t_cabin_db);
+
+      // G2: Vent SPL (radiação do duto) & G10: Cone/Tunnel SPL (radiação do cone via túnel)
+      const ventSplPl = p.spl_rated + 20.0 * Math.log10(Math.max(1e-6, ev.Hvent_mag)) + hpf_db;
+      const coneSplPl = p.spl_rated + 20.0 * Math.log10(Math.max(1e-6, ev.Hcone_mag)) + hpf_db;
+      G2.push(ventSplPl);
+      G2_front.push(ventSplPl);
+      G2_rear.push(0);
+      G10.push(coneSplPl);
+
+      // G8: Excursão real de pico do cone carregado pela impedância de garganta Z_throat [mm]
+      const exc_mm = Math.max(0.0, (ev.Uc_mag / Math.max(1e-12, w * planarModel.Sd_m2)) * 1000.0 * hpf_lin);
+      G8.push(exc_mm);
+
+      // G1: Potência máxima limitada por Pe térmico e Xmax mecânico real
+      G1.push(exc_mm > 1e-6 ? Math.min(p.Pe, p.Pe * Math.pow(p.Xmax_mm / exc_mm, 2)) : p.Pe);
+
+      // G9: Velocidade real de pico do ar no duto |Up_pk| / Sp * |H_HPF| [m/s]
+      const vPort = (ev.Up_mag / planarModel.Sp) * hpf_lin;
+      G9.push(vPort);
+      G9_front.push(vPort);
+      G9_rear.push(0);
+
+      // G11: Impedância elétrica complexa real Zin(jw) carregada pelo túnel + EPDR
+      const zBoxVal = Math.hypot(ev.Zin_re, ev.Zin_im);
+      G11.push(zBoxVal);
+      const zPhase = Math.atan2(ev.Zin_im, ev.Zin_re);
+      const epdr_f = zBoxVal / (1.0 + Math.abs(Math.sin(zPhase)));
+      if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
+
+      // G12: Fase acústica real (unwrapped em G13 para atraso de grupo real)
+      const phiRad = Math.atan2(ev.H_im, ev.H_re);
+      phaseRadRaw.push(phiRad);
+      G12.push(phiRad * 180.0 / Math.PI);
     } else {
-      // Sealed (Small 1972) ou Planar Horn (Câmara traseira selada + Ganho de Boca Planar)
+      // Sealed (Small 1972) ou Free-Air (Baffle Infinito)
       const rel_fc = f / p.fc;
       const den_re_s = 1.0 - Math.pow(rel_fc, 2);
       const den_im_s = rel_fc / p.qtc;
       const den_mag2 = den_re_s*den_re_s + den_im_s*den_im_s;
-      let hornBoostDb = 0.0;
-      if (p.boxType === 'planar') {
-        // Carregamento acústico de boca planar (+3.2 dB na banda de ataque 1.2*Fc .. 4.5*Fc)
-        const fCenter = p.fc * 2.1;
-        const octaveDist = Math.log2(Math.max(10, f) / fCenter);
-        hornBoostDb = 3.2 * Math.exp(-0.5 * Math.pow(octaveDist / 1.15, 2));
-      }
-      const g_mag_db = 10.0 * Math.log10(Math.pow(rel_fc, 4) / den_mag2) + hornBoostDb + hpf_db;
+      const g_mag_db = 10.0 * Math.log10(Math.pow(rel_fc, 4) / den_mag2) + hpf_db;
       G4.push(g_mag_db);
 
       const spl_th = p.spl_rated + g_mag_db;
@@ -5171,8 +5517,7 @@ function generateSimulationData(p) {
         minEpdrFreq = f;
       }
 
-      const excDamp = (p.boxType === 'planar') ? 0.88 : 1.0;
-      const exc_mm = (x_ref_box_mm / Math.sqrt(den_mag2)) * excDamp * hpf_lin;
+      const exc_mm = (x_ref_box_mm / Math.sqrt(den_mag2)) * hpf_lin;
       G8.push(exc_mm);
 
       const p_max_f = (exc_mm > 1e-6) ? Math.min(p.Pe, p.Pe * Math.pow(p.Xmax_mm / exc_mm, 2)) : p.Pe;
@@ -5256,6 +5601,9 @@ function generateSimulationData(p) {
       airVel: p.airVel,
       fPipe1: p.fPipe1,
       fQuarterWave: fQW,
+      fHalfWave: fHW,
+      planarTunnelMm: p.planarTunnelMm || 0,
+      planarStyle: p.planarStyle || 'square',
       velLimit: p.velLimit,
       nDrivers: p.nDrivers,
       deltaT: p.deltaT,
@@ -5263,7 +5611,8 @@ function generateSimulationData(p) {
       minEpdrVal: minEpdrVal,
       minEpdrFreq: minEpdrFreq,
       Vb: p.Vb,
-      bpMetrics: p.bpMetrics || null
+      bpMetrics: p.bpMetrics || null,
+      planarMetrics: p.planarMetrics || null
     }
   };
 }
@@ -5641,6 +5990,9 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
     }
     if (meta.boxType === 'planar' && meta.fQuarterWave && meta.fQuarterWave > 0) {
       rawMarkers.push({ f: meta.fQuarterWave, tag: 'λ/4', color: '#14b8a6' });
+    }
+    if (meta.boxType === 'planar' && meta.fHalfWave && meta.fHalfWave > 0) {
+      rawMarkers.push({ f: meta.fHalfWave, tag: 'λ/2', color: '#f97316' });
     }
 
     const visMarkers = rawMarkers
@@ -6578,7 +6930,8 @@ function onWoodlockDimChange(axis) {
       showWlAutofixBanner('');
     }
   }
-  updateWoodlock();
+  if (document.getElementById('boxType')?.value === 'planar') recalculate();
+  else updateWoodlock();
 }
 
 function escapeHtmlStr(str) {
@@ -7372,17 +7725,23 @@ function updateWoodlock() {
   // Geometria Planar Horn (Quadrado: CG, Baffle A×C4, Div. A4×R | Triângulo: Octogonal + 4× 45° V×Z)
   let planarGeom = null;
   if (isPlanar) {
-    const recuoG = Math.round(Math.max(120, Math.min(280, B * 0.42)));
+    const recuoGInput = document.getElementById('wlPlanarRecuoG')?.value;
+    const tg = resolvePlanarTunnelGeometry({ A, B, t, nDrivers, planarStyle, recuoGInput });
+    const recuoG = tg.recuoG;
     const CG = +(C_top + recuoG).toFixed(1);
     const DG = +(D_bot + recuoG).toFixed(1);
-    if (planarStyle === 'triangle') {
-      const Z_leg = Math.round(Math.min(A, B) * 0.22);
-      const S_side = Math.round(Math.max(40, B - 2 * Z_leg));
-      const Z_hyp = Math.round(Z_leg * Math.SQRT2);
-      planarGeom = { style: 'triangle', recuoG, CG, DG, C_chamber: +C_medExact.toFixed(1), C4: null, Z_leg, Z: Z_hyp, S: S_side };
+    if (tg.style === 'triangle') {
+      planarGeom = {
+        style: 'triangle', recuoG, isAutoG: tg.isAutoG, CG, DG,
+        C_chamber: +C_medExact.toFixed(1), C4: null,
+        Z_leg: tg.Z_leg, Z: tg.Z_hyp, S: tg.S_side, St_m2: +tg.St_m2.toFixed(4)
+      };
     } else {
-      const C4 = Math.max(50.0, Math.round(B - Math.min(110, B * 0.18) - t));
-      planarGeom = { style: 'square', recuoG, CG, DG, C_chamber: +C_medExact.toFixed(1), C4, Z_leg: null, Z: null, S: null };
+      planarGeom = {
+        style: 'square', recuoG, isAutoG: tg.isAutoG, CG, DG,
+        C_chamber: +C_medExact.toFixed(1), C4: tg.C4,
+        Z_leg: null, Z: null, S: null, St_m2: +tg.St_m2.toFixed(4)
+      };
     }
   }
 
@@ -10274,85 +10633,6 @@ def make_planar_chamfers(ox_box, oy_box, z0, A, B, z_len, zl, t):
     diag = [
         ((ox_box, oy_box + zl), (ox_box + zl, oy_box), (1.0, 1.0)),
         ((ox_box + A - zl, oy_box), (ox_box + A, oy_box + zl), (-1.0, 1.0)),
-        ((ox_box, oy_box + B - zl), (ox_box + zl, oy_box + B), (1.0, -1.0)),
-        ((ox_box + A - zl, oy_box + B), (ox_box + A, oy_box + B - zl), (-1.0, -1.0)),
-    ]
-    inv = 1.0 / math.sqrt(2.0)
-    for idx, ((x1, y1), (x2, y2), (nx, ny)) in enumerate(diag):
-        ux, uy = nx * inv * t, ny * inv * t
-        pts = [
-            pgs_vec(x1, y1, z0),
-            pgs_vec(x2, y2, z0),
-            pgs_vec(x2 - ux, y2 - uy, z0),
-            pgs_vec(x1 - ux, y1 - uy, z0),
-        ]
-        pts.append(pts[0])
-        face = Part.Face(Part.makePolygon(pts))
-        prism = face.extrude(FreeCAD.Vector(0.0, float(z_len), 0.0))
-        clipped = prism.common(inner_clip) if inner_clip else prism
-        if clipped and clipped.Volume > 10.0:
-            walls.append((f"P_PLANAR_CHAMFER_{idx + 1}", clipped))
-    return walls
-
-def build_all():
-    pack = json.loads(PACK_JSON)
-    geom = pack["geometry"]
-    env = geom["envelope"]
-    ac = pack.get("acoustics") or {}
-    t = float(geom["material"]["thickness"])
-    F, E, A, B, D_ext = float(env["F"]), float(env["E"]), float(env["A"]), float(env["B"]), float(env["D_ext"])
-    parts = geom.get("parts") or []
-    cutouts = geom.get("cutouts") or []
-
-    doc = FreeCAD.newDocument("BassForge_${safeDoc}")
-    solids = []
-
-    def add_solid(name, kind, shape, p_meta, rgb, transp=0):
-        if shape is None:
-            return
-        ed = (p_meta.get("explodeDir") if p_meta else None) or [0, 0, 0]
-        dist = float((p_meta.get("explodeDist") if p_meta else 0.0) or 0.0)
-        obj = doc.addObject("Part::Feature", name)
-        obj.Shape = shape
-        try:
-            obj.addProperty("App::PropertyVector", "BF_ExplodeVec", "BassForge", "Vetor de explosao 3D (mm)")
-            obj.BF_ExplodeVec = pgs_vec(ed[0] * dist, ed[1] * dist, ed[2] * dist)
-            if EXPLODE_RATIO > 0.001:
-                obj.Placement.Base = pgs_vec(ed[0] * dist * EXPLODE_RATIO, ed[1] * dist * EXPLODE_RATIO, ed[2] * dist * EXPLODE_RATIO)
-        except Exception:
-            if EXPLODE_RATIO > 0.001:
-                sh_c = shape.copy()
-                sh_c.translate(pgs_vec(ed[0] * dist * EXPLODE_RATIO, ed[1] * dist * EXPLODE_RATIO, ed[2] * dist * EXPLODE_RATIO))
-                obj.Shape = sh_c
-        if HAS_GUI and hasattr(obj, "ViewObject") and obj.ViewObject:
-            try:
-                obj.ViewObject.ShapeColor = rgb
-                obj.ViewObject.Transparency = int(transp)
-            except Exception:
-                pass
-        solids.append((name, kind, obj))
-
-    MDF_MAIN = (0.82, 0.67, 0.46)
-    MDF_SIDE = (0.76, 0.60, 0.40)
-    MDF_FRONT = (0.86, 0.72, 0.52)
-    BATTEN_COL = (0.28, 0.56, 0.90)
-    PORT_COL = (0.95, 0.45, 0.14)
-    DIV_COL = (0.58, 0.36, 0.88)
-
-    is_trap = (env.get("shape") == "trapezoidal" and abs(float(env.get("D", 0)) - float(env.get("C", 0))) > 0.5)
-    z_rb, z_rt = t, t + max(0.0, float(env.get("D", D_ext - 2 * t)) - float(env.get("C", D_ext - 2 * t)))
-    has_cross = any((pp.get("braceMeta") or {}).get("code") == "CROSS" for pp in parts)
-    has_tb = any((pp.get("braceMeta") or {}).get("code") == "TB" for pp in parts)
-    is_inv = (ac.get("mountMode") == "inverted")
-    drv_fc = [dc for dc in cutouts if dc.get("kind") == "driver" and dc.get("partId") == "P_FRONT_BAFFLE" and dc.get("dia")]
-    max_dd = max((float(dc["dia"]) for dc in drv_fc), default=0.0)
-    drv_ko = []
-    if not is_inv:
-        for dc in drv_fc:
-            dcx, dcy, dd = t + float(dc["xInt"]), t + float(dc["yInt"]), float(dc["dia"])
-            db = min(max(40.0, D_ext - 2.0 * t - 25.0), min(110.0, dd * 0.28))
-            dm = min(max(60.0, D_ext - 2.0 * t - 30.0), dd * 0.56)
-            drv_ko.append(Part.makeCylinder(dd * 0.50 + 10.0, db + 2.0, pgs_vec(dcx, dcy, D_ext - t - db), FreeCAD.Vector(0.0, 1.0, 0.0)))
             drv_ko.append(Part.makeCylinder(dd * 0.34 + 15.0, dm + 2.0, pgs_vec(dcx, dcy, D_ext - t - dm), FreeCAD.Vector(0.0, 1.0, 0.0)))
     def cut_ko(sh):
         for dk in drv_ko:
@@ -10462,7 +10742,7 @@ def build_all():
                 shape = make_box(px0, oy, oz, dx, dy, dz)
                 pg = ac.get("planarGeom")
                 if shape and pg and pg.get("style") == "triangle" and pg.get("Z_leg"):
-                    zl = float(pg["Z_leg"])
+                    zl = min(float(pg["Z_leg"]), dx * 0.28) if p.get("frontSplit") else float(pg["Z_leg"])
                     for tri in [
                         [(px0 - 1, oy - 1), (px0 + zl, oy - 1), (px0 - 1, oy + zl)],
                         [(px0 + dx + 1, oy - 1), (px0 + dx - zl, oy - 1), (px0 + dx + 1, oy + zl)],
@@ -10961,7 +11241,7 @@ function updateDesktopStatusBar(s) {
       : ((s.boxType === 'bass-reflex' || s.boxType === 'bp4')
           ? `💨 Lv ${s.LvCm.toFixed(1)}cm · ${s.airVel.toFixed(1)} m/s · f₁ ${s.fPipe1.toFixed(0)}Hz`
           : (s.boxType === 'planar'
-              ? `💨 Lv ${s.LvCm.toFixed(1)}cm · ${s.airVel.toFixed(1)} m/s · Túnel λ/4 ${(s.fQuarterWave || 150).toFixed(0)}Hz`
+              ? `💨 Lv ${s.LvCm.toFixed(1)}cm · ${s.airVel.toFixed(1)} m/s · λ/4 ${(s.fQuarterWave || 150).toFixed(0)}Hz · λ/2 ${(s.fHalfWave || 300).toFixed(0)}Hz`
               : (s.boxType === 'free-air' ? `💨 Baffle Infinito (Isolamento Frente/Trás)` : `💨 Caixa Selada (sem duto)`)));
   }
   if (sbEpdr && currentCurves && currentCurves.meta) {

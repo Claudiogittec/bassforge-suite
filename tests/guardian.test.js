@@ -1308,6 +1308,148 @@ runSuite('25. Max Acoustic SPL Real (Thermal Pe vs Mechanical Xmax Limit)', () =
   vm.runInContext('loadPreset()', ctx);
 });
 
+// =========================================================================
+// SUITE 26: Planar Horn TMM / ABCD 1D Acoplado, Recuo G Editável & Quadrado vs Triângulo
+// =========================================================================
+runSuite('26. Planar Horn TMM / ABCD 1D Coupled Physics, Recuo G & Square vs Triangle', () => {
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('setHpfEnabled(false, false); loadPreset();', ctx);
+
+  // Referência Bass-Reflex no mesmo Vb/Fb para comparar carregamento acústico real do túnel
+  const cBR = vm.runInContext('currentCurves', ctx);
+  const idxClosest = (freqs, target) => {
+    let bi = 0, bd = Infinity;
+    for (let i = 0; i < freqs.length; i++) {
+      const d = Math.abs(freqs[i] - target);
+      if (d < bd) { bd = d; bi = i; }
+    }
+    return bi;
+  };
+
+  // 26.1 Planar Quadrado (Recuo G = 0 Auto): TMM gera pico real λ/4, vale real λ/2 e 0 NaN em G1..G13
+  elements.get('wlPlanarStyle').value = 'square';
+  elements.get('wlPlanarRecuoG').value = '0';
+  vm.runInContext("selectTopology('planar');", ctx);
+  const cSqAuto = vm.runInContext('currentCurves', ctx);
+  const packSqAuto = vm.runInContext('lastBuildPack', ctx);
+  assert(cSqAuto.meta.fQuarterWave > 70 && cSqAuto.meta.fQuarterWave < 400, `fQuarterWave fora da faixa: ${cSqAuto.meta.fQuarterWave}`);
+  assert(cSqAuto.meta.fHalfWave > cSqAuto.meta.fQuarterWave * 1.7 && cSqAuto.meta.fHalfWave < 1800, `fHalfWave dispersivo de Beranek deve ficar acima de 1.7*fQuarterWave (${cSqAuto.meta.fHalfWave} vs ${cSqAuto.meta.fQuarterWave})`);
+
+  const curveKeys = ['G1_MaxPower', 'G2_VentSPL', 'G3_FreeAirZ', 'G4_NormAmp', 'G5_SPLinCar', 'G6_SPLThermic', 'G6_SPLMaxReal', 'G7_CabinGain', 'G8_ConeExcursion', 'G9_PortAirVel', 'G10_ConeSPL', 'G11_InBoxZ', 'G12_Phase', 'G13_GroupDelay'];
+  curveKeys.forEach(k => {
+    const arr = cSqAuto[k];
+    assert(Array.isArray(arr) && arr.length === 600, `Curva ${k} deve ter 600 pontos`);
+    assert(arr.every(v => Number.isFinite(v)), `Curva ${k} contém NaN/Infinity em Planar TMM`);
+  });
+
+  // G6_SPLMaxReal <= G6_SPLThermic em toda a faixa
+  for (let i = 0; i < cSqAuto.G6_SPLThermic.length; i++) {
+    assert(cSqAuto.G6_SPLMaxReal[i] <= cSqAuto.G6_SPLThermic[i] + 1e-6, `G6_SPLMaxReal > G6_SPLThermic no índice ${i}`);
+  }
+
+  // Ganho real λ/4 (> +2.0 dB), vale real λ/2 (< pico λ/4 por > 4 dB) e alinhamento exato dos marcadores com o pico/vale TMM
+  const iQW = idxClosest(cSqAuto.frequencies, cSqAuto.meta.fQuarterWave);
+  const iHW = idxClosest(cSqAuto.frequencies, cSqAuto.meta.fHalfWave);
+  const gainQW = cSqAuto.G4_NormAmp[iQW];
+  const gainHW = cSqAuto.G4_NormAmp[iHW];
+  let bandMaxDb = -999;
+  for (let i = 0; i < cSqAuto.frequencies.length; i++) {
+    if (cSqAuto.frequencies[i] >= 60 && cSqAuto.frequencies[i] <= 600) {
+      bandMaxDb = Math.max(bandMaxDb, cSqAuto.G4_NormAmp[i]);
+    }
+  }
+  assert(Math.abs(gainQW - bandMaxDb) < 0.35, `Marcador λ/4 deve coincidir com o pico real TMM (${gainQW.toFixed(2)} vs max ${bandMaxDb.toFixed(2)} dB)`);
+  assert(gainQW > 2.0, `Planar TMM deve produzir ganho real λ/4 > +2.0 dB (obtido ${gainQW.toFixed(2)} dB @ ${cSqAuto.meta.fQuarterWave.toFixed(0)} Hz)`);
+  assert(gainQW - gainHW > 4.0, `Planar TMM deve produzir vale real λ/2 abaixo do pico λ/4 (λ/4=${gainQW.toFixed(2)} dB vs λ/2=${gainHW.toFixed(2)} dB)`);
+  assert(gainHW < 0.0, `Marcador λ/2 deve coincidir com o vale real negativo TMM (obtido ${gainHW.toFixed(2)} dB @ ${cSqAuto.meta.fHalfWave.toFixed(0)} Hz)`);
+
+  // Carregamento acústico real Z_throat altera G8 (excursão) em λ/4 e G11 (impedância) na banda 40–250 Hz vs Bass-Reflex puro
+  const excDiff = Math.abs(cSqAuto.G8_ConeExcursion[iQW] - cBR.G8_ConeExcursion[iQW]);
+  let maxZDiffBand = 0;
+  for (let i = 0; i < cSqAuto.frequencies.length; i++) {
+    const f = cSqAuto.frequencies[i];
+    if (f >= 40 && f <= 250) {
+      maxZDiffBand = Math.max(maxZDiffBand, Math.abs(cSqAuto.G11_InBoxZ[i] - cBR.G11_InBoxZ[i]));
+    }
+  }
+  assert(excDiff > 0.05, `Z_throat deve alterar excursão G8 em λ/4 vs BR puro (diff=${excDiff.toFixed(3)} mm)`);
+  assert(maxZDiffBand > 0.5, `Z_throat deve alterar impedância elétrica G11 na banda 40–250 Hz vs BR puro (maxDiff=${maxZDiffBand.toFixed(3)} Ω)`);
+
+  // 26.2 Recuo G editável (#wlPlanarRecuoG) sincronizado em tempo real com TMM + PGS 3D + DXF + FreeCAD
+  elements.get('wlPlanarRecuoG').value = '160';
+  vm.runInContext('onPlanarGeomChange();', ctx);
+  const cG160 = vm.runInContext('currentCurves', ctx);
+  const fQW160 = cG160.meta.fQuarterWave;
+  const fHW160 = cG160.meta.fHalfWave;
+  assert.strictEqual(vm.runInContext('lastBuildPack.acoustics.planarGeom.recuoG', ctx), 160, 'Recuo G=160mm deve refletir no BuildPack');
+
+  elements.get('wlPlanarRecuoG').value = '360';
+  vm.runInContext('onPlanarGeomChange();', ctx);
+  const cG360 = vm.runInContext('currentCurves', ctx);
+  const packG360 = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(packG360.acoustics.planarGeom.recuoG, 360, 'Recuo G=360mm deve refletir no BuildPack');
+  assert(Math.abs(packG360.acoustics.planarGeom.CG - (packG360.dimensions.C_top + 360)) < 0.2, 'CG deve igualar C_top + 360mm');
+  assert(cG360.meta.fQuarterWave < fQW160 - 20, `Aumentar recuo G (160->360mm) deve reduzir fQuarterWave (${fQW160.toFixed(1)} -> ${cG360.meta.fQuarterWave.toFixed(1)} Hz)`);
+  assert(cG360.meta.fHalfWave < fHW160 - 40, `Aumentar recuo G (160->360mm) deve reduzir fHalfWave (${fHW160.toFixed(1)} -> ${cG360.meta.fHalfWave.toFixed(1)} Hz)`);
+  const g360PgsFail = packG360.geometry.validation.filter(c => !c.pass);
+  assert.strictEqual(g360PgsFail.length, 0, `Planar com Recuo G=360mm deve passar PGS 12/12: ${JSON.stringify(g360PgsFail)}`);
+  const dxfG360 = vm.runInContext('buildPgsDxfString(lastBuildPack)', ctx);
+  assert(dxfG360.includes('G=360 mm'), 'Exportador DXF deve conter cota customizada G=360 mm');
+
+  // Guardrails de clamp de Recuo G [80, 600] mm
+  elements.get('wlPlanarRecuoG').value = '20';
+  vm.runInContext('onPlanarGeomChange();', ctx);
+  assert.strictEqual(vm.runInContext('lastBuildPack.acoustics.planarGeom.recuoG', ctx), 80, 'Recuo G abaixo de 80mm deve sofrer clamp p/ 80mm');
+  elements.get('wlPlanarRecuoG').value = '999';
+  vm.runInContext('onPlanarGeomChange();', ctx);
+  assert.strictEqual(vm.runInContext('lastBuildPack.acoustics.planarGeom.recuoG', ctx), 600, 'Recuo G acima de 600mm deve sofrer clamp p/ 600mm');
+
+  // 26.3 Diferenciação física real entre Planar Quadrado (square) vs Planar Triângulo / Euclides (triangle)
+  elements.get('wlPlanarRecuoG').value = '240';
+  elements.get('wlPlanarStyle').value = 'square';
+  vm.runInContext('onPlanarGeomChange();', ctx);
+  const cSq240 = vm.runInContext('currentCurves', ctx);
+  const stSq = vm.runInContext('lastBuildPack.acoustics.planarGeom.St_m2', ctx);
+
+  elements.get('wlPlanarStyle').value = 'triangle';
+  vm.runInContext('onPlanarGeomChange();', ctx);
+  const cTri240 = vm.runInContext('currentCurves', ctx);
+  const packTri240 = vm.runInContext('lastBuildPack', ctx);
+  const stTri = packTri240.acoustics.planarGeom.St_m2;
+  assert(Math.abs(stSq - stTri) > 0.005, `Seção St_m2 deve diferir fisicamente entre Quadrado (${stSq}) e Triângulo/Euclides (${stTri})`);
+
+  let maxAmpDiff = 0, maxZDiff = 0;
+  for (let i = 0; i < 600; i++) {
+    maxAmpDiff = Math.max(maxAmpDiff, Math.abs(cSq240.G4_NormAmp[i] - cTri240.G4_NormAmp[i]));
+    maxZDiff = Math.max(maxZDiff, Math.abs(cSq240.G11_InBoxZ[i] - cTri240.G11_InBoxZ[i]));
+  }
+  assert(maxAmpDiff > 0.5, `Resposta G4 deve diferir fisicamente entre Planar Quadrado e Triângulo/Euclides (maxDiff=${maxAmpDiff.toFixed(2)} dB)`);
+  assert(maxZDiff > 1.0, `Impedância G11 deve diferir fisicamente entre Planar Quadrado e Triângulo/Euclides (maxDiff=${maxZDiff.toFixed(2)} Ω)`);
+  const tri240Fail = packTri240.geometry.validation.filter(c => !c.pass);
+  assert.strictEqual(tri240Fail.length, 0, `Planar Triângulo Recuo G=240mm deve passar PGS 12/12: ${JSON.stringify(tri240Fail)}`);
+
+  // 26.4 Caso extremo: 2× Drivers Planar Triângulo Trapezoidal 25° com Recuo G=600mm (PGS + FreeCAD clamp de chanfro)
+  elements.get('simNumDrivers').value = '2';
+  elements.get('wlShape').value = 'trapezoidal';
+  elements.get('wlAngle').value = '25';
+  elements.get('wlPlanarStyle').value = 'triangle';
+  elements.get('wlPlanarRecuoG').value = '600';
+  vm.runInContext("recalculate(); autofixWoodlockGeometry('teste dual planar');", ctx);
+  const packDualTri = vm.runInContext('lastBuildPack', ctx);
+  const dualTriFail = packDualTri.geometry.validation.filter(c => !c.pass);
+  assert.strictEqual(dualTriFail.length, 0, `Dual Planar Triângulo Trap 25° G=600mm deve passar PGS 12/12: ${JSON.stringify(dualTriFail)}`);
+  const fcDualTri = vm.runInContext('buildFreeCadMacroString(lastBuildPack)', ctx);
+  assert(fcDualTri.includes('min(float(pg["Z_leg"]), dx * 0.28)'), 'FreeCAD macro deve aplicar clamp de chanfro Z_leg no baffle duplo Planar Triângulo');
+
+  // Restaura estado padrão
+  elements.get('simNumDrivers').value = '1';
+  elements.get('wlShape').value = 'rectangular';
+  elements.get('wlAngle').value = '15';
+  elements.get('wlPlanarStyle').value = 'square';
+  elements.get('wlPlanarRecuoG').value = '0';
+  vm.runInContext('loadPreset()', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');
