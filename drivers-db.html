@@ -2781,49 +2781,62 @@
       if (!rep) return;
 
       rep.innerHTML = `
-        <div style="border-bottom:2px solid #000; padding-bottom:8px; margin-bottom:14px; display:flex; justify-content:space-between;">
-          <div>
-            <h2 style="margin:0; font-size:19px; font-weight:700; color:#0f2a3d;">BassForge — Relatório Técnico de Transdutor</h2>
-            <div style="font-size:11px; color:#555;">Auditoria Física, Dinâmica do Motor e Validação Cruzada</div>
+        <div style="font-variant-numeric:tabular-nums lining-nums; color:#0f172a; line-height:1.45;">
+          <div style="border:1.5px solid #0f172a; border-radius:4px; overflow:hidden; margin-bottom:14px;">
+            <div style="background:#0f172a; color:#f8fafc; padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <div style="font-size:16px; font-weight:700; letter-spacing:0.3px;">BassForge — Relatório Técnico de Transdutor (A4)</div>
+                <div style="font-size:10px; color:#94a3b8; font-family:monospace;">AUDITORIA FÍSICA, DINÂMICA DO MOTOR E VALIDAÇÃO CRUZADA ISO 9613-1</div>
+              </div>
+              <div style="text-align:right; font-size:10px; font-family:monospace;">
+                <div><b>${new Date().toLocaleDateString('pt-BR')}</b></div>
+                <div style="color:#94a3b8;">${a.vereditoLabel}</div>
+              </div>
+            </div>
+            <div style="display:grid; grid-template-columns:2fr 1fr 1fr; background:#f8fafc; border-top:1px solid #cbd5e1; font-family:monospace; font-size:10px;">
+              <div style="padding:6px 10px; border-right:1px solid #cbd5e1;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">Transdutor</span><b>${d.brand} ${d.model} (${d.diameter_in}″)</b></div>
+              <div style="padding:6px 10px; border-right:1px solid #cbd5e1;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">Impedância / Potência</span><b>${d.znom} Ω · ${d.pe} W RMS</b></div>
+              <div style="padding:6px 10px;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">EBP / Qts</span><b>${a.EBP.toFixed(1)} Hz · Qts ${a.Qts.toFixed(3)}</b></div>
+            </div>
           </div>
-          <div style="text-align:right; font-size:11px; font-family:monospace;">
-            Data: ${new Date().toLocaleDateString('pt-BR')}<br>Veredito: <b>${a.vereditoLabel}</b>
-          </div>
-        </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:11px;">
-          <div>
-            <h4 style="margin:0 0 6px 0; border-bottom:1px solid #ccc; padding-bottom:2px;">1. IDENTIFICAÇÃO & THIELE-SMALL</h4>
-            <div><b>Driver:</b> ${d.brand} ${d.model} (${d.diameter_in}″ · Znom ${d.znom}Ω)</div>
-            <div><b>Potência Elétrica (Pe):</b> ${d.pe} Watts RMS · <b>Vsub:</b> ${(d.vsub || 0).toFixed(1)} L</div>
-            <div><b>Fs:</b> ${d.fs} Hz · <b>Qts:</b> ${a.Qts.toFixed(3)} · <b>Vas:</b> ${d.vas} L</div>
-            <div><b>Qes:</b> ${d.qes} · <b>Qms:</b> ${d.qms} · <b>Re:</b> ${d.re} Ω · <b>Le:</b> ${d.le} mH</div>
-            <div><b>Xmax:</b> ${d.xmax} mm (Geom: ${a.x_geom.toFixed(2)}mm · Hvc/Hgap: ${d.hvc || 0}/${d.hgap || 0}mm) · <b>Sd:</b> ${d.sd} cm²</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:11px;">
+            <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px 12px; background:#f8fafc;">
+              <h4 style="margin:0 0 6px 0; border-left:3px solid #0284c7; padding-left:6px; font-size:11px; text-transform:uppercase;">1. Parâmetros Thiele-Small</h4>
+              <div><b>Fs:</b> ${d.fs} Hz · <b>Qts:</b> ${a.Qts.toFixed(3)} · <b>Vas:</b> ${d.vas} L</div>
+              <div><b>Qes:</b> ${d.qes} · <b>Qms:</b> ${d.qms} · <b>Re:</b> ${d.re} Ω · <b>Le:</b> ${d.le} mH</div>
+              <div><b>Xmax:</b> ${d.xmax} mm (Geom: ${a.x_geom.toFixed(2)} mm · Hvc/Hgap: ${d.hvc || 0}/${d.hgap || 0} mm)</div>
+              <div><b>Sd:</b> ${d.sd} cm² · <b>Raio Pistão (a):</b> ${a.radius_cm.toFixed(2)} cm · <b>Vsub:</b> ${(d.vsub || 0).toFixed(1)} L</div>
+            </div>
+            <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px 12px; background:#f8fafc;">
+              <h4 style="margin:0 0 6px 0; border-left:3px solid #0284c7; padding-left:6px; font-size:11px; text-transform:uppercase;">2. Motor, Massa e Transientes</h4>
+              <div><b>Mms / Mmd:</b> ${a.Mms_g.toFixed(1)} g / ${a.Mmd_g.toFixed(1)} g${d.mms_cat > 0 ? ` (Cat: ${d.mms_cat} g | Δ ${a.dev_mms_pct.toFixed(2)}%)` : ''}</div>
+              <div><b>Cms / Rms:</b> ${a.Cms_mm_N.toFixed(3)} mm/N / ${a.Rms.toFixed(2)} kg/s</div>
+              <div><b>Bl:</b> ${a.Bl.toFixed(2)} T·m${d.bl_cat > 0 ? ` (Cat: ${d.bl_cat} T·m | Δ ${a.dev_bl_pct.toFixed(2)}%)` : ''} · <b>Bl²/Re:</b> ${a.bl2_re.toFixed(1)} N²/W</div>
+              <div><b>Γ (Acel.):</b> ${a.accel_factor.toFixed(0)} m/s²/A · <b>Breakup:</b> ${Math.round(a.f_breakup)} Hz · <b>τe/τm:</b> ${a.tau_e_ms.toFixed(2)}/${a.tau_m_ms.toFixed(2)} ms</div>
+            </div>
           </div>
-          <div>
-            <h4 style="margin:0 0 6px 0; border-bottom:1px solid #ccc; padding-bottom:2px;">2. MOTOR, MASSA & DINÂMICA DE TRANSIENTES</h4>
-            <div><b>Mms / Mmd:</b> ${a.Mms_g.toFixed(1)} g / ${a.Mmd_g.toFixed(1)} g${d.mms_cat > 0 ? ` (Cat: ${d.mms_cat} g | Δ ${a.dev_mms_pct.toFixed(2)}%)` : ''}</div>
-            <div><b>Cms / Rms:</b> ${a.Cms_mm_N.toFixed(3)} mm/N / ${a.Rms.toFixed(2)} kg/s</div>
-            <div><b>Força do Motor (Bl):</b> ${a.Bl.toFixed(2)} T·m${d.bl_cat > 0 ? ` (Cat: ${d.bl_cat} T·m | Δ ${a.dev_bl_pct.toFixed(2)}%)` : ''}</div>
-            <div><b>Densidade de Força (Bl²/Re):</b> ${a.bl2_re.toFixed(1)} N²/W · <b>Γ:</b> ${a.accel_factor.toFixed(0)} m/s²/A</div>
-            <div><b>Breakup Cone:</b> ${Math.round(a.f_breakup)} Hz · <b>τe / τm:</b> ${a.tau_e_ms.toFixed(2)}ms / ${a.tau_m_ms.toFixed(2)}ms</div>
-          </div>
-        </div>
 
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; font-size:11px; margin-top:12px;">
-          <div>
-            <h4 style="margin:0 0 6px 0; border-bottom:1px solid #ccc; padding-bottom:2px;">3. EFICIÊNCIA & PRESSÃO SONORA</h4>
-            <div><b>Sensibilidade (1W @ 1m):</b> ${a.SPL1W.toFixed(1)} dB SPL</div>
-            <div><b>Sensibilidade (2.83V @ 1m):</b> ${a.SPL2_83.toFixed(1)} dB SPL</div>
-            <div><b>SPL Máximo Contínuo (Térmico):</b> ${a.SPL_max_term.toFixed(1)} dB SPL</div>
-            <div><b>Potência Acústica Máxima:</b> ${a.Pac_max.toFixed(1)} Watts acústicos</div>
-            <div><b>EBP:</b> ${a.EBP.toFixed(1)}</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:11px; margin-top:12px;">
+            <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px 12px; background:#f8fafc;">
+              <h4 style="margin:0 0 6px 0; border-left:3px solid #0284c7; padding-left:6px; font-size:11px; text-transform:uppercase;">3. Eficiência e Pressão Sonora</h4>
+              <div><b>Eficiência (η₀):</b> ${a.eta0_pct.toFixed(2)} % · <b>Vd:</b> ${a.Vd.toFixed(3)} L</div>
+              <div><b>Sensibilidade (1W @ 1m):</b> ${a.SPL1W.toFixed(1)} dB SPL</div>
+              <div><b>Sensibilidade (2.83V @ 1m):</b> ${a.SPL2_83.toFixed(1)} dB SPL</div>
+              <div><b>SPL Máx. Térmico:</b> ${a.SPL_max_term.toFixed(1)} dB SPL · <b>Pac:</b> ${a.Pac_max.toFixed(1)} W ac</div>
+            </div>
+            <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px 12px; background:#f8fafc;">
+              <h4 style="margin:0 0 6px 0; border-left:3px solid #0284c7; padding-left:6px; font-size:11px; text-transform:uppercase;">4. Auditoria Cruzada de Fs (ISO 9613-1)</h4>
+              <div><b>FS-01 (Mecânica Mms·Cms):</b> ${a.fs_1.toFixed(2)} Hz (Δ ${a.dev_1.toFixed(2)}%)</div>
+              <div><b>FS-02 (Acústica Vas·Sd):</b> ${a.fs_2.toFixed(2)} Hz (Δ ${a.dev_2.toFixed(2)}%)</div>
+              <div><b>FS-03 (Elétrica Bl·Re·Qes):</b> ${a.fs_3.toFixed(2)} Hz (Δ ${a.dev_3.toFixed(2)}%)</div>
+              <div><b>Impedância R0:</b> ${a.R0.toFixed(1)} Ω · <b>Δf:</b> ${a.delta_f.toFixed(1)} Hz · <b>Veredito:</b> ${a.vereditoLabel}</div>
+            </div>
           </div>
-          <div>
-            <h4 style="margin:0 0 6px 0; border-bottom:1px solid #ccc; padding-bottom:2px;">4. AUDITORIA DAS ROTAS REDUNDANTES DE Fs</h4>
-            <div>• Rota Mecânica FS-01 (Mms·Cms): <b>${a.fs_1.toFixed(2)} Hz</b> (Desvio: ${a.dev_1.toFixed(2)}%)</div>
-            <div>• Rota Acústica FS-02 (Vas·Sd): <b>${a.fs_2.toFixed(2)} Hz</b> (Desvio: ${a.dev_2.toFixed(2)}%)</div>
-            <div>• Rota Elétrica FS-03 (Bl·Re·Qes): <b>${a.fs_3.toFixed(2)} Hz</b> (Desvio: ${a.dev_3.toFixed(2)}%)</div>
+
+          <div style="margin-top:14px; padding-top:6px; border-top:1px solid #cbd5e1; display:flex; justify-content:space-between; font-family:monospace; font-size:9.5px; color:#64748b;">
+            <span>BassForge · Engenharia Eletroacústica</span>
+            <span>c = ${a.atmo.c.toFixed(2)} m/s · ρ = ${a.atmo.rho.toFixed(4)} kg/m³ · P₀ = ${(a.atmo.p_atm / 100).toFixed(2)} hPa</span>
           </div>
         </div>
       `;
