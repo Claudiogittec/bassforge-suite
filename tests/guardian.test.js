@@ -1173,6 +1173,65 @@ runSuite('23. BP6 Dual-Port G9/G2 Curves, Dropdown Topology Switch & Synthesis P
   vm.runInContext('loadPreset()', ctx);
 });
 
+// ============================================================================
+// SUITE 24: Motor Auto-Design PhD Universal (Qualquer Driver + Perfis + Topologias)
+// ============================================================================
+runSuite('24. PhD Universal Auto-Design Engine (QB3/B4/Sealed/BP4/BP6, Laminar Port & Xmax HPF)', () => {
+  // 24.1 Driver A: Motor ultra-forte QB3 (Qts ~ 0.25, Vas 240L, 18" 1000W)
+  vm.runInContext(`applyDbDriver({ name: 'Test 18 QB3', fs: 36, qes: 0.26, qms: 8.5, vas: 240, re: 5.2, pe: 1000, sd: 1210, xmax: 11, diameter_in: 18 })`, ctx);
+  let bp = vm.runInContext('lastBuildPack', ctx);
+  let c = vm.runInContext('currentCurves', ctx);
+  assert.strictEqual(bp.acoustics.boxType, 'bass-reflex', 'Driver QB3 (EBP=138) deve escolher bass-reflex');
+  assert(bp.acoustics.Vb < 140, `Driver Qts=0.25 QB3 deve receber volume compacto (<140L, não 1.15*Vas=276L), obtido ${bp.acoustics.Vb}L`);
+  assert(bp.acoustics.LvCm > 0, `Driver QB3 deve ter Lv > 0, obtido ${bp.acoustics.LvCm}`);
+  assert(Math.max(...c.G4_NormAmp) <= 1.35, `Perfil musical QB3 deve manter ripple <= 1.35 dB, obtido ${Math.max(...c.G4_NormAmp).toFixed(2)} dB`);
+  assert(bp.validation.valid === true, `Driver QB3 deve gerar caixa válida: ${JSON.stringify(bp.validation.issues)}`);
+
+  // 24.2 Driver B: Sub 12" equilibrado B4 (Qts ~ 0.39, Vas 65L, 500W)
+  vm.runInContext(`applyDbDriver({ name: 'Test 12 B4', fs: 32, qes: 0.41, qms: 6.8, vas: 65, re: 3.4, pe: 500, sd: 510, xmax: 12, diameter_in: 12 })`, ctx);
+  bp = vm.runInContext('lastBuildPack', ctx);
+  c = vm.runInContext('currentCurves', ctx);
+  assert.strictEqual(bp.acoustics.boxType, 'bass-reflex', 'Driver B4 (EBP=78) deve escolher bass-reflex');
+  assert(bp.acoustics.LvCm > 0, 'Driver B4 deve ter Lv > 0');
+  assert(Math.max(...c.G4_NormAmp) <= 1.35, `Perfil musical B4 deve manter ripple <= 1.35 dB, obtido ${Math.max(...c.G4_NormAmp).toFixed(2)} dB`);
+  assert(Math.max(...c.G9_PortAirVel) < 34.3, `Driver B4 500W compacto deve ficar abaixo de 10% Mach (34.3 m/s), obtido ${Math.max(...c.G9_PortAirVel).toFixed(1)} m/s`);
+  assert(bp.validation.valid === true, `Driver B4 deve gerar caixa válida: ${JSON.stringify(bp.validation.issues)}`);
+
+  // 24.3 Perfis rápidos: subgrave (Fb menor, Vb maior) vs spl (pico maior)
+  elements.get('autoDesignProfile').value = 'subgrave';
+  vm.runInContext('onAutoDesignProfileChange()', ctx);
+  const subState = { Vb: vm.runInContext('lastBuildPack.acoustics.Vb', ctx), Fb: vm.runInContext('lastBuildPack.acoustics.Fb', ctx) };
+  elements.get('autoDesignProfile').value = 'spl';
+  vm.runInContext('onAutoDesignProfileChange()', ctx);
+  const splState = { Vb: vm.runInContext('lastBuildPack.acoustics.Vb', ctx), Fb: vm.runInContext('lastBuildPack.acoustics.Fb', ctx), peak: Math.max(...vm.runInContext('currentCurves.G4_NormAmp', ctx)) };
+  assert(subState.Vb > splState.Vb, `Subgrave Vb (${subState.Vb}L) deve ser maior que SPL Vb (${splState.Vb}L)`);
+  assert(subState.Fb < splState.Fb, `Subgrave Fb (${subState.Fb}Hz) deve ser menor que SPL Fb (${splState.Fb}Hz)`);
+  assert(splState.peak > 1.2, `Perfil SPL deve produzir reforço > 1.2 dB, obtido ${splState.peak.toFixed(2)} dB`);
+  elements.get('autoDesignProfile').value = 'musical';
+
+  // 24.4 Driver C: Sub 10" Qts alto / EBP baixo -> deve escolher Selada automaticamente
+  vm.runInContext(`applyDbDriver({ name: 'Test 10 Sealed', fs: 30, qes: 0.68, qms: 5.5, vas: 42, re: 3.6, pe: 300, sd: 340, xmax: 10, diameter_in: 10 })`, ctx);
+  bp = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(bp.acoustics.boxType, 'sealed', 'Driver EBP=44 e Qts=0.60 deve escolher caixa selada');
+  assert(bp.validation.valid === true, `Driver Selada deve gerar caixa válida: ${JSON.stringify(bp.validation.issues)}`);
+
+  // 24.5 Troca de topologia com ⚡ ligado em driver 8" recalcula volume ideal em todas as topologias
+  vm.runInContext(`applyDbDriver({ name: 'Test 8 Compact', fs: 48, qes: 0.38, qms: 6.0, vas: 22, re: 3.8, pe: 180, sd: 210, xmax: 6, diameter_in: 8 })`, ctx);
+  for (const topo of ['sealed', 'bp4', 'bp6', 'planar', 'bass-reflex']) {
+    vm.runInContext(`selectTopology('${topo}')`, ctx);
+    const tPack = vm.runInContext('lastBuildPack', ctx);
+    assert(tPack.validation.valid === true, `Troca automática para ${topo} (8") deve ser válida: ${JSON.stringify(tPack.validation.issues)}`);
+    if (topo === 'bass-reflex' || topo === 'bp4' || topo === 'bp6') {
+      assert(tPack.acoustics.LvCm > 0, `Troca automática para ${topo} (8") deve ter Lv > 0`);
+    }
+  }
+
+  // Restaura estado padrão (Golden Master)
+  elements.get('autoDesignProfile').value = 'musical';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('setHpfEnabled(false, false); loadPreset();', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');
