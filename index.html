@@ -3462,18 +3462,19 @@ function autoSizeBassReflexPort(velTarget = 17.0, allowFlaredUpgrade = false) {
 }
 
 function computeOptimalHpfHz(boxType, Fb, FbVr, fc, Xmax_mm) {
+  const isVentedHpf = (boxType === 'bass-reflex' || boxType === 'planar' || boxType === 'bp4' || boxType === 'bp6');
   const fRef = (boxType === 'bp6') ? Math.max(18, FbVr || 35)
-    : ((boxType === 'sealed' || boxType === 'planar' || boxType === 'free-air') ? Math.max(18, fc || 40) : Math.max(18, Fb || 40));
+    : ((boxType === 'sealed' || boxType === 'free-air') ? Math.max(18, fc || 40) : Math.max(18, Fb || 40));
   const fallback = (boxType === 'sealed' || boxType === 'free-air')
     ? Math.max(15, Math.round(fRef * 0.45))
-    : Math.max(18, Math.round(fRef * 0.76));
+    : Math.max(18, Math.round(fRef * 0.74));
   if (!currentCurves || !Array.isArray(currentCurves.G8_ConeExcursion) || !(Xmax_mm > 0)) {
-    return { hpfHz: fallback, needed: false };
+    return { hpfHz: fallback, needed: false, xSubPeak: 0, xNotch: 0, xPassPeak: 0 };
   }
   const freqs = currentCurves.frequencies;
   const g8 = currentCurves.G8_ConeExcursion;
   const curHpf = (currentCurves.meta && currentCurves.meta.hpfHz > 0) ? currentCurves.meta.hpfHz : 0;
-  // Reconstroi excursão bruta sem HPF para avaliar necessidade real de filtro subsônico
+  // Reconstroi excursão bruta sem HPF para avaliar necessidade real de filtro subsônico e simetria dos dois picos
   const rawG8 = freqs.map((f, i) => {
     if (curHpf > 0) {
       const r4 = Math.pow(f / curHpf, 4);
@@ -3482,16 +3483,29 @@ function computeOptimalHpfHz(boxType, Fb, FbVr, fc, Xmax_mm) {
     }
     return g8[i];
   });
-  const isVentedHpf = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6');
+
   const fSubHi = isVentedHpf ? (fRef * 0.96) : 200;
   let maxRawSub = 0;
+  let xPassPeak = 0;
+  let xNotch = Infinity;
   for (let i = 0; i < freqs.length; i++) {
-    if (freqs[i] >= 12 && freqs[i] <= fSubHi && rawG8[i] > maxRawSub) maxRawSub = rawG8[i];
+    const f = freqs[i];
+    const x = rawG8[i];
+    if (f >= 12 && f <= fSubHi && x > maxRawSub) maxRawSub = x;
+    if (isVentedHpf && f >= fRef * 1.04 && f <= 260 && x > xPassPeak) xPassPeak = x;
+    if (isVentedHpf && Math.abs(f - fRef) <= Math.max(1.5, fRef * 0.04) && x < xNotch) xNotch = x;
   }
-  if (maxRawSub <= Xmax_mm * 1.02) {
-    return { hpfHz: fallback, needed: false };
+  if (!Number.isFinite(xNotch)) xNotch = 0;
+
+  // Alvo de simetria "Camelo Equilibrado": pico subsônico <= 92% Xmax e equilibrado (~88%) com o pico da banda útil
+  const subCeiling = isVentedHpf
+    ? Math.min(Xmax_mm * 0.92, xPassPeak > 0.5 ? Math.max(Xmax_mm * 0.55, xPassPeak * 0.88) : Xmax_mm * 0.92)
+    : Xmax_mm * 0.95;
+
+  if (maxRawSub <= subCeiling) {
+    return { hpfHz: fallback, needed: false, xSubPeak: maxRawSub, xNotch, xPassPeak };
   }
-  const fHiSearch = Math.min(85, Math.max(fallback + 6, Math.round(fRef * 0.90)));
+  const fHiSearch = Math.min(85, Math.max(fallback + 6, Math.round(fRef * 0.88)));
   for (let fTry = 16; fTry <= fHiSearch; fTry += 1) {
     let peak = 0;
     for (let i = 0; i < freqs.length; i++) {
@@ -3501,11 +3515,11 @@ function computeOptimalHpfHz(boxType, Fb, FbVr, fc, Xmax_mm) {
       const x = rawG8[i] * (r4 / (r4 + 1.0));
       if (x > peak) peak = x;
     }
-    if (peak <= Xmax_mm * 1.02) {
-      return { hpfHz: fTry, needed: true };
+    if (peak <= subCeiling) {
+      return { hpfHz: fTry, needed: true, xSubPeak: peak, xNotch, xPassPeak };
     }
   }
-  return { hpfHz: fHiSearch, needed: true };
+  return { hpfHz: fHiSearch, needed: true, xSubPeak: subCeiling, xNotch, xPassPeak };
 }
 
 function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
@@ -3543,7 +3557,7 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
     vrEl.value = plan.Vr.toFixed(1);
     syncSliderRange('vrRange', plan.Vr, 5);
   }
-  if (fbEl && (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6')) {
+  if (fbEl && (boxType === 'bass-reflex' || boxType === 'planar' || boxType === 'bp4' || boxType === 'bp6')) {
     fbEl.value = plan.Fb.toFixed(2);
     syncSliderRange('fbRange', plan.Fb, 15);
   }
@@ -3552,10 +3566,58 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
     syncSliderRange('fbVrRange', plan.FbVr, 15);
   }
 
-  autoDesignExactFb = (boxType === 'bass-reflex') ? plan.Fb : null;
-  autoDesignVbRef = (boxType === 'bass-reflex') ? plan.Vb : null;
+  autoDesignExactFb = (boxType === 'bass-reflex' || boxType === 'planar') ? plan.Fb : null;
+  autoDesignVbRef = (boxType === 'bass-reflex' || boxType === 'planar') ? plan.Vb : null;
   isAutoTune = true;
   recalculate();
+
+  // Etapa 2.5 (Refino Mecânico de Excursão na Banda Útil — "Camelo Equilibrado"):
+  // Se o pico direito (acima de Fb) excede 95% de Xmax em Pe nominal, ajusta levemente (Vb, Fb) antes de cortar Pe
+  if (opts.enableHpfIfNeeded && (boxType === 'bass-reflex' || boxType === 'planar') && currentCurves && Array.isArray(currentCurves.G8_ConeExcursion)) {
+    const getPassPeak = () => {
+      let pk = 0;
+      const fMinP = Math.max(15, (currentCurves.meta?.Fb || plan.Fb) * 1.05);
+      for (let i = 0; i < currentCurves.frequencies.length; i++) {
+        const f = currentCurves.frequencies[i];
+        if (f >= fMinP && f <= 260 && currentCurves.G8_ConeExcursion[i] > pk) pk = currentCurves.G8_ConeExcursion[i];
+      }
+      return pk;
+    };
+    const origPassPk = getPassPeak();
+    if (origPassPk > Xmax_mm * 0.95) {
+      let bestVb = plan.Vb, bestFb = plan.Fb, bestScore = Infinity;
+      const vScales = [0.92, 0.84, 0.76];
+      const fScales = [1.03, 1.08, 1.14];
+      for (const sv of vScales) {
+        for (const sf of fScales) {
+          const tryVb = Math.max(4.0, +(plan.Vb * sv).toFixed(1));
+          const tryFb = Math.max(20.0, Math.min(95.0, +(plan.Fb * sf).toFixed(2)));
+          if (vbEl) vbEl.value = tryVb.toFixed(1);
+          if (fbEl) fbEl.value = tryFb.toFixed(2);
+          autoDesignExactFb = tryFb;
+          autoDesignVbRef = tryVb;
+          recalculate();
+          const pkTry = getPassPeak();
+          const over = Math.max(0, pkTry - Xmax_mm * 0.94);
+          const f3Pen = Math.max(0, (currentCurves.meta?.F3 || tryFb) - plan.Fb * 1.35) * 0.08;
+          const devPen = (1.0 - sv) * 1.2 + (sf - 1.0) * 1.5;
+          const score = over * 20.0 + f3Pen + devPen;
+          if (pkTry < origPassPk * 0.97 && score < bestScore) {
+            bestScore = score;
+            bestVb = tryVb;
+            bestFb = tryFb;
+          }
+        }
+      }
+      plan.Vb = bestVb;
+      plan.Fb = bestFb;
+      if (vbEl) { vbEl.value = plan.Vb.toFixed(1); syncSliderRange('vbRange', plan.Vb, 5); }
+      if (fbEl) { fbEl.value = plan.Fb.toFixed(2); syncSliderRange('fbRange', plan.Fb, 15); }
+      autoDesignExactFb = plan.Fb;
+      autoDesignVbRef = plan.Vb;
+      recalculate();
+    }
+  }
 
   if (boxType === 'bass-reflex' || boxType === 'planar') {
     autoSizeBassReflexPort(plan.velTarget, source === 'db' || source === 'manual');
@@ -3564,7 +3626,7 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
     autoSizeBandPassPorts(boxType, true);
   }
 
-  // Calcula HPF subsônico ótimo para proteger Xmax na região subsônica
+  // Calcula HPF subsônico ótimo com simetria de dois picos (pico esquerdo equilibrado com pico direito <= 92% Xmax)
   const hpfPlan = computeOptimalHpfHz(boxType, plan.Fb, plan.FbVr, currentCurves?.meta?.fc || Fs, Xmax_mm);
   const hpfEl = document.getElementById('hpfCutoff');
   if (hpfEl) hpfEl.value = String(hpfPlan.hpfHz);
@@ -3573,7 +3635,7 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
   }
   recalculate();
 
-  // Etapa 4: se ainda houver excursão acima de Xmax na banda útil (pico acima de Fb/Fc), ajusta Pe para o limite real seguro
+  // Etapa 4: se ainda houver excursão acima de 97% Xmax na banda útil, ajusta Pe para teto seguro (95% Xmax)
   let peAdjusted = null;
   if (opts.enableHpfIfNeeded && boxType !== 'free-air' && peEl && currentCurves && Array.isArray(currentCurves.G8_ConeExcursion)) {
     let maxXpk = 0;
@@ -3583,8 +3645,8 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
         maxXpk = currentCurves.G8_ConeExcursion[i];
       }
     }
-    if (maxXpk > Xmax_mm * 1.005) {
-      const peSafe = Math.max(10, Math.floor(peNominal * Math.pow(Xmax_mm / maxXpk, 2)));
+    if (maxXpk > Xmax_mm * 0.97) {
+      const peSafe = Math.max(10, Math.floor(peNominal * Math.pow((Xmax_mm * 0.95) / maxXpk, 2)));
       if (peSafe < peNominal) {
         peEl.value = String(peSafe);
         const ampPowEl = document.getElementById('elAmpPower');
@@ -3608,13 +3670,17 @@ function runAutoDesignForCurrentState(source = 'manual', opts = {}) {
   const adSt = document.getElementById('autoDesignStatus');
   if (adSt) {
     adSt.style.display = 'block';
-    const velTxt = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6')
+    const velTxt = (boxType === 'bass-reflex' || boxType === 'planar' || boxType === 'bp4' || boxType === 'bp6')
       ? ` · Ar ${(currentCurves?.meta?.airVel || 0).toFixed(1)} m/s`
       : '';
     const hpfTxt = (boxType !== 'free-air') ? ` · HPF ${hpfPlan.hpfHz}Hz` : '';
-    const peTxt = peAdjusted ? ` · <span style="color:#facc15;">Pe ${peAdjusted.from}→${peAdjusted.to}W (Xmax✓)</span>` : (hpfPlan.needed ? ' (Xmax✓)' : '');
+    const finalMaxX = (currentCurves && Array.isArray(currentCurves.G8_ConeExcursion))
+      ? Math.max(...currentCurves.G8_ConeExcursion) : 0;
+    const xPct = Xmax_mm > 0 ? Math.round((finalMaxX / Xmax_mm) * 100) : 0;
+    const xTxt = (finalMaxX > 0 && boxType !== 'free-air') ? ` · Xpk ${finalMaxX.toFixed(1)}/${Xmax_mm}mm (${xPct}%)` : '';
+    const peTxt = peAdjusted ? ` · <span style="color:#facc15;">Pe ${peAdjusted.from}→${peAdjusted.to}W</span>` : '';
     const fbNote = (source === 'db_sealed_fallback') ? ' (micro-caixa)' : '';
-    adSt.innerHTML = `<span style="color:#4ade80;">⚡ ${plan.alignTag}${fbNote}</span>${velTxt}${hpfTxt}${peTxt}`;
+    adSt.innerHTML = `<span style="color:#4ade80;">⚡ ${plan.alignTag}${fbNote}</span>${velTxt}${hpfTxt}${xTxt}${peTxt}`;
   }
   return plan;
 }
