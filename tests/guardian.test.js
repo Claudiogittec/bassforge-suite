@@ -1120,6 +1120,59 @@ runSuite('22. Band-Pass Coupled Physics (BP4, BP6 Parallel/Series) & Q\'t / DF /
   vm.runInContext('loadPreset()', ctx);
 });
 
+// ============================================================================
+// SUITE 23: BP6 Dual-Port G9/G2 Curves, Dropdown Switch & Smart Port Sizing
+// ============================================================================
+runSuite('23. BP6 Dual-Port G9/G2 Curves, Dropdown Topology Switch & Synthesis Port Sizing', () => {
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+
+  // 23.1 Simula troca via dropdown (#boxType já alterado antes de selectTopology)
+  vm.runInContext("selectTopology('bass-reflex')", ctx);
+  elements.get('boxType').value = 'bp6';
+  vm.runInContext("selectTopology('bp6')", ctx);
+  const bpDrop = vm.runInContext('lastBuildPack', ctx);
+  const cDrop = vm.runInContext('currentCurves', ctx);
+  assert(bpDrop.acoustics.Vr > bpDrop.acoustics.Vb, `BP6 via dropdown deve configurar VR (${bpDrop.acoustics.Vr}L) > VF (${bpDrop.acoustics.Vb}L)`);
+  assert(bpDrop.acoustics.LvCm > 0, `BP6 via dropdown deve ter Lv VF positivo, obtido ${bpDrop.acoustics.LvCm}`);
+  assert((bpDrop.acoustics.lvRearMm || 0) > 0, `BP6 via dropdown deve ter Lv VR positivo, obtido ${bpDrop.acoustics.lvRearMm}`);
+  assert(bpDrop.validation.valid === true, `BP6 via dropdown deve ser válido: ${JSON.stringify(bpDrop.validation.issues)}`);
+
+  // 23.2 Curvas individuais G9_PortAirVel_VF & G9_PortAirVel_VR + G2_VentSPL_VF & G2_VentSPL_VR
+  assert(Array.isArray(cDrop.G9_PortAirVel_VF) && cDrop.G9_PortAirVel_VF.length === cDrop.frequencies.length, 'G9_PortAirVel_VF deve existir');
+  assert(Array.isArray(cDrop.G9_PortAirVel_VR) && cDrop.G9_PortAirVel_VR.length === cDrop.frequencies.length, 'G9_PortAirVel_VR deve existir');
+  assert(Array.isArray(cDrop.G2_VentSPL_VF) && cDrop.G2_VentSPL_VF.length === cDrop.frequencies.length, 'G2_VentSPL_VF deve existir');
+  assert(Array.isArray(cDrop.G2_VentSPL_VR) && cDrop.G2_VentSPL_VR.length === cDrop.frequencies.length, 'G2_VentSPL_VR deve existir');
+  const maxVf = Math.max(...cDrop.G9_PortAirVel_VF);
+  const maxVr = Math.max(...cDrop.G9_PortAirVel_VR);
+  assert(maxVf > 1.0 && maxVr > 1.0, `BP6 deve ter velocidades reais em VF (${maxVf.toFixed(1)}) e VR (${maxVr.toFixed(1)})`);
+  assert(maxVr < 34.3, `BP6 padrão não deve estourar 10% Mach em VR (obtido ${maxVr.toFixed(1)} m/s)`);
+  const fPeakVf = cDrop.frequencies[cDrop.G9_PortAirVel_VF.indexOf(maxVf)];
+  const fPeakVr = cDrop.frequencies[cDrop.G9_PortAirVel_VR.indexOf(maxVr)];
+  assert(fPeakVf > fPeakVr, `Pico de velocidade VF (${fPeakVf.toFixed(1)}Hz) deve estar acima de VR (${fPeakVr.toFixed(1)}Hz)`);
+
+  const sG9 = vm.runInContext("getBp6DualPortVelSeries(CHARTS_INFO.find(c => c.id === 'G9'))", ctx);
+  const sG2 = vm.runInContext("getBp6DualPortVelSeries(CHARTS_INFO.find(c => c.id === 'G2'))", ctx);
+  assert(Array.isArray(sG9) && sG9.length === 2, 'G9 em BP6 deve plotar 2 séries (Duto VF e Duto VR)');
+  assert(Array.isArray(sG2) && sG2.length === 3, 'G2 em BP6 deve plotar 3 séries (Total, VF e VR)');
+
+  // 23.3 Síntese BP4 & BP6 deve auto-dimensionar dutos sem Lv negativo ou inválido
+  for (const [bt, preset] of [['bp4', 'butterworth'], ['bp6', 'bp6_flat'], ['bp6', 'bp6_ext'], ['bp6', 'bp6_spl']]) {
+    vm.runInContext(`selectTopology('${bt}')`, ctx);
+    elements.get('bpAlignPreset').value = preset;
+    vm.runInContext('onBpAlignPresetChange(); applyBandPassSynthesis();', ctx);
+    const bp = vm.runInContext('lastBuildPack', ctx);
+    assert(bp.acoustics.LvCm > 0, `Síntese ${bt}/${preset} deve gerar Lv VF > 0 (obtido ${bp.acoustics.LvCm})`);
+    if (bt === 'bp6') {
+      assert((bp.acoustics.lvRearMm || 0) > 0, `Síntese ${bt}/${preset} deve gerar Lv VR > 0 (obtido ${bp.acoustics.lvRearMm})`);
+    }
+    assert(bp.validation.valid === true, `Síntese ${bt}/${preset} deve ser válida: ${JSON.stringify(bp.validation.issues)}`);
+  }
+  // Restaura estado padrão
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset()', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

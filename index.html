@@ -3176,10 +3176,110 @@ function computeTopologySuitability({ EBP, Qts, dia }) {
   return res;
 }
 
+let lastActiveTopology = 'bass-reflex';
+
+function autoSizeBandPassPorts(topo, resetCount = false) {
+  if (topo !== 'bp4' && topo !== 'bp6') return;
+  const pEl = document.getElementById('portType');
+  const pType = pEl ? pEl.value : 'round';
+  const nEl = document.getElementById('numDucts');
+  const dEl = document.getElementById('ductDia');
+  const nVrEl = document.getElementById('numDuctsVr');
+  const dVrEl = document.getElementById('ductDiaVr');
+  const dThick = parseFloat(document.getElementById('ductThick')?.value) || 3;
+  const dThickVr = parseFloat(document.getElementById('ductThickVr')?.value) || 3;
+  const Vb = Math.max(1, parseFloat(document.getElementById('vbInput')?.value) || 50);
+  const Vr = Math.max(1, parseFloat(document.getElementById('vrInput')?.value) || 50);
+  const Fb = Math.max(10, parseFloat(document.getElementById('fbInput')?.value) || 65);
+  const FbVr = Math.max(10, parseFloat(document.getElementById('fbVrInput')?.value) || 38);
+  const tempC = parseFloat(document.getElementById('tempInput')?.value) || 20;
+  const cVal = 331.45 * Math.sqrt(1.0 + tempC / 273.15);
+  const maxSafeLv = Math.min(38.0, Math.max(28.0, ((parseFloat(document.getElementById('wlHeightB')?.value) || 480) - 70) / 10.0));
+  const bpM = (currentCurves && currentCurves.meta && currentCurves.meta.bpMetrics) || null;
+  const maxUpf = (bpM && Number.isFinite(bpM.maxUpf) && bpM.maxUpf > 0) ? bpM.maxUpf : 0.15;
+  const maxUpr = (bpM && Number.isFinite(bpM.maxUpr) && bpM.maxUpr > 0) ? bpM.maxUpr : 0.15;
+
+  if (pType === 'round' || pType === 'flared') {
+    const pickRound = (chamberVb, chamberFb, chamberThick, maxUp, curN, curD) => {
+      const curPg = computePortGeometry({ portType: pType, numDucts: curN, ductDia: curD, ductThick: chamberThick, Fb: chamberFb, Vb: chamberVb, c: cVal });
+      const curVel = maxUp / Math.max(1e-6, curPg.Sp);
+      if (!resetCount && curPg.LvCm >= 4.0 && curPg.LvCm <= maxSafeLv && curVel <= curPg.velLimit * 1.15) {
+        return [curN, curD];
+      }
+      const candidates = [[1, 6], [1, 8], [1, 5], [1, 4], [1, 10], [1, 3], [2, 6], [2, 8], [2, 5], [2, 4], [2, 3]];
+      let tier1 = null, tier2 = null, tier3 = null;
+      for (const [tryN, tryD] of candidates) {
+        const pg = computePortGeometry({ portType: pType, numDucts: tryN, ductDia: tryD, ductThick: chamberThick, Fb: chamberFb, Vb: chamberVb, c: cVal });
+        const vel = maxUp / Math.max(1e-6, pg.Sp);
+        if (pg.LvCm >= 4.5 && pg.LvCm <= maxSafeLv && vel <= pg.velLimit * 1.15) {
+          tier1 = [tryN, tryD];
+          break;
+        }
+        if (pg.LvCm >= 4.5 && pg.LvCm <= maxSafeLv) {
+          if (!tier2 || (tryN === 1 && tier2[0] > 1 && vel <= tier2[2] * 1.25) || (tryN === tier2[0] && vel < tier2[2]) || (tier2[0] === 1 && tryN > 1 && vel < tier2[2] * 0.72)) {
+            tier2 = [tryN, tryD, vel];
+          }
+        } else if (pg.LvCm >= 1.5 && pg.LvCm <= maxSafeLv) {
+          if (!tier3 || vel < tier3[2]) tier3 = [tryN, tryD, vel];
+        }
+      }
+      const chosen = tier1 || tier2 || tier3;
+      return chosen ? [chosen[0], chosen[1]] : [1, curD];
+    };
+
+    if (nEl && dEl) {
+      const [bestN, bestD] = pickRound(Vb, Fb, dThick, maxUpf, parseInt(nEl.value) || 1, parseFloat(dEl.value) || 6);
+      nEl.value = String(bestN);
+      dEl.value = String(bestD);
+    }
+    if (topo === 'bp6' && nVrEl && dVrEl) {
+      const [bestNVr, bestDVr] = pickRound(Vr, FbVr, dThickVr, maxUpr, parseInt(nVrEl.value) || 1, parseFloat(dVrEl.value) || 6);
+      nVrEl.value = String(bestNVr);
+      dVrEl.value = String(bestDVr);
+    }
+    recalculate();
+  } else if (pType === 'slot' || pType === 'slot_wall') {
+    const swEl = document.getElementById('slotW');
+    const shEl = document.getElementById('slotH');
+    if (swEl && shEl) {
+      const swCur = Math.max(10, parseFloat(swEl.value) || 35);
+      const shCur = Math.max(2, parseFloat(shEl.value) || 6);
+      const pgF = computePortGeometry({ portType: pType, slotW: swCur, slotH: shCur, Fb, Vb, c: cVal });
+      const pgR = (topo === 'bp6') ? computePortGeometry({ portType: pType, slotW: swCur, slotH: shCur, Fb: FbVr, Vb: Vr, c: cVal }) : null;
+      if (pgF.LvCm < 2.0 || pgF.LvCm > maxSafeLv || (pgR && (pgR.LvCm < 2.0 || pgR.LvCm > maxSafeLv))) {
+        const kEnd = (pType === 'slot_wall') ? 1.343 : 0.732;
+        const areaForLv = (vL, fHz, lvM) => {
+          const w = 2.0 * Math.PI * Math.max(1, fHz);
+          const aC = (cVal * cVal) / (w * w * Math.max(0.001, vL / 1000.0));
+          const bC = kEnd * 2.0 / Math.sqrt(Math.PI);
+          const u = (bC + Math.sqrt(bC * bC + 4.0 * aC * Math.max(0.01, lvM))) / (2.0 * aC);
+          return u * u * 10000.0;
+        };
+        const minAreaF = areaForLv(Vb, Fb, 0.05);
+        const maxAreaF = areaForLv(Vb, Fb, Math.max(0.18, maxSafeLv / 100.0));
+        let targetArea = Math.min(maxAreaF, Math.max(minAreaF, swCur * shCur));
+        if (topo === 'bp6') {
+          const minAreaR = areaForLv(Vr, FbVr, 0.04);
+          const maxAreaR = areaForLv(Vr, FbVr, Math.max(0.20, maxSafeLv / 100.0));
+          const lo = Math.max(minAreaF, minAreaR);
+          const hi = Math.min(maxAreaF, maxAreaR);
+          targetArea = (lo <= hi) ? Math.min(hi, Math.max(lo, (lo + hi) * 0.5)) : Math.max(minAreaF, Math.min(maxAreaR * 1.15, (minAreaF + maxAreaR) * 0.5));
+        }
+        const swNew = Math.max(15, Math.min(48, Math.round(Math.sqrt(targetArea * 3.5) * 2) / 2));
+        const shNew = Math.max(2.5, Math.min(18, Math.round((targetArea / swNew) * 2) / 2));
+        swEl.value = swNew.toFixed(1);
+        shEl.value = shNew.toFixed(1);
+        recalculate();
+      }
+    }
+  }
+}
+
 function selectTopology(topo) {
   bpSynthClampNote = '';
   const el = document.getElementById('boxType');
-  const prevTopo = el ? el.value : '';
+  const prevTopo = lastActiveTopology || (el ? el.value : '');
+  lastActiveTopology = topo;
   if (el) el.value = topo;
   const vbEl = document.getElementById('vbInput');
   const vrEl = document.getElementById('vrInput');
@@ -3191,8 +3291,8 @@ function selectTopology(topo) {
     fbR.min = 20;
     fbR.max = 80;
   }
+  const enteringBp = (topo === 'bp4' || topo === 'bp6') && (prevTopo !== 'bp4' && prevTopo !== 'bp6');
   if (topo === 'bp4' || topo === 'bp6') {
-    const enteringBp = (prevTopo !== 'bp4' && prevTopo !== 'bp6');
     const curVr = parseFloat(vrEl?.value) || 0;
     // Em Band-Pass (BP4/BP6), ao entrar vindo de outra topologia com VR ainda no padrão de fábrica (60 L) e Vb grande, ajusta VR > VF
     if (enteringBp && isAutoTune && vbEl && vrEl && VbCur >= 20 && (curVr < 0.5 || (Math.abs(curVr - 60) < 0.01 && VbCur > curVr * 1.15))) {
@@ -3214,66 +3314,8 @@ function selectTopology(topo) {
     syncSliderRange('fbVrRange', parseFloat(fbVrEl.value), 15);
   }
   recalculate();
-  // Em BP4/BP6 com Auto-Tune e duto cilíndrico, prioriza 1 duto por câmara como padrão (VF e VR) com Lv fisicamente viável (5..maxSafeLv cm)
   if ((topo === 'bp4' || topo === 'bp6') && isAutoTune) {
-    const enteringBpDuct = (prevTopo !== 'bp4' && prevTopo !== 'bp6');
-    const pEl = document.getElementById('portType');
-    const nEl = document.getElementById('numDucts');
-    const dEl = document.getElementById('ductDia');
-    const nVrEl = document.getElementById('numDuctsVr');
-    const dVrEl = document.getElementById('ductDiaVr');
-    if (enteringBpDuct) {
-      if (nEl) nEl.value = '1';
-      if (nVrEl) nVrEl.value = '1';
-      recalculate();
-    }
-    const getCurLv = () => {
-      updateWoodlock();
-      return (lastBuildPack && lastBuildPack.acoustics) ? lastBuildPack.acoustics.LvCm : 0;
-    };
-    const getCurLvVr = () => {
-      updateWoodlock();
-      return (lastBuildPack && lastBuildPack.acoustics) ? (lastBuildPack.acoustics.lvRearMm || 0) / 10.0 : 0;
-    };
-    const curLv = getCurLv();
-    const maxSafeLv = Math.max(32.0, ((parseFloat(document.getElementById('wlHeightB')?.value) || 480) - 70) / 10.0);
-    if (pEl && (pEl.value === 'round' || pEl.value === 'flared') && nEl && dEl && (curLv < 4.0 || curLv > maxSafeLv)) {
-      const candidates = [[1, 6], [1, 5], [1, 4], [1, 8], [1, 10], [2, 6], [2, 5], [1, 3], [2, 4]];
-      let best = null;
-      for (const [tryN, tryD] of candidates) {
-        nEl.value = String(tryN);
-        dEl.value = String(tryD);
-        recalculate();
-        const lvTry = getCurLv();
-        if (lvTry >= 5.0 && lvTry <= maxSafeLv) { best = [tryN, tryD]; break; }
-        if (lvTry >= 0.8 && lvTry <= maxSafeLv && (!best || lvTry > best[2])) best = [tryN, tryD, lvTry];
-      }
-      if (best) {
-        nEl.value = String(best[0]);
-        dEl.value = String(best[1]);
-        recalculate();
-      }
-    }
-    if (topo === 'bp6') {
-      const curLvVr = getCurLvVr();
-      if (nVrEl && dVrEl && (curLvVr < 4.0 || curLvVr > maxSafeLv)) {
-        const vrCandidates = [[1, 5], [1, 4], [1, 6], [1, 8], [2, 6], [2, 5], [1, 3], [2, 4], [2, 3]];
-        let bestVr = null;
-        for (const [tryN, tryD] of vrCandidates) {
-          nVrEl.value = String(tryN);
-          dVrEl.value = String(tryD);
-          recalculate();
-          const lvVrTry = getCurLvVr();
-          if (lvVrTry >= 5.0 && lvVrTry <= maxSafeLv) { bestVr = [tryN, tryD]; break; }
-          if (lvVrTry >= 0.8 && lvVrTry <= maxSafeLv && (!bestVr || lvVrTry > bestVr[2])) bestVr = [tryN, tryD, lvVrTry];
-        }
-        if (bestVr) {
-          nVrEl.value = String(bestVr[0]);
-          dVrEl.value = String(bestVr[1]);
-          recalculate();
-        }
-      }
-    }
+    autoSizeBandPassPorts(topo, enteringBp);
   }
   autofixWoodlockGeometry(`topologia ${topo}`);
 }
@@ -3281,13 +3323,10 @@ function selectTopology(topo) {
 function onPortTypeChange() {
   const topo = document.getElementById('boxType')?.value || 'bass-reflex';
   const pType = document.getElementById('portType')?.value || 'round';
-  if ((topo === 'bp4' || topo === 'bp6') && (pType === 'round' || pType === 'flared') && isAutoTune) {
-    const nEl = document.getElementById('numDucts');
-    const nVrEl = document.getElementById('numDuctsVr');
-    if (nEl) nEl.value = '1';
-    if (nVrEl) nVrEl.value = '1';
-  }
   recalculate();
+  if (topo === 'bp4' || topo === 'bp6') {
+    autoSizeBandPassPorts(topo, true);
+  }
   autofixWoodlockGeometry(`duto ${pType}`);
 }
 
@@ -3577,11 +3616,15 @@ function evalBandPassFrequency(m, f) {
   const H_re = -wMas * uOutIm;
   const H_im = wMas * uOutRe;
 
-  // Magnitudes de velocidade de volume de pico em Pe (m³/s)
+  // Magnitudes de velocidade de volume de pico em Pe (m³/s) e transferência individual de cada duto
   const ucNormMag = Math.hypot(ucRe, ucIm);
   const Uc_mag = m.Pg_pk * ucNormMag;
-  const Upf_mag = Uc_mag * Math.hypot(rPfRe, rPfIm);
-  const Upr_mag = Uc_mag * Math.hypot(rPrRe, rPrIm);
+  const rPfMag = Math.hypot(rPfRe, rPfIm);
+  const rPrMag = Math.hypot(rPrRe, rPrIm);
+  const Upf_mag = Uc_mag * rPfMag;
+  const Upr_mag = Uc_mag * rPrMag;
+  const Hf_mag = wMas * ucNormMag * rPfMag;
+  const Hr_mag = wMas * ucNormMag * rPrMag;
 
   // Impedância elétrica de entrada complexa real: Zin = Re + (Bl/Sd)^2 / (Zadm + Zload)
   const zMechRe = zAdmRe + zLoadRe;
@@ -3590,7 +3633,7 @@ function evalBandPassFrequency(m, f) {
   const Zin_re = m.Re + (m.bl2OverSd2 * zMechRe) / zMechMag2;
   const Zin_im = -(m.bl2OverSd2 * zMechIm) / zMechMag2;
 
-  return { H_re, H_im, Uc_mag, Upf_mag, Upr_mag, Zin_re, Zin_im };
+  return { H_re, H_im, Hf_mag, Hr_mag, Uc_mag, Upf_mag, Upr_mag, Zin_re, Zin_im };
 }
 
 let bpSynthClampNote = '';
@@ -3688,6 +3731,7 @@ function applyBandPassSynthesis() {
   }
   isAutoTune = (boxType === 'bp4');
   recalculate();
+  autoSizeBandPassPorts(boxType, true);
   autofixWoodlockGeometry('síntese Band-Pass');
 }
 
@@ -3976,7 +4020,7 @@ function recalculate() {
   const spl_rated = spl_1w + 10.0 * Math.log10(Pe);
 
   let alpha = Vas / Vb;
-  let Fb, F3, FH = 0, Vtot, LvCm = 0, DeqIn = 0, airVel = 0, machPct = 0, qtc, fc, fgmax, fxmax, ripple = 0, alignName = '', alignSub = '', alignLabel = 'Alinhamento 4ª Ordem', alignColor = '#38bdf8', kpi2SubTxt = '';
+  let Fb, F3, FH = 0, Vtot, LvCm = 0, DeqIn = 0, airVel = 0, airVelVr = 0, machPct = 0, qtc, fc, fgmax, fxmax, ripple = 0, alignName = '', alignSub = '', alignLabel = 'Alinhamento 4ª Ordem', alignColor = '#38bdf8', kpi2SubTxt = '';
   let fPipe1 = 0, velLimit = 17.0, portGeom = null, portGeomVr = null, bpEval = null;
 
   const optimalFb = Fs * Math.pow(alpha, 0.31);
@@ -4126,7 +4170,7 @@ function recalculate() {
       portType, numDucts: numD, ductDia: dDia, ductThick: dThick,
       slotW, slotH, slotWallThick, triCount, triA, triB, Fb, Vb, c
     });
-    let airVelVr = 0;
+    airVelVr = 0;
     if (boxType === 'bp6') {
       const vrPortType = (bp6Mode === 'parallel' && isSlot) ? portType : (portType === 'flared' ? 'flared' : 'round');
       portGeomVr = computePortGeometry({
@@ -4152,7 +4196,7 @@ function recalculate() {
     if (ptBox) {
       const spCm2 = portGeom.Sp * 10000.0;
       const warns = [];
-      if (LvCm < 1.0) warns.push('<span style="color:#f87171;">⚠️ Lv curto/negativo (reduza área ou Fb)</span>');
+      if (LvCm < 1.0) warns.push('<span style="color:#f87171;">⚠️ Lv curto/negativo (aumente área ou baixe Fb)</span>');
       if (portGeom.isSlot && portGeom.aspectRatio > 8.0) warns.push(`<span style="color:#facc15;">⚠️ Razão ${portGeom.aspectRatio.toFixed(1)}:1 (&gt;8:1 atrito alto)</span>`);
       if (fPipe1 > 0 && fPipe1 < 400) warns.push(`<span style="color:#facc15;">⚠️ Tubo órgão baixo (${fPipe1.toFixed(0)} Hz)</span>`);
       if (airVel > velLimit) warns.push(`<span style="color:#f87171;">⚠️ Sopro/Chuffing (&gt;${velLimit} m/s)</span>`);
@@ -4331,7 +4375,7 @@ function recalculate() {
   updateWoodlock();
   updateElectrical();
   updateSimAdvancedTelemetry({ Fs, Qes: Qes_nom, Qms, Qts: (Qms * Qes_nom) / (Qms + Qes_nom), Vas: Vas_single, Re: Re_nom, Pe: Pe_single, Sd_m2: Sd_single_m2, Xmax_mm, c, rho, spl_1w, spl_rated, Vd, EBP: Fs / Qes_nom, no_frac });
-  updateDesktopStatusBar({ boxType, nDrivers, Vb, Vr, Fb, FbVr, bp6Mode, fc, F3, FH, LvCm, airVel, fPipe1, deltaT, powerCompDb, EBP, alpha, Vtot, Qts, Xmax_mm, Pe });
+  updateDesktopStatusBar({ boxType, nDrivers, Vb, Vr, Fb, FbVr, bp6Mode, fc, F3, FH, LvCm, LvVrCm: portGeomVr ? portGeomVr.LvCm : 0, airVel, airVelVr: portGeomVr ? airVelVr : 0, fPipe1, deltaT, powerCompDb, EBP, alpha, Vtot, Qts, Xmax_mm, Pe });
 }
 
 function generateSimulationData(p) {
@@ -4343,7 +4387,7 @@ function generateSimulationData(p) {
     freqs.push(Math.pow(10, logMin + (i/(N-1))*(logMax-logMin)));
   }
 
-  const G1 = [], G2 = [], G3 = [], G4 = [], G5 = [], G6 = [];
+  const G1 = [], G2 = [], G2_front = [], G2_rear = [], G3 = [], G4 = [], G5 = [], G6 = [];
   const G7 = [], G8 = [], G9 = [], G9_front = [], G9_rear = [], G10 = [], G11 = [], G12 = [], G13 = [];
   const phaseRadRaw = [];
 
@@ -4449,7 +4493,10 @@ function generateSimulationData(p) {
 
       // G2: Vent SPL (Small 1973: |-h * sn^2 / D(sn)| * |H_HPF|, iguala G6 em Fb)
       const vent_mag_db = 10.0 * Math.log10(Math.max(1e-12, (h * h * Math.pow(rel_w, 4)) / den_mag2)) + hpf_db;
-      G2.push(p.spl_rated + vent_mag_db);
+      const ventSplBr = p.spl_rated + vent_mag_db;
+      G2.push(ventSplBr);
+      G2_front.push(ventSplBr);
+      G2_rear.push(0);
 
       // G10: Cone SPL (Small 1973: |sn^2 * (sn^2 + (sh/QL)*sn + h) / D(sn)| * |H_HPF|, notch finito em Fb)
       const c_num_re = h - Math.pow(rel_w, 2);
@@ -4511,6 +4558,10 @@ function generateSimulationData(p) {
       G7.push(g_mag_db + t_cabin_db);
       G5.push(spl_th + t_cabin_db);
       G2.push(spl_th); // Em Band-Pass toda a radiação externa sai pelos dutos
+      const splVf = p.spl_rated + 20.0 * Math.log10(Math.max(1e-6, ev.Hf_mag || bpMag)) + hpf_db;
+      const splVr = (p.boxType === 'bp6') ? (p.spl_rated + 20.0 * Math.log10(Math.max(1e-6, ev.Hr_mag || 1e-6)) + hpf_db) : 0;
+      G2_front.push(splVf);
+      G2_rear.push(splVr);
       G10.push(spl_th - 24.0); // Cone confinado nas câmaras internas
 
       // Excursão real de pico do cone Xpk(f) = |Uc_pk| / (w * Sd) * |H_HPF| [mm]
@@ -4558,6 +4609,8 @@ function generateSimulationData(p) {
       G7.push(c_gain);
       G5.push(spl_th + t_cabin_db);
       G2.push(0);
+      G2_front.push(0);
+      G2_rear.push(0);
       G10.push(spl_th);
       G9.push(0);
       G9_front.push(0);
@@ -4625,6 +4678,8 @@ function generateSimulationData(p) {
     frequencies: freqs,
     G1_MaxPower: G1,
     G2_VentSPL: G2,
+    G2_VentSPL_VF: G2_front,
+    G2_VentSPL_VR: G2_rear,
     G3_FreeAirZ: G3,
     G4_NormAmp: G4,
     G5_SPLinCar: G5,
@@ -5259,13 +5314,22 @@ function bindInteractiveChart(canvas, drawFn, getReadout, onLeave) {
 }
 
 function getBp6DualPortVelSeries(cfg) {
-  if (!cfg || cfg.id !== 'G9' || !currentCurves || !currentCurves.meta) return null;
+  if (!cfg || !currentCurves || !currentCurves.meta) return null;
   if (currentCurves.meta.boxType !== 'bp6') return null;
-  if (!Array.isArray(currentCurves.G9_PortAirVel_VF) || !Array.isArray(currentCurves.G9_PortAirVel_VR)) return null;
-  return [
-    { shortLabel: 'Duto VF', label: 'Duto VF (Frontal)', unit: cfg.unit, color: '#00d4ff', values: currentCurves.G9_PortAirVel_VF, primary: true },
-    { shortLabel: 'Duto VR', label: 'Duto VR (Traseiro)', unit: cfg.unit, color: '#a855f7', values: currentCurves.G9_PortAirVel_VR, primary: false }
-  ];
+  if (cfg.id === 'G9' && Array.isArray(currentCurves.G9_PortAirVel_VF) && Array.isArray(currentCurves.G9_PortAirVel_VR)) {
+    return [
+      { shortLabel: 'Duto VF', label: 'Duto VF (Frontal)', unit: cfg.unit, color: '#00d4ff', values: currentCurves.G9_PortAirVel_VF, primary: true },
+      { shortLabel: 'Duto VR', label: 'Duto VR (Traseiro)', unit: cfg.unit, color: '#a855f7', values: currentCurves.G9_PortAirVel_VR, primary: false }
+    ];
+  }
+  if (cfg.id === 'G2' && Array.isArray(currentCurves.G2_VentSPL_VF) && Array.isArray(currentCurves.G2_VentSPL_VR)) {
+    return [
+      { shortLabel: 'Total', label: 'Total (VF+VR)', unit: cfg.unit, color: '#f97316', values: currentCurves.G2_VentSPL, primary: true },
+      { shortLabel: 'VF', label: 'Duto VF (Frontal)', unit: cfg.unit, color: '#00d4ff', dash: [5, 3], values: currentCurves.G2_VentSPL_VF, primary: false },
+      { shortLabel: 'VR', label: 'Duto VR (Traseiro)', unit: cfg.unit, color: '#a855f7', dash: [5, 3], values: currentCurves.G2_VentSPL_VR, primary: false }
+    ];
+  }
+  return null;
 }
 
 function getExpandedOverlayConfig(baseCfg) {
@@ -5363,10 +5427,17 @@ function drawAllCharts() {
       : bp6VelSeries;
     const setSummary = () => {
       if (!infoEl) return;
-      if (bp6VelSeries) {
+      if (bp6VelSeries && c.id === 'G9') {
         const pkF = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[0].values, chartOpts.fMin, chartOpts.fMax);
         const pkR = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[1].values, chartOpts.fMin, chartOpts.fMax);
         infoEl.innerHTML = `<span><b style="color:#00d4ff">VF ${pkF.maxV.toFixed(1)}</b>@${pkF.maxF.toFixed(0)}Hz · <b style="color:#a855f7">VR ${pkR.maxV.toFixed(1)}</b>@${pkR.maxF.toFixed(0)}Hz</span><span>${hasRefA ? 'A/B · ⤢' : '⤢'}</span>`;
+        return;
+      }
+      if (bp6VelSeries && c.id === 'G2') {
+        const pkT = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[0].values, chartOpts.fMin, chartOpts.fMax);
+        const pkF = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[1].values, chartOpts.fMin, chartOpts.fMax);
+        const pkR = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[2].values, chartOpts.fMin, chartOpts.fMax);
+        infoEl.innerHTML = `<span><b style="color:#f97316">Tot ${pkT.maxV.toFixed(1)}</b> · <b style="color:#00d4ff">VF ${pkF.maxV.toFixed(1)}</b> · <b style="color:#a855f7">VR ${pkR.maxV.toFixed(1)}</b> dB</span><span>${hasRefA ? 'A/B · ⤢' : '⤢'}</span>`;
         return;
       }
       const pk = computeVisiblePeak(currentCurves.frequencies, currentCurves[c.key], chartOpts.fMin, chartOpts.fMax);
@@ -5375,10 +5446,15 @@ function drawAllCharts() {
     const setReadout = (f, _x, pinned) => {
       const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[c.key], f);
       const pinTag = pinned ? '📌 ' : '';
-      if (bp6VelSeries) {
+      if (bp6VelSeries && c.id === 'G9') {
         const vF = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[0].values, f);
         const vR = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[1].values, f);
         if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${pinTag}${f.toFixed(1)}Hz</b> <span style="color:#00d4ff">VF:${vF.toFixed(1)}</span> | <span style="color:#a855f7">VR:${vR.toFixed(1)}</span> ${c.unit}</span><span>${pinned ? 'Soltar' : 'Fixar'}</span>`;
+      } else if (bp6VelSeries && c.id === 'G2') {
+        const vT = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[0].values, f);
+        const vF = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[1].values, f);
+        const vR = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[2].values, f);
+        if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${pinTag}${f.toFixed(1)}Hz</b> <span style="color:#f97316">${vT.toFixed(1)}</span> · <span style="color:#00d4ff">VF:${vF.toFixed(1)}</span> · <span style="color:#a855f7">VR:${vR.toFixed(1)}</span> dB</span><span>${pinned ? 'Soltar' : 'Fixar'}</span>`;
       } else if (hasRefA) {
         const valA = interpolateSeriesAtFreq(currentCurves.frequencies, abSeries[1].values, f);
         const dv = val - valA;
@@ -5779,12 +5855,34 @@ function autofixWoodlockGeometry(reason = '') {
     const minBForBpPort = isBpActive ? roundUp5(Math.max(floors.minB, lvNeedBp + 55)) : floors.minB;
     if (isBpActive && hasPortDepthErr()) {
       const targetB = minBForBpPort;
-      if (targetB > B) {
+      if (targetB > B && targetB <= 650) {
         const prevB = B;
         B = targetB;
         elB.value = B;
         changes.push(`B ${prevB.toFixed(0)}→${B} mm (folga duto topo)`);
         updateWoodlock();
+      }
+      // Se ainda houver colisão de profundidade do duto topo em BP4/BP6 cilíndrico, reduz Ø do duto que estoura B
+      const pTypeBp = document.getElementById('portType')?.value || 'round';
+      if ((hasPortDepthErr() || hasBpDivDepthErr()) && (pTypeBp === 'round' || pTypeBp === 'flared')) {
+        const shrinkChamberDuct = (dId, isRear) => {
+          const dEl = document.getElementById(dId);
+          if (!dEl) return;
+          for (let step = 0; step < 4; step++) {
+            const acNow = lastBuildPack?.acoustics || {};
+            const lvCheck = isRear ? (acNow.lvRearMm || 0) : (acNow.lvMm || 0);
+            if (lvCheck <= B - 55) break;
+            const curD = parseFloat(dEl.value) || 6;
+            if (curD <= 3) break;
+            const nextD = Math.max(3, curD - 1);
+            dEl.value = String(nextD);
+            recalculate();
+            updateWoodlock();
+            changes.push(`Duto ${isRear ? 'VR' : 'VF'} Ø ${curD}→${nextD}″ (folga B)`);
+          }
+        };
+        shrinkChamberDuct('ductDia', false);
+        if (boxTypeP === 'bp6') shrinkChamberDuct('ductDiaVr', true);
       }
     }
     const needsMoreDepth = () => isBpActive ? hasBpDivDepthErr() : (hasPortDepthErr() || hasBpDivDepthErr());
@@ -10207,9 +10305,11 @@ function updateDesktopStatusBar(s) {
     else sbBox.textContent = `📦 Selada ${s.Vb.toFixed(1)}L · Fc ${s.fc.toFixed(1)}Hz · F3 ${s.F3.toFixed(1)}Hz`;
   }
   if (sbPort) {
-    sbPort.textContent = (s.boxType === 'bass-reflex' || s.boxType === 'bp4' || s.boxType === 'bp6')
-      ? `💨 Lv ${s.LvCm.toFixed(1)}cm · ${s.airVel.toFixed(1)} m/s · f₁ ${s.fPipe1.toFixed(0)}Hz`
-      : (s.boxType === 'planar' ? `💨 Boca Planar Refletora` : (s.boxType === 'free-air' ? `💨 Baffle Infinito (Isolamento Frente/Trás)` : `💨 Caixa Selada (sem duto)`));
+    sbPort.textContent = (s.boxType === 'bp6')
+      ? `💨 VF ${s.LvCm.toFixed(1)}cm (${s.airVel.toFixed(1)} m/s) · VR ${(s.LvVrCm||0).toFixed(1)}cm (${(s.airVelVr||0).toFixed(1)} m/s)`
+      : ((s.boxType === 'bass-reflex' || s.boxType === 'bp4')
+          ? `💨 Lv ${s.LvCm.toFixed(1)}cm · ${s.airVel.toFixed(1)} m/s · f₁ ${s.fPipe1.toFixed(0)}Hz`
+          : (s.boxType === 'planar' ? `💨 Boca Planar Refletora` : (s.boxType === 'free-air' ? `💨 Baffle Infinito (Isolamento Frente/Trás)` : `💨 Caixa Selada (sem duto)`)));
   }
   if (sbEpdr && currentCurves && currentCurves.meta) {
     sbEpdr.textContent = `⚡ EPDR ${currentCurves.meta.minEpdrVal.toFixed(2)}Ω @ ${currentCurves.meta.minEpdrFreq.toFixed(0)}Hz`;
