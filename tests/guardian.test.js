@@ -1288,6 +1288,21 @@ runSuite('25. Max Acoustic SPL Real (Thermal Pe vs Mechanical Xmax Limit)', () =
   elements.get('wlPortOffset').value = '40';
   vm.runInContext('updateWoodlock()', ctx);
   assert.strictEqual(vm.runInContext('lastBuildPack.acoustics.portOffsetMm', ctx), 0, 'Duto régua MDF não pode sair para fora da caixa (>0)');
+
+  // 25.4 Planar Horn = Câmara Traseira Dutada (Fb) + Túnel Frontal λ/4 + Posição Duto habilitada [-t, 0]
+  vm.runInContext("selectTopology('planar')", ctx);
+  const cPlan = vm.runInContext('currentCurves', ctx);
+  const maxVelPlan = Math.max(...cPlan.G9_PortAirVel);
+  assert(maxVelPlan > 0.5, `Planar dutada deve ter velocidade de ar no duto G9 > 0 (obtido ${maxVelPlan.toFixed(2)} m/s)`);
+  assert(cPlan.meta.fQuarterWave >= 60 && cPlan.meta.fQuarterWave <= 350, `Planar deve calcular ressonância de túnel λ/4 válida (obtido ${cPlan.meta.fQuarterWave})`);
+  assert.strictEqual(elements.get('wlPortOffset').disabled, false, 'Planar deve habilitar #wlPortOffset (duto + túnel λ/4)');
+  elements.get('wlPortOffset').value = '-18';
+  vm.runInContext('updateWoodlock()', ctx);
+  assert.strictEqual(vm.runInContext('lastBuildPack.acoustics.portOffsetMm', ctx), -18, 'Planar deve aceitar recuo até -t (-18mm)');
+  elements.get('wlPortOffset').value = '25';
+  vm.runInContext('updateWoodlock()', ctx);
+  assert.strictEqual(vm.runInContext('lastBuildPack.acoustics.portOffsetMm', ctx), 0, 'Planar não deve permitir deslocamento positivo (>0mm)');
+
   elements.get('portType').value = 'round';
   elements.get('wlPortOffset').value = '0';
   vm.runInContext('loadPreset()', ctx);
