@@ -1197,7 +1197,7 @@
         <div id="portVfHeader" style="display:none; font-size:10px; font-weight:700; color:#38bdf8; letter-spacing:0.4px; text-transform:uppercase; padding-bottom:2px; border-bottom:1px dashed var(--border);">Câmara Frontal (VF)</div>
         <div class="prop-row">
           <label for="portType">Geometria:</label>
-          <select id="portType" onchange="recalculate()">
+          <select id="portType" onchange="onPortTypeChange()">
             <option value="round" selected>Cilíndrico (0.732)</option>
             <option value="flared">Aeroport (0.850)</option>
             <option value="slot">Régua Livre (0.732)</option>
@@ -2416,6 +2416,7 @@ const PROJECT_FIELD_IDS = [
   'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
   'tsLe', 'tsZnom', 'tsDia', 'tsCoils', 'tsMmsCat', 'tsBlCat',
   'wlShape', 'wlMountMode', 'wlSlotOrient', 'wlPortLayout', 'wlPlanarStyle', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD', 'wlMatrixCols', 'wlMatrixRows', 'wlWheelK', 'wlWheelH', 'wlWheelJ',
+  'wlBraceFF', 'wlBraceTB', 'wlBraceLR', 'wlBraceCross', 'wlBraceBaffle', 'wlBraceRear', 'wlWheelArch', 'wlProtectBar', 'elDerate70',
   'elNumSpk', 'elCoils', 'elZCoil', 'elCoilMode', 'elSpkMode',
   'elAmpPower', 'elVbat', 'elPwrLen', 'elPwrGauge', 'elSpkLen', 'elSpkGauge',
   'elPreoutV', 'elLimProfile', 'elXoverHz', 'elLeMh', 'elMeasV'
@@ -2425,7 +2426,7 @@ function buildProjectPayload() {
   const fields = {};
   PROJECT_FIELD_IDS.forEach(id => {
     const el = document.getElementById(id);
-    if (el) fields[id] = el.value;
+    if (el) fields[id] = (el.type === 'checkbox') ? !!el.checked : el.value;
   });
   const sel = document.getElementById('driverPreset');
   const driverLabel = sel && sel.selectedIndex >= 0 ? sel.options[sel.selectedIndex].text : 'Projeto';
@@ -2463,7 +2464,9 @@ function applyProjectData(proj, opts = {}) {
   if (!proj || !proj.fields) return false;
   PROJECT_FIELD_IDS.forEach(id => {
     const el = document.getElementById(id);
-    if (el && proj.fields[id] !== undefined) el.value = proj.fields[id];
+    if (!el || proj.fields[id] === undefined) return;
+    if (el.type === 'checkbox') el.checked = !!proj.fields[id];
+    else el.value = proj.fields[id];
   });
   const vb = parseFloat(proj.fields.vbInput);
   const fb = parseFloat(proj.fields.fbInput);
@@ -3219,7 +3222,7 @@ function selectTopology(topo) {
     const dEl = document.getElementById('ductDia');
     const nVrEl = document.getElementById('numDuctsVr');
     const dVrEl = document.getElementById('ductDiaVr');
-    if (enteringBpDuct && pEl && (pEl.value === 'round' || pEl.value === 'flared')) {
+    if (enteringBpDuct) {
       if (nEl) nEl.value = '1';
       if (nVrEl) nVrEl.value = '1';
       recalculate();
@@ -3273,6 +3276,19 @@ function selectTopology(topo) {
     }
   }
   autofixWoodlockGeometry(`topologia ${topo}`);
+}
+
+function onPortTypeChange() {
+  const topo = document.getElementById('boxType')?.value || 'bass-reflex';
+  const pType = document.getElementById('portType')?.value || 'round';
+  if ((topo === 'bp4' || topo === 'bp6') && (pType === 'round' || pType === 'flared') && isAutoTune) {
+    const nEl = document.getElementById('numDucts');
+    const nVrEl = document.getElementById('numDuctsVr');
+    if (nEl) nEl.value = '1';
+    if (nVrEl) nVrEl.value = '1';
+  }
+  recalculate();
+  autofixWoodlockGeometry(`duto ${pType}`);
 }
 
 function computePortGeometry(opts) {
@@ -5529,11 +5545,11 @@ function computeWoodlockFloors(opts) {
       minB = Math.max(minB, rows * flangeOD + ductHoleDia + minGap + 2 * edgeMargin);
     }
   } else if (isBp) {
-    // Em BP4/BP6, o(s) driver(s) ficam na(s) divisória(s) interna(s) B×C e os dutos saem pelo tampo (ao longo de C, não empilhados em B)
+    // Em BP4/BP6, o(s) driver(s) ficam na(s) divisória(s) interna(s) B×C (não na largura frontal A) e os dutos saem pelo tampo
     const maxPortDia = Math.max(ductHoleDia, boxType === 'bp6' ? ductHoleDiaVr : 0);
     const bpSlotA = isBpSlot ? ((isBp6Parallel ? 2 : 1) * (slotHmm + slotWallThick + 90) + (nDrivers === 2 ? 260 : 180)) : 0;
     const bpRoundA = (nDrivers === 2 ? 3.2 : 2.3) * (maxPortDia + 2 * edgeMargin) + (nDrivers === 2 ? 120 : 60);
-    minA = Math.max(minA, bpSlotA, bpRoundA);
+    minA = Math.max(320, bpSlotA, bpRoundA);
     minB = Math.max(minB, rows * flangeOD + (rows - 1) * minGap + 20);
   } else if (isPlanar && planarStyle === 'square') {
     // Em Planar Quadrada, o baffle útil tem altura C4 = B - min(110, 0.18*B) - t acima da divisória
@@ -5569,7 +5585,7 @@ function autofixWoodlockGeometry(reason = '') {
   updateWoodlock();
   if (!lastBuildPack) return { fixed: false, changes: [] };
 
-  const floors = lastWoodlockFloors;
+  let floors = lastWoodlockFloors;
   const changes = [];
   let A = parseFloat(elA.value) || 800;
   let B = parseFloat(elB.value) || 490;
@@ -5585,6 +5601,102 @@ function autofixWoodlockGeometry(reason = '') {
     }
   }
 
+  // 0.5. Corrige PORT_LV_NEGATIVE (área do duto insuficiente para Lv > 0 em régua, triângulo ou cilíndrico)
+  if (lastBuildPack && lastBuildPack.validation.issues.some(i => i.code === 'PORT_LV_NEGATIVE')) {
+    const ac0 = lastBuildPack.acoustics || {};
+    const pType = document.getElementById('portType')?.value || 'round';
+    const isSlot0 = (pType === 'slot' || pType === 'slot_wall');
+    const isTri0 = (pType === 'triangle');
+    const boxType0 = document.getElementById('boxType')?.value || 'bass-reflex';
+    const isBp0 = (boxType0 === 'bp4' || boxType0 === 'bp6');
+    const kEnd0 = (pType === 'slot_wall' || isTri0) ? 1.343 : (pType === 'flared' ? 0.850 : 0.732);
+    const minAreaCm2For = (vbL, fbHz, targetLvM = 0.06) => {
+      const w = 2.0 * Math.PI * Math.max(1.0, fbHz);
+      const aCoef = (339.8 * 339.8) / (w * w * Math.max(0.001, vbL / 1000.0));
+      const bCoef = kEnd0 * 2.0 / Math.sqrt(Math.PI);
+      const u = (bCoef + Math.sqrt(bCoef * bCoef + 4.0 * aCoef * targetLvM)) / (2.0 * aCoef);
+      return u * u * 10000.0;
+    };
+    const vb0 = Math.max(1, parseFloat(document.getElementById('vbInput')?.value) || 50);
+    const fb0 = Math.max(10, parseFloat(document.getElementById('fbInput')?.value) || 40);
+    const vr0 = Math.max(1, parseFloat(document.getElementById('vrInput')?.value) || 50);
+    const fbVr0 = Math.max(10, parseFloat(document.getElementById('fbVrInput')?.value) || 35);
+    let needAreaCm2 = (ac0.lvMm <= 0) ? minAreaCm2For(vb0, fb0, 0.065) : 0;
+    if (boxType0 === 'bp6' && ac0.lvRearMm <= 0) {
+      needAreaCm2 = Math.max(needAreaCm2, minAreaCm2For(vr0, fbVr0, 0.065));
+    }
+    if (isSlot0 && needAreaCm2 > 0) {
+      const swEl = document.getElementById('slotW');
+      const shEl = document.getElementById('slotH');
+      if (swEl && shEl) {
+        let sw = Math.max(10, parseFloat(swEl.value) || 35);
+        let sh = Math.max(2, parseFloat(shEl.value) || 6);
+        const origSw = sw, origSh = sh;
+        const slotOr0 = document.getElementById('wlSlotOrient')?.value || 'horizontal';
+        const cAvailMm = Math.min(lastBuildPack?.dimensions?.C_top || 420, lastBuildPack?.dimensions?.D_bot || 420);
+        const dimSpanMm = isBp0 ? cAvailMm : (slotOr0 === 'vertical' ? B : A);
+        const maxSw = Math.max(20, Math.min(58, Math.floor(dimSpanMm / 10.0) - 2));
+        const maxSh = isBp0 ? 18.0 : 20.0;
+        let shTry = Math.ceil((needAreaCm2 / sw) * 2) / 2;
+        if (shTry > 12.0 && sw < maxSw) {
+          sw = Math.min(maxSw, Math.ceil((needAreaCm2 / 11.0) * 2) / 2);
+          shTry = Math.ceil((needAreaCm2 / sw) * 2) / 2;
+        }
+        sh = Math.max(sh, Math.min(maxSh, shTry));
+        if (sw > maxSw) sw = maxSw;
+        swEl.value = sw.toFixed(1);
+        shEl.value = sh.toFixed(1);
+        if (sw !== origSw || sh !== origSh) {
+          changes.push(`Régua ${origSw.toFixed(0)}×${origSh.toFixed(1)}→${sw.toFixed(0)}×${sh.toFixed(1)} cm (Lv>0)`);
+          recalculate();
+          updateWoodlock();
+        }
+      }
+    } else if (isTri0 && needAreaCm2 > 0) {
+      const nTri = Math.max(1, Math.min(4, parseInt(document.getElementById('triCount')?.value) || 2));
+      const aEl = document.getElementById('triA');
+      const bEl = document.getElementById('triB');
+      if (aEl && bEl) {
+        const leg = Math.ceil(Math.sqrt((2.0 * needAreaCm2) / nTri) * 2) / 2;
+        aEl.value = leg.toFixed(1);
+        bEl.value = leg.toFixed(1);
+        changes.push(`Triângulo catetos→${leg.toFixed(1)} cm (Lv>0)`);
+        recalculate();
+        updateWoodlock();
+      }
+    } else if (!isSlot0 && !isTri0) {
+      const nEl = document.getElementById('numDucts');
+      const dEl = document.getElementById('ductDia');
+      if (ac0.lvMm <= 0 && nEl && dEl) {
+        for (const [tryN, tryD] of [[1, 6], [1, 8], [1, 10], [2, 6], [2, 8]]) {
+          nEl.value = String(tryN);
+          dEl.value = String(tryD);
+          recalculate();
+          updateWoodlock();
+          if (lastBuildPack && lastBuildPack.acoustics && lastBuildPack.acoustics.lvMm >= 50) {
+            changes.push(`Duto VF→${tryN}×${tryD}″ (Lv>0)`);
+            break;
+          }
+        }
+      }
+      const nVrEl = document.getElementById('numDuctsVr');
+      const dVrEl = document.getElementById('ductDiaVr');
+      if (boxType0 === 'bp6' && lastBuildPack?.acoustics?.lvRearMm <= 0 && nVrEl && dVrEl) {
+        for (const [tryN, tryD] of [[1, 5], [1, 6], [1, 8], [2, 6], [2, 8]]) {
+          nVrEl.value = String(tryN);
+          dVrEl.value = String(tryD);
+          recalculate();
+          updateWoodlock();
+          if (lastBuildPack && lastBuildPack.acoustics && lastBuildPack.acoustics.lvRearMm >= 50) {
+            changes.push(`Duto VR→${tryN}×${tryD}″ (Lv>0)`);
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  floors = lastWoodlockFloors;
   // 1. Sobe B até o piso do flange + margem (arredondando em múltiplos de 5 mm)
   const roundUp5 = v => Math.ceil(v / 5) * 5;
   if (B < floors.minB) {
@@ -5603,13 +5715,15 @@ function autofixWoodlockGeometry(reason = '') {
   // 3. Revalida; em BP4/BP6 dutos descem do tampo ao longo de B (cresce B se PORT_DEPTH_COLLISION); em dutada frontal/divisória BP reduz A/B p/ crescer C
   updateWoodlock();
   if (lastBuildPack && !lastBuildPack.validation.valid) {
-    const isBpActive = !!(lastBuildPack.acoustics && lastBuildPack.acoustics.bpChambers && lastBuildPack.acoustics.bpChambers.isBp);
+    const boxTypeP = String(document.getElementById('boxType')?.value || '').toLowerCase();
+    const isBpActive = (boxTypeP === 'bp4' || boxTypeP === 'bp6');
     const hasPortDepthErr = () => lastBuildPack.validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION');
     const hasBpDivDepthErr = () => lastBuildPack.validation.issues.some(i => i.code === 'BP_DIVIDER_DEPTH_FIT');
+    const acP0 = lastBuildPack.acoustics || {};
+    const lvNeedBp = isBpActive ? Math.max(acP0.lvMm || 0, boxTypeP === 'bp6' ? (acP0.lvRearMm || 0) : 0) : 0;
+    const minBForBpPort = isBpActive ? roundUp5(Math.max(floors.minB, lvNeedBp + 55)) : floors.minB;
     if (isBpActive && hasPortDepthErr()) {
-      const acP = lastBuildPack.acoustics;
-      const lvNeed = Math.max(acP.lvMm || 0, (acP.bpChambers && acP.bpChambers.isBp6Parallel) ? (acP.lvRearMm || 0) : 0);
-      const targetB = roundUp5(Math.max(floors.minB, lvNeed + 55));
+      const targetB = minBForBpPort;
       if (targetB > B) {
         const prevB = B;
         B = targetB;
@@ -5631,14 +5745,37 @@ function autofixWoodlockGeometry(reason = '') {
         hasDepthErr = needsMoreDepth();
       }
     }
-    if (hasDepthErr && !(isBpActive && hasPortDepthErr()) && B > floors.minB) {
-      const targetB = roundUp5(floors.minB);
+    if (hasDepthErr && !(isBpActive && hasPortDepthErr()) && B > minBForBpPort) {
+      const targetB = roundUp5(minBForBpPort);
       if (targetB < B) {
         const prevB = B;
         B = targetB;
         elB.value = B;
         changes.push(`B ${prevB.toFixed(0)}→${B} mm (profundidade C)`);
         updateWoodlock();
+      }
+    }
+    // Se em caixa dutada frontal ainda houver PORT_DEPTH_COLLISION com régua, reduz slotH mantendo Lv >= 6 cm
+    const pTypeNow = document.getElementById('portType')?.value || 'round';
+    if (!isBpActive && hasPortDepthErr() && (pTypeNow === 'slot' || pTypeNow === 'slot_wall')) {
+      const shEl = document.getElementById('slotH');
+      if (shEl) {
+        let shCur = parseFloat(shEl.value) || 8.0;
+        const origSh = shCur;
+        while (shCur > 3.5 && hasPortDepthErr()) {
+          const nextSh = +(shCur - 1.0).toFixed(1);
+          shEl.value = nextSh.toFixed(1);
+          recalculate();
+          updateWoodlock();
+          if (lastBuildPack?.acoustics?.lvMm <= 45) {
+            shEl.value = shCur.toFixed(1);
+            recalculate();
+            updateWoodlock();
+            break;
+          }
+          shCur = nextSh;
+        }
+        if (shCur !== origSh) changes.push(`Régua H ${origSh.toFixed(1)}→${shCur.toFixed(1)} cm (folga C)`);
       }
     }
   }
@@ -5671,7 +5808,7 @@ function onWoodlockDimChange(axis) {
   const elA = document.getElementById('wlWidthA');
   const elB = document.getElementById('wlHeightB');
   if (!elA || !elB) return;
-  const floors = lastWoodlockFloors;
+  let floors = lastWoodlockFloors;
   if (axis === 'A') {
     const val = parseFloat(elA.value);
     if (!Number.isFinite(val) || val < floors.minA) {
@@ -5892,14 +6029,17 @@ function validateBuildGeometry(opts) {
   if (isVented) {
     if (isBpSlot) {
       // BP4 / BP6 Paralelo com Duto Quadrado de Topo (não fura o painel frontal)
+      const vfSlotX = (bpChambers && bpChambers.dualDiv)
+        ? (bpChambers.A_rear_side + t + bpChambers.A_front / 2)
+        : (A - slotHmm / 2);
       holes.push({
         kind: 'port',
         panel: 'topo',
         shape: 'slot',
         label: 'Duto Quadrado Topo (VF)',
-        xInt: +(A - slotHmm / 2).toFixed(1),
+        xInt: +vfSlotX.toFixed(1),
         yInt: +(B / 2).toFixed(1),
-        xExt: +(A + t - slotHmm / 2).toFixed(1),
+        xExt: +(vfSlotX + t).toFixed(1),
         yExt: +(B / 2 + t).toFixed(1),
         w: +slotHmm.toFixed(1),
         h: +C_min.toFixed(1),
@@ -5907,19 +6047,22 @@ function validateBuildGeometry(opts) {
         collision: false
       });
       if (bpChambers && bpChambers.isBp6Parallel && bpChambers.lvRearMm > 0) {
-        holes.push({
-          kind: 'port',
-          panel: 'topo',
-          shape: 'slot',
-          label: 'Duto Quadrado Topo (VR)',
-          xInt: +(slotHmm / 2).toFixed(1),
-          yInt: +(B / 2).toFixed(1),
-          xExt: +(t + slotHmm / 2).toFixed(1),
-          yExt: +(B / 2 + t).toFixed(1),
-          w: +slotHmm.toFixed(1),
-          h: +C_min.toFixed(1),
-          lvMm: +bpChambers.lvRearMm.toFixed(1),
-          collision: false
+        const vrSlotXs = bpChambers.dualDiv ? [slotHmm / 2, A - slotHmm / 2] : [slotHmm / 2];
+        vrSlotXs.forEach((vx, vIdx) => {
+          holes.push({
+            kind: 'port',
+            panel: 'topo',
+            shape: 'slot',
+            label: bpChambers.dualDiv ? `Duto Quadrado Topo (VR${vIdx + 1})` : 'Duto Quadrado Topo (VR)',
+            xInt: +vx.toFixed(1),
+            yInt: +(B / 2).toFixed(1),
+            xExt: +(t + vx).toFixed(1),
+            yExt: +(B / 2 + t).toFixed(1),
+            w: +slotHmm.toFixed(1),
+            h: +C_min.toFixed(1),
+            lvMm: +bpChambers.lvRearMm.toFixed(1),
+            collision: false
+          });
         });
       }
     } else if (isTri) {
@@ -6199,7 +6342,7 @@ function validateBuildGeometry(opts) {
       issues.push({
         level: 'critical',
         code: 'PORT_LV_NEGATIVE',
-        msg: `Comprimento cortado do duto VF Lv = ${(lvMm / 10).toFixed(1)} cm é nulo/negativo. Reduza a área do duto ou baixe Fb.`
+        msg: `Comprimento cortado do duto VF Lv = ${(lvMm / 10).toFixed(1)} cm é nulo/negativo. Aumente a área do duto ou baixe Fb.`
       });
     } else if (boxType === 'bp6' && bpChambers && bpChambers.lvRearMm <= 0) {
       issues.push({
@@ -8416,7 +8559,7 @@ function drawWoodlockBlueprint(g, targetCanvas) {
       ? (sideY0 + tPx + hl.yInt * scaleFront)
       : (sideY0 + ePx - tPx - hl.yInt * scaleFront);
     const isErr = !!hl.collision;
-    const isVrPort = /Traseir|\(VR\)/.test(hl.label || '');
+    const isVrPort = /Traseir|\(VR\d?\)/.test(hl.label || '');
     if (hl.shape === 'round') {
       const rCut = (hl.dia / 2) * scaleFront;
       const rFlg = ((hl.flangeDia || hl.dia) / 2) * scaleFront;
