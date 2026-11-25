@@ -1272,8 +1272,25 @@ runSuite('25. Max Acoustic SPL Real (Thermal Pe vs Mechanical Xmax Limit)', () =
   const maxXAfter = Math.max(...cLab.G8_ConeExcursion);
   assert(peAfter < 200 && peAfter >= 60, `Auto-Design deve limitar Pe real do LAB-12R abaixo de 200W, obtido ${peAfter}W`);
   assert(maxXAfter <= 3.55, `Após ajuste automático de Pe (${peAfter}W), excursão máxima deve ficar <= Xmax (3.5mm), obtido ${maxXAfter.toFixed(2)}mm`);
+
+  // 25.3 Guardrails físicos de Posição Axial do Duto (#wlPortOffset)
   elements.get('driverPreset').value = 'oversound';
   vm.runInContext('setHpfEnabled(false, false); loadPreset();', ctx);
+  elements.get('wlPortOffset').value = '-30';
+  vm.runInContext('updateWoodlock()', ctx);
+  assert.strictEqual(vm.runInContext('lastBuildPack.acoustics.portOffsetMm', ctx), 0, 'Duto redondo não pode aceitar deslocamento negativo (<0)');
+  elements.get('wlPortOffset').value = '999';
+  vm.runInContext('updateWoodlock()', ctx);
+  const clampedOut = vm.runInContext('lastBuildPack.acoustics.portOffsetMm', ctx);
+  const lvRound = vm.runInContext('lastBuildPack.acoustics.lvMm', ctx);
+  assert(clampedOut <= lvRound - 18 && clampedOut > 0, `Duto redondo para fora deve manter engaste mínimo t=18mm (obtido ${clampedOut} vs Lv=${lvRound})`);
+  elements.get('portType').value = 'slot_wall';
+  elements.get('wlPortOffset').value = '40';
+  vm.runInContext('updateWoodlock()', ctx);
+  assert.strictEqual(vm.runInContext('lastBuildPack.acoustics.portOffsetMm', ctx), 0, 'Duto régua MDF não pode sair para fora da caixa (>0)');
+  elements.get('portType').value = 'round';
+  elements.get('wlPortOffset').value = '0';
+  vm.runInContext('loadPreset()', ctx);
 });
 
 console.log('\n---------------------------------------------------------------');
