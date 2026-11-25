@@ -965,7 +965,7 @@
       <button type="button" class="menu-action" onclick="captureSnapshotA(); closeAllMenus()"><span>📌 Congelar Curva A (A/B)</span><kbd>F8</kbd></button>
       <button type="button" class="menu-action" onclick="clearSnapshotA(); closeAllMenus()"><span>❌ Limpar Curva A</span></button>
       <div class="menu-sep"></div>
-      <button type="button" class="menu-action" onclick="openConfigModal('modalGraphPrefs'); closeAllMenus()"><span>⚙️ Preferências dos Gráficos</span><kbd>F5</kbd></button>
+      <button type="button" class="menu-action" onclick="openConfigModal('modalGraphPrefs'); closeAllMenus()"><span>⚙️ Preferências dos Gráficos</span><kbd>F7</kbd></button>
     </div>
   </div>
   <div class="menu-item">
@@ -1317,7 +1317,7 @@
         <button type="button" class="chart-pill-btn" data-freq-btn="10-2000" onclick="setFreqRange(10, 2000, this)">10–2k</button>
         <span id="snapshotABadge" style="display:none; font-family:var(--mono); font-size:10px; color:#fbbf24; font-weight:700; margin-left:4px;"></span>
         <button type="button" id="btnClearA" class="chart-pill-btn" style="display:none; border-color:rgba(245,158,11,0.5); color:#fbbf24;" onclick="clearSnapshotA()">✕ Limpar A</button>
-        <button type="button" class="chart-pill-btn" onclick="openConfigModal('modalGraphPrefs')" title="Preferências dos Gráficos (F5)">⚙️</button>
+        <button type="button" class="chart-pill-btn" onclick="openConfigModal('modalGraphPrefs')" title="Preferências dos Gráficos (F7)">⚙️</button>
       </div>
     </div>
 
@@ -1825,11 +1825,11 @@
 
 <!-- (Caixa/Dutos F3 e Ambiente/Térmica F4 ficam no Inspetor Lateral sem duplicar IDs) -->
 
-<!-- JANELA MODAL 4: PREFERÊNCIAS DOS GRÁFICOS (F5) -->
+<!-- JANELA MODAL 4: PREFERÊNCIAS DOS GRÁFICOS (F7) -->
 <div class="bf-modal-backdrop" id="modalGraphPrefs" onclick="if(event.target===this) closeConfigModals()">
   <div class="bf-modal" style="max-width:540px;">
     <div class="bf-modal-hdr">
-      <div class="bf-modal-title">⚙️ Preferências dos Gráficos &amp; Comparador A/B (F5)</div>
+      <div class="bf-modal-title">⚙️ Preferências dos Gráficos &amp; Comparador A/B (F7)</div>
       <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
     </div>
     <div class="bf-modal-body">
@@ -1946,7 +1946,7 @@
         <b style="color:var(--accent);">F2</b><span>Abrir Propriedades do Driver (T/S &amp; Auditoria)</span>
         <b style="color:var(--accent);">F3</b><span>Abrir Propriedades da Caixa &amp; Dutos (Cilíndrico / Régua)</span>
         <b style="color:var(--accent);">F4</b><span>Abrir Ambiente, Cabine, HPF &amp; Compressão Térmica</span>
-        <b style="color:var(--accent);">F5</b><span>Abrir Preferências dos Gráficos</span>
+        <b style="color:var(--accent);">F7</b><span>Abrir Preferências dos Gráficos</span>
         <b style="color:var(--accent);">F6</b><span>Abrir Assistente Inteligente de Projeto (Wizard)</span>
         <b style="color:var(--accent);">F8</b><span>Congelar / Atualizar Curva A (Comparador A/B)</span>
         <b style="color:var(--accent);">F9</b><span>Mostrar / Ocultar Painel Rápido (Tela Cheia de Gráficos)</span>
@@ -1972,7 +1972,7 @@
   <div class="menu-sep"></div>
   <button type="button" class="menu-action" onclick="ctxAction('exportPng')"><span>📷 Exportar este Gráfico (PNG)</span></button>
   <button type="button" class="menu-action" onclick="ctxAction('autoScale')"><span>📐 Alternar Auto-Scale Y</span></button>
-  <button type="button" class="menu-action" onclick="ctxAction('prefs')"><span>⚙️ Preferências dos Gráficos</span><kbd>F5</kbd></button>
+  <button type="button" class="menu-action" onclick="ctxAction('prefs')"><span>⚙️ Preferências dos Gráficos</span><kbd>F7</kbd></button>
 </div>
 
 <script>
@@ -6975,6 +6975,36 @@ function autofixWoodlockGeometry(reason = '', opts = {}) {
     }
   }
 
+  // 4.5. Em resetToMin, evita caixas excessivamente profundas ("túnel fino" C >> B, ex. BP4/BP6 com 160L+)
+  if (opts.resetToMin && lastBuildPack && lastBuildPack.dimensions) {
+    floors = lastWoodlockFloors;
+    const btReset = String(document.getElementById('boxType')?.value || '').toLowerCase();
+    const isBpReset = (btReset === 'bp4' || btReset === 'bp6');
+    const cNow = lastBuildPack.dimensions.C_top || 0;
+    const cCap = isBpReset
+      ? Math.max(floors.flangeOD + 90, 480)
+      : Math.max(580, Math.round(B * 1.55));
+    if (btReset !== 'free-air' && cNow > cCap && lastBuildPack.acoustics && lastBuildPack.acoustics.Vbruto > 0) {
+      const nDrvReset = Math.max(1, parseInt(document.getElementById('simNumDrivers')?.value) || 1);
+      const tReset = lastBuildPack.dimensions.t || 18;
+      const divThick = isBpReset ? (nDrvReset === 2 ? 2 * tReset : tReset) : 0;
+      const targetA = Math.min(1400, Math.max(floors.minA, Math.ceil((lastBuildPack.acoustics.Vbruto * 1e6) / Math.max(1, B * cCap) + divThick)));
+      if (targetA > A + 10) {
+        const prevA = A;
+        A = targetA;
+        elA.value = A;
+        updateWoodlock();
+        if (!lastBuildPack.validation.valid) {
+          A = prevA;
+          elA.value = A;
+          updateWoodlock();
+        } else {
+          changes.push(`A→${A} mm (proporção C≤${cCap} mm)`);
+        }
+      }
+    }
+  }
+
   if (changes.length > 0) {
     const rTxt = reason ? ` (${escapeHtmlStr(reason)})` : '';
     showWlAutofixBanner(`🔧 <b>Projeto ajustado automaticamente${rTxt}:</b> ${escapeHtmlStr(changes.join(' · '))}. Motivo: flange ${floors.diaIn}″ (${floors.flangeOD} mm) e folga de dutos. Vb/Fb mantidos intactos.`);
@@ -11671,8 +11701,8 @@ document.addEventListener('keydown', e => {
   if (e.key === 'F2') { e.preventDefault(); openConfigModal('modalDriver'); return; }
   if (e.key === 'F3') { e.preventDefault(); openConfigModal('modalBox'); return; }
   if (e.key === 'F4') { e.preventDefault(); openConfigModal('modalEnv'); return; }
-  if (e.key === 'F5') { e.preventDefault(); openConfigModal('modalGraphPrefs'); return; }
   if (e.key === 'F6') { e.preventDefault(); openWizardModal(); return; }
+  if (e.key === 'F7') { e.preventDefault(); openConfigModal('modalGraphPrefs'); return; }
   if (e.key === 'F8') { e.preventDefault(); captureSnapshotA(); return; }
   if (e.key === 'F9') { e.preventDefault(); toggleQuickSidebar(); return; }
   const tag = (e.target && e.target.tagName) || '';
