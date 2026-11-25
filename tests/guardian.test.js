@@ -1468,6 +1468,61 @@ runSuite('26. Planar Horn TMM / ABCD 1D Coupled Physics, Recuo G & Square vs Tri
   vm.runInContext('loadPreset()', ctx);
 });
 
+// SUITE 27: Motor Completo de Filtros Complexos HPF / LPF (BW / LR / Bessel 6..48 dB/oit, Fase & Group Delay)
+runSuite('27. Complex HPF / LPF Crossover Engine (BW/LR/Bessel 6-48 dB/oct, Phase & Group Delay)', () => {
+  // 27.1 Atenuação exata em f = fc para todos os 12 alinhamentos (HPF e LPF)
+  const bwAndBessel = ['BW6', 'BW12', 'BS12', 'BW18', 'BW24', 'BS24', 'BW36', 'BW48'];
+  const lrTypes = ['LR12', 'LR24', 'LR36', 'LR48'];
+  for (const kind of ['hpf', 'lpf']) {
+    for (const code of bwAndBessel) {
+      const r = vm.runInContext(`evalFilterComplex(80, 80, '${kind}', '${code}')`, ctx);
+      approx(r.db, -3.0103, 0.08, `${kind.toUpperCase()} ${code} @ fc deve ser -3.01 dB`);
+    }
+    for (const code of lrTypes) {
+      const r = vm.runInContext(`evalFilterComplex(80, 80, '${kind}', '${code}')`, ctx);
+      approx(r.db, -6.0206, 0.08, `${kind.toUpperCase()} ${code} @ fc deve ser -6.02 dB`);
+    }
+  }
+
+  // 27.2 Inclinação na banda de rejeição (LR24 ~ -24 dB/oit, LR48 ~ -48 dB/oit)
+  const lr24Stop = vm.runInContext("evalFilterComplex(20, 80, 'hpf', 'LR24').db", ctx);
+  const lr48Stop = vm.runInContext("evalFilterComplex(20, 80, 'hpf', 'LR48').db", ctx);
+  assert(lr24Stop < -46 && lr24Stop > -50, `LR24 2 oitavas abaixo deve ficar em ~-48 dB, obtido ${lr24Stop.toFixed(2)}`);
+  assert(lr48Stop < -92 && lr48Stop > -100, `LR48 2 oitavas abaixo deve ficar em ~-96 dB, obtido ${lr48Stop.toFixed(2)}`);
+
+  // 27.3 Integração no simulador: LPF 80 Hz LR24 atenua G4/G6/G8/G15 em 200 Hz, aumenta G13 (Group Delay) e NÃO altera G11 (Impedância)
+  vm.runInContext("loadPreset(); setHpfEnabled(false, false); setLpfEnabled(false, true);", ctx);
+  const base = vm.runInContext(`(() => {
+    const i200 = currentCurves.frequencies.findIndex(f => f >= 200);
+    const i80 = currentCurves.frequencies.findIndex(f => f >= 80);
+    return { g4: currentCurves.G4_NormAmp[i200], g11: currentCurves.G11_InBoxZ[i200], gd80: currentCurves.G13_GroupDelay[i80] };
+  })()`, ctx);
+
+  vm.runInContext(`
+    document.getElementById('lpfCutoff').value = '80';
+    document.getElementById('lpfType').value = 'LR24';
+    setLpfEnabled(true, true);
+  `, ctx);
+  const withLpf = vm.runInContext(`(() => {
+    const i200 = currentCurves.frequencies.findIndex(f => f >= 200);
+    const i80 = currentCurves.frequencies.findIndex(f => f >= 80);
+    return { g4: currentCurves.G4_NormAmp[i200], g11: currentCurves.G11_InBoxZ[i200], gd80: currentCurves.G13_GroupDelay[i80] };
+  })()`, ctx);
+  assert(withLpf.g4 < base.g4 - 30.0, `LPF 80Hz LR24 deve atenuar >30 dB em 200 Hz (Δ=${(withLpf.g4 - base.g4).toFixed(1)} dB)`);
+  approx(withLpf.g11, base.g11, 0.01, 'LPF ativo não pode alterar impedância elétrica passiva da caixa (G11)');
+  assert(withLpf.gd80 > base.gd80 + 3.0, `LPF 80Hz LR24 deve somar Group Delay real em 80 Hz (${base.gd80.toFixed(2)} -> ${withLpf.gd80.toFixed(2)} ms)`);
+
+  // 27.4 Bessel 24 dB/oit (BS24) deve apresentar menor pico de Group Delay que Butterworth 24 (BW24)
+  vm.runInContext("document.getElementById('lpfType').value = 'BW24'; recalculate();", ctx);
+  const gdBw24 = vm.runInContext('Math.max(...currentCurves.G13_GroupDelay.slice(200))', ctx);
+  vm.runInContext("document.getElementById('lpfType').value = 'BS24'; recalculate();", ctx);
+  const gdBs24 = vm.runInContext('Math.max(...currentCurves.G13_GroupDelay.slice(200))', ctx);
+  assert(gdBs24 < gdBw24, `BS24 deve ter menor pico de Group Delay que BW24 (${gdBs24.toFixed(2)} vs ${gdBw24.toFixed(2)} ms)`);
+
+  // Restaura estado padrão (HPF OFF, LPF OFF)
+  vm.runInContext("document.getElementById('hpfType').value = 'LR24'; document.getElementById('lpfType').value = 'LR24'; setHpfEnabled(false, false); setLpfEnabled(false, false); loadPreset();", ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

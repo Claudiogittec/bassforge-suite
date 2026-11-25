@@ -1234,18 +1234,59 @@
       </div>
     </details>
 
-    <!-- GRUPO 2: FILTRO & TÉRMICA -->
+    <!-- GRUPO 2: FILTROS HPF / LPF & TÉRMICA -->
     <details class="prop-group" id="grpDspThermal" open>
-      <summary>Filtro &amp; Térmica</summary>
+      <summary>Filtros HPF / LPF &amp; Térmica</summary>
       <div class="prop-body">
         <div class="prop-row">
-          <label for="hpfCutoff">HPF LR4 (Hz):</label>
+          <label for="hpfCutoff">HPF (Hz):</label>
           <div style="display:flex; gap:4px; align-items:center;">
-            <input type="number" id="hpfCutoff" value="36.0" step="1" oninput="recalculate()" style="opacity:0.45;" title="Frequência de corte do filtro subsônico LR4 (24 dB/oit)">
-            <button type="button" id="hpfToggleBtn" class="fb-lock-btn" onclick="toggleHpfEnabled()" title="Ativar/Desativar filtro subsônico HPF LR4" style="width:36px; font-family:var(--mono); font-size:9.5px; font-weight:700; color:#94a3b8;">OFF</button>
+            <input type="number" id="hpfCutoff" value="36.0" min="5" max="500" step="1" oninput="recalculate()" style="opacity:0.45;" title="Frequência de corte do filtro passa-altas (subsônico)">
+            <button type="button" id="hpfToggleBtn" class="fb-lock-btn" onclick="toggleHpfEnabled()" title="Ativar/Desativar filtro passa-altas (HPF)" style="width:36px; font-family:var(--mono); font-size:10px; font-weight:600; color:var(--text-muted);">OFF</button>
           </div>
         </div>
         <div class="prop-row">
+          <label for="hpfType">Tipo HPF:</label>
+          <select id="hpfType" onchange="recalculate()" style="opacity:0.45;">
+            <option value="BW6">BW 6 dB/oit (1ª)</option>
+            <option value="BW12">BW 12 dB/oit (2ª)</option>
+            <option value="LR12">LR 12 dB/oit (2ª)</option>
+            <option value="BS12">Bessel 12 dB/oit (2ª)</option>
+            <option value="BW18">BW 18 dB/oit (3ª)</option>
+            <option value="BW24">BW 24 dB/oit (4ª)</option>
+            <option value="LR24" selected>LR 24 dB/oit (4ª)</option>
+            <option value="BS24">Bessel 24 dB/oit (4ª)</option>
+            <option value="BW36">BW 36 dB/oit (6ª)</option>
+            <option value="LR36">LR 36 dB/oit (6ª)</option>
+            <option value="BW48">BW 48 dB/oit (8ª)</option>
+            <option value="LR48">LR 48 dB/oit (8ª)</option>
+          </select>
+        </div>
+        <div class="prop-row" style="margin-top:3px; padding-top:5px; border-top:1px dashed var(--border);">
+          <label for="lpfCutoff">LPF (Hz):</label>
+          <div style="display:flex; gap:4px; align-items:center;">
+            <input type="number" id="lpfCutoff" value="80.0" min="25" max="2000" step="5" oninput="recalculate()" style="opacity:0.45;" title="Frequência de corte do filtro passa-baixas (LPF)">
+            <button type="button" id="lpfToggleBtn" class="fb-lock-btn" onclick="toggleLpfEnabled()" title="Ativar/Desativar filtro passa-baixas (LPF)" style="width:36px; font-family:var(--mono); font-size:10px; font-weight:600; color:var(--text-muted);">OFF</button>
+          </div>
+        </div>
+        <div class="prop-row">
+          <label for="lpfType">Tipo LPF:</label>
+          <select id="lpfType" onchange="recalculate()" style="opacity:0.45;">
+            <option value="BW6">BW 6 dB/oit (1ª)</option>
+            <option value="BW12">BW 12 dB/oit (2ª)</option>
+            <option value="LR12">LR 12 dB/oit (2ª)</option>
+            <option value="BS12">Bessel 12 dB/oit (2ª)</option>
+            <option value="BW18">BW 18 dB/oit (3ª)</option>
+            <option value="BW24">BW 24 dB/oit (4ª)</option>
+            <option value="LR24" selected>LR 24 dB/oit (4ª)</option>
+            <option value="BS24">Bessel 24 dB/oit (4ª)</option>
+            <option value="BW36">BW 36 dB/oit (6ª)</option>
+            <option value="LR36">LR 36 dB/oit (6ª)</option>
+            <option value="BW48">BW 48 dB/oit (8ª)</option>
+            <option value="LR48">LR 48 dB/oit (8ª)</option>
+          </select>
+        </div>
+        <div class="prop-row" style="margin-top:3px; padding-top:5px; border-top:1px dashed var(--border);">
           <label for="thermalDeltaT">Bobina ΔT:</label>
           <select id="thermalDeltaT" onchange="recalculate()">
             <option value="0" selected>0 °C (Nominal)</option>
@@ -1254,7 +1295,7 @@
             <option value="130">+130 °C (+51.1% Re)</option>
           </select>
         </div>
-        <div id="thermalCompBadge" style="display:none; padding:4px 6px; border-radius:4px; background:rgba(245,158,11,0.10); border:1px solid rgba(245,158,11,0.35); font-family:var(--mono); font-size:9.5px; color:#fde68a; line-height:1.35;"></div>
+        <div id="thermalCompBadge" style="display:none; padding:4px 6px; border-radius:4px; background:rgba(212,148,42,0.10); border:1px solid rgba(212,148,42,0.35); font-family:var(--mono); font-size:10.5px; color:#fde68a; line-height:1.35;"></div>
       </div>
     </details>
 
@@ -2498,7 +2539,8 @@ function onSimNumDriversChange() {
 const PROJECT_FIELD_IDS = [
   'driverPreset', 'boxType', 'simNumDrivers', 'autoDesignProfile', 'vbInput', 'fbInput', 'vrInput', 'fbVrInput', 'qlInput', 'tempInput',
   'portType', 'numDucts', 'ductDia', 'ductThick', 'numDuctsVr', 'ductDiaVr', 'ductThickVr', 'slotW', 'slotH', 'slotWallThick', 'triCount', 'triA', 'triB',
-  'cabinLen', 'hpfCutoff', 'thermalDeltaT',
+  'cabinLen', 'roomLen', 'roomWid', 'roomHgt', 'roomPlacement', 'roomRt60',
+  'hpfCutoff', 'hpfType', 'lpfCutoff', 'lpfType', 'thermalDeltaT',
   'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
   'tsLe', 'tsZnom', 'tsDia', 'tsCoils', 'tsMmsCat', 'tsBlCat',
   'wlShape', 'wlMountMode', 'wlSlotOrient', 'wlPortLayout', 'wlPortOffset', 'wlPlanarStyle', 'wlPlanarRecuoG', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD', 'wlMatrixCols', 'wlMatrixRows', 'wlWheelK', 'wlWheelH', 'wlWheelJ',
@@ -2522,6 +2564,7 @@ function buildProjectPayload() {
     name: driverLabel,
     isAutoTune,
     isHpfEnabled,
+    isLpfEnabled,
     analysisEnv: getAnalysisEnv(),
     chartOpts: { ...chartOpts },
     validation: lastBuildPack ? {
@@ -2573,6 +2616,7 @@ function applyProjectData(proj, opts = {}) {
   const fbVr = parseFloat(proj.fields.fbVrInput);
   if (!isNaN(fbVr) && fbVr > 0) syncSliderRange('fbVrRange', fbVr, 15);
   if (typeof proj.isHpfEnabled === 'boolean') setHpfEnabled(proj.isHpfEnabled, false);
+  if (typeof proj.isLpfEnabled === 'boolean') setLpfEnabled(proj.isLpfEnabled, false);
   setTuningMode(proj.isAutoTune !== false);
   if (typeof proj.analysisEnv === 'string' && ENV_PROFILES[proj.analysisEnv]) {
     analysisEnv = proj.analysisEnv;
@@ -2654,23 +2698,106 @@ function updateFbLockButtonUI(boxTypeOverride) {
 }
 
 let isHpfEnabled = false;
+let isLpfEnabled = false;
+
+// Motor de Filtros Ativos / DSP no Domínio Complexo s = jω (Polinômios Exatos de Laplace)
+// BW e Bessel normalizados para -3.01 dB em fc; Linkwitz-Riley (cascata BW²) para -6.02 dB em fc.
+const FILTER_ALIGNMENTS = {
+  BW6:  { label: 'BW 6 dB/oit',  firstOrder: 1, biquads: [] },
+  BW12: { label: 'BW 12 dB/oit', firstOrder: 0, biquads: [{ q: Math.SQRT1_2, s: 1.0 }] },
+  LR12: { label: 'LR 12 dB/oit', firstOrder: 0, biquads: [{ q: 0.5, s: 1.0 }] },
+  BS12: { label: 'BS 12 dB/oit', firstOrder: 0, biquads: [{ q: 1.0 / Math.sqrt(3.0), s: 1.27201965 }] },
+  BW18: { label: 'BW 18 dB/oit', firstOrder: 1, biquads: [{ q: 1.0, s: 1.0 }] },
+  BW24: { label: 'BW 24 dB/oit', firstOrder: 0, biquads: [{ q: 0.54119610, s: 1.0 }, { q: 1.30656296, s: 1.0 }] },
+  LR24: { label: 'LR 24 dB/oit', firstOrder: 0, biquads: [{ q: Math.SQRT1_2, s: 1.0 }, { q: Math.SQRT1_2, s: 1.0 }] },
+  BS24: { label: 'BS 24 dB/oit', firstOrder: 0, biquads: [{ q: 0.52193458, s: 1.43017156 }, { q: 0.80553828, s: 1.60335752 }] },
+  BW36: { label: 'BW 36 dB/oit', firstOrder: 0, biquads: [{ q: 0.51763809, s: 1.0 }, { q: Math.SQRT1_2, s: 1.0 }, { q: 1.93185165, s: 1.0 }] },
+  LR36: { label: 'LR 36 dB/oit', firstOrder: 2, biquads: [{ q: 1.0, s: 1.0 }, { q: 1.0, s: 1.0 }] },
+  BW48: { label: 'BW 48 dB/oit', firstOrder: 0, biquads: [{ q: 0.50979558, s: 1.0 }, { q: 0.60134489, s: 1.0 }, { q: 0.89997622, s: 1.0 }, { q: 2.56291545, s: 1.0 }] },
+  LR48: { label: 'LR 48 dB/oit', firstOrder: 0, biquads: [{ q: 0.54119610, s: 1.0 }, { q: 1.30656296, s: 1.0 }, { q: 0.54119610, s: 1.0 }, { q: 1.30656296, s: 1.0 }] }
+};
+
+function evalFilterComplex(f, fc, kind, alignCode = 'LR24') {
+  if (!(f > 0) || !(fc > 0)) return { mag: 1.0, db: 0.0, phaseRad: 0.0 };
+  const def = FILTER_ALIGNMENTS[alignCode] || FILTER_ALIGNMENTS.LR24;
+  const isHp = (kind === 'hpf');
+  const om = f / fc;
+  let mag = 1.0;
+  let phaseRad = 0.0;
+  for (let i = 0; i < def.firstOrder; i++) {
+    // LPF: 1 / (1 + j*om) | HPF: j*om / (1 + j*om)
+    const denMag = Math.hypot(1.0, om);
+    if (isHp) {
+      mag *= om / denMag;
+      phaseRad += (Math.PI * 0.5) - Math.atan2(om, 1.0);
+    } else {
+      mag *= 1.0 / denMag;
+      phaseRad += -Math.atan2(om, 1.0);
+    }
+  }
+  for (let i = 0; i < def.biquads.length; i++) {
+    const bq = def.biquads[i];
+    const u = isHp ? (om * bq.s) : (om / bq.s);
+    const u2 = u * u;
+    const dRe = 1.0 - u2;
+    const dIm = u / bq.q;
+    const dMag = Math.hypot(dRe, dIm);
+    const dPhi = Math.atan2(dIm, dRe);
+    if (isHp) {
+      // HPF: -u^2 / ((1 - u^2) + j*(u/Q)) => arg(-u^2) = +pi
+      mag *= u2 / Math.max(1e-12, dMag);
+      phaseRad += Math.PI - dPhi;
+    } else {
+      // LPF: 1 / ((1 - u^2) + j*(u/Q))
+      mag *= 1.0 / Math.max(1e-12, dMag);
+      phaseRad += -dPhi;
+    }
+  }
+  return {
+    mag: Math.max(1e-9, mag),
+    db: 20.0 * Math.log10(Math.max(1e-9, mag)),
+    phaseRad
+  };
+}
 
 function setHpfEnabled(enabled, shouldRecalc = true) {
   isHpfEnabled = !!enabled;
   const btn = document.getElementById('hpfToggleBtn');
   const inp = document.getElementById('hpfCutoff');
+  const sel = document.getElementById('hpfType');
   if (btn) {
     btn.textContent = isHpfEnabled ? 'ON' : 'OFF';
-    btn.style.color = isHpfEnabled ? '#4ade80' : '#94a3b8';
-    btn.style.borderColor = isHpfEnabled ? 'rgba(74, 222, 128, 0.45)' : 'var(--border)';
-    btn.style.background = isHpfEnabled ? 'rgba(34, 197, 94, 0.14)' : 'var(--bg-input)';
+    btn.style.color = isHpfEnabled ? 'var(--success)' : 'var(--text-muted)';
+    btn.style.borderColor = isHpfEnabled ? 'rgba(46, 160, 112, 0.5)' : 'var(--border)';
+    btn.style.background = isHpfEnabled ? 'rgba(46, 160, 112, 0.14)' : 'var(--bg-input)';
   }
   if (inp) inp.style.opacity = isHpfEnabled ? '1' : '0.45';
+  if (sel) sel.style.opacity = isHpfEnabled ? '1' : '0.45';
   if (shouldRecalc) recalculate();
 }
 
 function toggleHpfEnabled() {
   setHpfEnabled(!isHpfEnabled);
+}
+
+function setLpfEnabled(enabled, shouldRecalc = true) {
+  isLpfEnabled = !!enabled;
+  const btn = document.getElementById('lpfToggleBtn');
+  const inp = document.getElementById('lpfCutoff');
+  const sel = document.getElementById('lpfType');
+  if (btn) {
+    btn.textContent = isLpfEnabled ? 'ON' : 'OFF';
+    btn.style.color = isLpfEnabled ? 'var(--accent)' : 'var(--text-muted)';
+    btn.style.borderColor = isLpfEnabled ? 'var(--accent-border)' : 'var(--border)';
+    btn.style.background = isLpfEnabled ? 'var(--accent-muted)' : 'var(--bg-input)';
+  }
+  if (inp) inp.style.opacity = isLpfEnabled ? '1' : '0.45';
+  if (sel) sel.style.opacity = isLpfEnabled ? '1' : '0.45';
+  if (shouldRecalc) recalculate();
+}
+
+function toggleLpfEnabled() {
+  setLpfEnabled(!isLpfEnabled);
 }
 
 function setTuningMode(auto) {
@@ -4740,6 +4867,13 @@ function analyzeTransferAlignment(p) {
   if (p.boxType === 'bp4' || p.boxType === 'bp6') {
     const bpModel = buildBandPassAcousticModel(p);
     const hpfOn = Number.isFinite(p.hpfHz) && p.hpfHz > 0;
+  const hpfType = p.hpfType || 'LR24';
+  const lpfOn = Number.isFinite(p.lpfHz) && p.lpfHz > 0;
+  const lpfType = p.lpfType || 'LR24';
+  const wrapPi = rad => {
+    let r = ((rad + Math.PI) % (2.0 * Math.PI) + 2.0 * Math.PI) % (2.0 * Math.PI) - Math.PI;
+    return r;
+  };
     let maxUpf = 0;
     let maxUpr = 0;
 
@@ -4816,6 +4950,13 @@ function analyzeTransferAlignment(p) {
     // Planar Horn / Euclides: Solver TMM / ABCD 1D acoplado exato (Câmara Dutada + Túnel λ/4)
     const planarModel = buildPlanarAcousticModel(p);
     const hpfOn = Number.isFinite(p.hpfHz) && p.hpfHz > 0;
+  const hpfType = p.hpfType || 'LR24';
+  const lpfOn = Number.isFinite(p.lpfHz) && p.lpfHz > 0;
+  const lpfType = p.lpfType || 'LR24';
+  const wrapPi = rad => {
+    let r = ((rad + Math.PI) % (2.0 * Math.PI) + 2.0 * Math.PI) % (2.0 * Math.PI) - Math.PI;
+    return r;
+  };
     let maxUp = 0;
     const peakLo = Math.max(planarModel.Fb * 1.35, 55.0);
     const peakHi = Math.min(1800.0, Math.max(planarModel.fQuarterWave * 3.0, 600.0));
@@ -4959,6 +5100,10 @@ function recalculate() {
   const cabinM = parseFloat(document.getElementById('cabinLen').value);
   const hpfRaw = parseFloat(document.getElementById('hpfCutoff').value);
   const hpfHz = isHpfEnabled ? (Number.isFinite(hpfRaw) ? hpfRaw : 0) : 0;
+  const hpfType = document.getElementById('hpfType')?.value || 'LR24';
+  const lpfRaw = parseFloat(document.getElementById('lpfCutoff')?.value);
+  const lpfHz = isLpfEnabled ? (Number.isFinite(lpfRaw) ? lpfRaw : 0) : 0;
+  const lpfType = document.getElementById('lpfType')?.value || 'LR24';
 
   const numD = parseInt(document.getElementById('numDucts').value) || 1;
   const dDia = parseFloat(document.getElementById('ductDia').value) || 4.0;
@@ -5391,7 +5536,7 @@ function recalculate() {
   // Síntese dos 13 Gráficos (suporta Selada, Dutada, BP4, BP6 e Planar TMM)
   generateSimulationData({
     boxType, Fs, Qes, Qms, Re, Sd_m2, Vas, Xmax_mm, Pe, Qts,
-    Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
+    Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, hpfType, lpfHz, lpfType, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
     fPipe1, velLimit, nDrivers, deltaT, powerCompDb, fQuarterWave, fHalfWave, planarTunnelMm, planarStyle,
     planarSt_m2: planarTunnelGeom.St_m2,
     planarRh_m: planarTunnelGeom.rh_m,
@@ -5432,6 +5577,13 @@ function generateSimulationData(p) {
   const QL_s = Math.max(0.1, p.QL || 7.0);
   const alpha_s = Math.max(0, p.alpha || 0);
   const hpfOn = Number.isFinite(p.hpfHz) && p.hpfHz > 0;
+  const hpfType = p.hpfType || 'LR24';
+  const lpfOn = Number.isFinite(p.lpfHz) && p.lpfHz > 0;
+  const lpfType = p.lpfType || 'LR24';
+  const wrapPi = rad => {
+    let r = ((rad + Math.PI) % (2.0 * Math.PI) + 2.0 * Math.PI) % (2.0 * Math.PI) - Math.PI;
+    return r;
+  };
 
   const isBrLike = (p.boxType === 'bass-reflex');
   const h = (isBrLike ? Math.max(1e-6, Fb_s / Fs_s) : 1.0);
@@ -5503,9 +5655,12 @@ function generateSimulationData(p) {
 
   freqs.forEach(f => {
     const w = 2.0 * Math.PI * f;
-    // HPF LR4 (24 dB/oitava, -6.02 dB em fc); bypassed quando hpfHz <= 0
-    const hpf_lin = hpfOn ? (Math.pow(f / p.hpfHz, 4) / (Math.pow(f / p.hpfHz, 4) + 1.0)) : 1.0;
-    const hpf_db = 20.0 * Math.log10(Math.max(1e-6, hpf_lin));
+    // Filtros ativos HPF + LPF no domínio complexo H(jw) = H_HPF(jw) * H_LPF(jw) (magnitude, fase e group delay reais)
+    const hpfC = hpfOn ? evalFilterComplex(f, p.hpfHz, 'hpf', hpfType) : { mag: 1.0, db: 0.0, phaseRad: 0.0 };
+    const lpfC = lpfOn ? evalFilterComplex(f, p.lpfHz, 'lpf', lpfType) : { mag: 1.0, db: 0.0, phaseRad: 0.0 };
+    const hpf_lin = hpfC.mag * lpfC.mag;
+    const hpf_db = hpfC.db + lpfC.db;
+    const flt_phi = hpfC.phaseRad + lpfC.phaseRad;
 
     // Função de transferência de pressurização acústica pura da cabine T_cabin(f) (+12 dB/oitava abaixo de F100)
     const t_cabin_db = (f > 0.0) ? 20.0 * Math.log10(1.0 + (Math.SQRT2 - 1.0) * Math.pow(p.F100 / f, 2)) : 0.0;
@@ -5589,10 +5744,10 @@ function generateSimulationData(p) {
         minEpdrFreq = f;
       }
 
-      // G12: Fase Acústica do Gabinete #12 (Graus): arg(sn^4 / D(sn)) = -arg(D(sn))
-      const phiRad = -Math.atan2(den_im, den_re);
+      // G12: Fase Acústica do Gabinete + Filtros HPF/LPF (Graus)
+      const phiRad = -Math.atan2(den_im, den_re) + flt_phi;
       phaseRadRaw.push(phiRad);
-      G12.push(phiRad * 180.0 / Math.PI);
+      G12.push(wrapPi(phiRad) * 180.0 / Math.PI);
     } else if (p.boxType === 'bp4' || p.boxType === 'bp6') {
       // Modelo físico eletromecânico-acústico acoplado exato (BP4, BP6 Paralela & BP6 Série)
       const ev = evalBandPassFrequency(bpModel, f);
@@ -5629,10 +5784,10 @@ function generateSimulationData(p) {
       const epdr_f = computeEpdrAes(zBoxVal, zPhase);
       if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
 
-      // Fase acústica real do gabinete (unwrapped em G13 para atraso de grupo real)
-      const phiRad = Math.atan2(ev.H_im, ev.H_re);
+      // Fase acústica real do gabinete + filtros HPF/LPF (unwrapped em G13 para atraso de grupo real)
+      const phiRad = Math.atan2(ev.H_im, ev.H_re) + flt_phi;
       phaseRadRaw.push(phiRad);
-      G12.push(phiRad * 180.0 / Math.PI);
+      G12.push(wrapPi(phiRad) * 180.0 / Math.PI);
     } else if (p.boxType === 'planar') {
       // Planar Horn / Euclides: Solver TMM / ABCD 1D acoplado exato
       const ev = evalPlanarFrequency(planarModel, f);
@@ -5673,10 +5828,10 @@ function generateSimulationData(p) {
       const epdr_f = computeEpdrAes(zBoxVal, zPhase);
       if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
 
-      // G12: Fase acústica real (unwrapped em G13 para atraso de grupo real)
-      const phiRad = Math.atan2(ev.H_im, ev.H_re);
+      // G12: Fase acústica real + filtros HPF/LPF (unwrapped em G13 para atraso de grupo real)
+      const phiRad = Math.atan2(ev.H_im, ev.H_re) + flt_phi;
       phaseRadRaw.push(phiRad);
-      G12.push(phiRad * 180.0 / Math.PI);
+      G12.push(wrapPi(phiRad) * 180.0 / Math.PI);
     } else {
       // Sealed (Small 1972) ou Free-Air (Baffle Infinito)
       const rel_fc = f / p.fc;
@@ -5723,12 +5878,12 @@ function generateSimulationData(p) {
       const p_max_f = (exc_mm > 1e-6) ? Math.min(p.Pe, p.Pe * Math.pow(p.Xmax_mm / exc_mm, 2)) : p.Pe;
       G1.push(p_max_f);
 
-      // Fase Acústica de 2ª Ordem: arg(-rel_fc^2 / (1 - rel_fc^2 + j*rel_fc/Qtc))
+      // Fase Acústica de 2ª Ordem + filtros HPF/LPF
       const h_re = (Math.pow(rel_fc, 4) - Math.pow(rel_fc, 2)) / den_mag2;
       const h_im = (Math.pow(rel_fc, 3) / p.qtc) / den_mag2;
-      const phiRad = Math.atan2(h_im, h_re);
+      const phiRad = Math.atan2(h_im, h_re) + flt_phi;
       phaseRadRaw.push(phiRad);
-      G12.push(phiRad * 180.0 / Math.PI);
+      G12.push(wrapPi(phiRad) * 180.0 / Math.PI);
     }
   });
 
@@ -5855,6 +6010,9 @@ function generateSimulationData(p) {
       F3: p.F3,
       FH: p.FH,
       hpfHz: p.hpfHz,
+      hpfType: hpfType,
+      lpfHz: p.lpfHz,
+      lpfType: lpfType,
       F100: p.F100,
       Xmax: p.Xmax_mm,
       Pe: p.Pe,
