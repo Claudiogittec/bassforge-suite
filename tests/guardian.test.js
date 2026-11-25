@@ -1232,6 +1232,31 @@ runSuite('24. PhD Universal Auto-Design Engine (QB3/B4/Sealed/BP4/BP6, Laminar P
   vm.runInContext('setHpfEnabled(false, false); loadPreset();', ctx);
 });
 
+// ============================================================================
+// SUITE 25: SPL Máximo Real (Limite Térmico Pe vs Limite Mecânico Xmax)
+// ============================================================================
+runSuite('25. Max Acoustic SPL Real (Thermal Pe vs Mechanical Xmax Limit)', () => {
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('setHpfEnabled(false, false); loadPreset();', ctx);
+  const c = vm.runInContext('currentCurves', ctx);
+  assert(Array.isArray(c.G6_SPLMaxReal) && c.G6_SPLMaxReal.length === c.frequencies.length, 'G6_SPLMaxReal deve existir com 600 pontos');
+  assert(c.G6_SPLMaxReal.every(Number.isFinite), 'G6_SPLMaxReal não pode conter NaN/Infinity');
+
+  // Sempre SPL Real <= SPL Térmico em toda a banda
+  for (let i = 0; i < c.frequencies.length; i++) {
+    assert(c.G6_SPLMaxReal[i] <= c.G6_SPLThermic[i] + 1e-6, `Em ${c.frequencies[i].toFixed(1)}Hz SPL Real (${c.G6_SPLMaxReal[i]}) > Térmico (${c.G6_SPLThermic[i]})`);
+  }
+  // Em 15 Hz sem HPF, cone excede Xmax -> SPL Real deve cair claramente abaixo do teto térmico
+  const i15 = c.frequencies.reduce((b, f, i) => (Math.abs(f - 15) < Math.abs(c.frequencies[b] - 15) ? i : b), 0);
+  const i200 = c.frequencies.reduce((b, f, i) => (Math.abs(f - 200) < Math.abs(c.frequencies[b] - 200) ? i : b), 0);
+  assert(c.G6_SPLMaxReal[i15] < c.G6_SPLThermic[i15] - 3.0, `Em 15Hz sem HPF SPL Real deve refletir queda por Xmax (diff=${(c.G6_SPLMaxReal[i15] - c.G6_SPLThermic[i15]).toFixed(1)} dB)`);
+  // Em 200 Hz (regime térmico puro), SPL Real == SPL Térmico
+  approx(c.G6_SPLMaxReal[i200], c.G6_SPLThermic[i200], 0.05, 'Em 200Hz (térmico puro) SPL Real deve igualar SPL Térmico');
+
+  const sG6 = vm.runInContext("getBp6DualPortVelSeries(CHARTS_INFO.find(c => c.id === 'G6'))", ctx);
+  assert(Array.isArray(sG6) && sG6.length === 2, 'G6 deve retornar 2 séries (SPL Real + Teto Térmico Pe)');
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

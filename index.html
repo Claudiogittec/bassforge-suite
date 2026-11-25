@@ -5059,6 +5059,13 @@ function generateSimulationData(p) {
     epdrSub.textContent = '@ ' + minEpdrFreq.toFixed(1) + ' Hz (Re=' + p.Re.toFixed(1) + 'Ω)';
   }
 
+  // G6_SPLMaxReal: SPL máximo acústico real limitado por min(Pe térmico, Xmax mecânico)
+  const peSafeG6 = Math.max(1e-6, p.Pe || 1.0);
+  const G6_maxReal = G6.map((splTh, i) => {
+    const pMax = Math.max(1e-6, Math.min(peSafeG6, G1[i] != null ? G1[i] : peSafeG6));
+    return splTh + 10.0 * Math.log10(pMax / peSafeG6);
+  });
+
   currentCurves = {
     frequencies: freqs,
     G1_MaxPower: G1,
@@ -5069,6 +5076,7 @@ function generateSimulationData(p) {
     G4_NormAmp: G4,
     G5_SPLinCar: G5,
     G6_SPLThermic: G6,
+    G6_SPLMaxReal: G6_maxReal,
     G7_CabinGain: G7,
     G8_ConeExcursion: G8,
     G9_PortAirVel: G9,
@@ -5700,6 +5708,12 @@ function bindInteractiveChart(canvas, drawFn, getReadout, onLeave) {
 
 function getBp6DualPortVelSeries(cfg) {
   if (!cfg || !currentCurves || !currentCurves.meta) return null;
+  if (cfg.id === 'G6' && Array.isArray(currentCurves.G6_SPLMaxReal) && Array.isArray(currentCurves.G6_SPLThermic)) {
+    return [
+      { shortLabel: 'SPL Real', label: 'SPL Máx Real (Xmax+Pe)', unit: cfg.unit, color: '#ef4444', values: currentCurves.G6_SPLMaxReal, primary: true },
+      { shortLabel: 'Teto Pe', label: 'Teto Térmico (Pe)', unit: cfg.unit, color: '#94a3b8', dash: [5, 3], values: currentCurves.G6_SPLThermic, primary: false }
+    ];
+  }
   if (currentCurves.meta.boxType !== 'bp6') return null;
   if (cfg.id === 'G9' && Array.isArray(currentCurves.G9_PortAirVel_VF) && Array.isArray(currentCurves.G9_PortAirVel_VR)) {
     return [
@@ -5812,6 +5826,15 @@ function drawAllCharts() {
       : bp6VelSeries;
     const setSummary = () => {
       if (!infoEl) return;
+      if (bp6VelSeries && c.id === 'G6') {
+        const pkReal = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[0].values, chartOpts.fMin, chartOpts.fMax);
+        const pkTh = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[1].values, chartOpts.fMin, chartOpts.fMax);
+        const diff = pkTh.maxV - pkReal.maxV;
+        infoEl.innerHTML = (diff > 0.2)
+          ? `<span><b style="color:#ef4444">Real ${pkReal.maxV.toFixed(1)}</b> · <b style="color:#94a3b8">Pe ${pkTh.maxV.toFixed(1)}</b> dB</span><span>${hasRefA ? 'A/B · ⤢' : '⤢'}</span>`
+          : `<span>SPL Real: <b style="color:#ef4444">${pkReal.maxV.toFixed(1)} dB</b> @ ${pkReal.maxF.toFixed(0)} Hz</span><span>${hasRefA ? 'A/B · ⤢' : '⤢'}</span>`;
+        return;
+      }
       if (bp6VelSeries && c.id === 'G9') {
         const pkF = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[0].values, chartOpts.fMin, chartOpts.fMax);
         const pkR = computeVisiblePeak(currentCurves.frequencies, bp6VelSeries[1].values, chartOpts.fMin, chartOpts.fMax);
@@ -5831,7 +5854,13 @@ function drawAllCharts() {
     const setReadout = (f, _x, pinned) => {
       const val = interpolateSeriesAtFreq(currentCurves.frequencies, currentCurves[c.key], f);
       const pinTag = pinned ? '📌 ' : '';
-      if (bp6VelSeries && c.id === 'G9') {
+      if (bp6VelSeries && c.id === 'G6') {
+        const vReal = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[0].values, f);
+        const vTh = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[1].values, f);
+        const loss = vReal - vTh;
+        const lossTag = (loss < -0.15) ? ` <span style="color:#f59e0b">(${loss.toFixed(1)}dB Xmax)</span>` : '';
+        if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${pinTag}${f.toFixed(1)}Hz</b> <span style="color:#ef4444">Real:${vReal.toFixed(1)}</span> | <span style="color:#94a3b8">Pe:${vTh.toFixed(1)}</span>${lossTag}</span><span>${pinned ? 'Soltar' : 'Fixar'}</span>`;
+      } else if (bp6VelSeries && c.id === 'G9') {
         const vF = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[0].values, f);
         const vR = interpolateSeriesAtFreq(currentCurves.frequencies, bp6VelSeries[1].values, f);
         if (infoEl) infoEl.innerHTML = `<span style="color:var(--accent)"><b>${pinTag}${f.toFixed(1)}Hz</b> <span style="color:#00d4ff">VF:${vF.toFixed(1)}</span> | <span style="color:#a855f7">VR:${vR.toFixed(1)}</span> ${c.unit}</span><span>${pinned ? 'Soltar' : 'Fixar'}</span>`;
