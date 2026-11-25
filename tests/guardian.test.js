@@ -1177,15 +1177,24 @@ runSuite('23. BP6 Dual-Port G9/G2 Curves, Dropdown Topology Switch & Synthesis P
 // SUITE 24: Motor Auto-Design PhD Universal (Qualquer Driver + Perfis + Topologias)
 // ============================================================================
 runSuite('24. PhD Universal Auto-Design Engine (QB3/B4/Sealed/BP4/BP6, Laminar Port & Xmax HPF)', () => {
-  // 24.1 Driver A: Motor ultra-forte QB3 (Qts ~ 0.25, Vas 240L, 18" 1000W)
-  vm.runInContext(`applyDbDriver({ name: 'Test 18 QB3', fs: 36, qes: 0.26, qms: 8.5, vas: 240, re: 5.2, pe: 1000, sd: 1210, xmax: 11, diameter_in: 18 })`, ctx);
+  // 24.1 Classificação automática nas 5 topologias (BP6, Planar, BP4, Bass-Reflex, Selada)
+  vm.runInContext(`applyDbDriver({ name: 'Test 18 BP6', fs: 36, qes: 0.26, qms: 8.5, vas: 240, re: 5.2, pe: 1000, sd: 1210, xmax: 11, diameter_in: 18 })`, ctx);
   let bp = vm.runInContext('lastBuildPack', ctx);
   let c = vm.runInContext('currentCurves', ctx);
-  assert.strictEqual(bp.acoustics.boxType, 'bass-reflex', 'Driver QB3 (EBP=138) deve escolher bass-reflex');
-  assert(bp.acoustics.Vb < 140, `Driver Qts=0.25 QB3 deve receber volume compacto (<140L, não 1.15*Vas=276L), obtido ${bp.acoustics.Vb}L`);
-  assert(bp.acoustics.LvCm > 0, `Driver QB3 deve ter Lv > 0, obtido ${bp.acoustics.LvCm}`);
-  assert(Math.max(...c.G4_NormAmp) <= 1.35, `Perfil musical QB3 deve manter ripple <= 1.35 dB, obtido ${Math.max(...c.G4_NormAmp).toFixed(2)} dB`);
-  assert(bp.validation.valid === true, `Driver QB3 deve gerar caixa válida: ${JSON.stringify(bp.validation.issues)}`);
+  assert.strictEqual(bp.acoustics.boxType, 'bp6', 'Driver 18" EBP=138 Fs=36 Qts=0.25 deve escolher bp6');
+  assert(bp.acoustics.LvCm > 0 && (bp.acoustics.lvRearMm || 0) > 0, 'Driver BP6 deve ter Lv VF e VR positivos');
+  assert(bp.validation.valid === true, `Driver BP6 deve gerar caixa válida: ${JSON.stringify(bp.validation.issues)}`);
+
+  vm.runInContext(`applyDbDriver({ name: 'Test 12 Planar', fs: 55, qes: 0.32, qms: 7.5, vas: 60, re: 5.5, pe: 1200, sd: 530, xmax: 8, diameter_in: 12 })`, ctx);
+  bp = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(bp.acoustics.boxType, 'planar', 'Driver 12" PA EBP=172 Fs=55 Qts=0.31 deve escolher planar');
+  assert(bp.validation.valid === true, `Driver Planar deve gerar caixa válida: ${JSON.stringify(bp.validation.issues)}`);
+
+  vm.runInContext(`applyDbDriver({ name: 'Test 12 BP4', fs: 30, qes: 0.52, qms: 7.0, vas: 75, re: 3.6, pe: 400, sd: 510, xmax: 11, diameter_in: 12 })`, ctx);
+  bp = vm.runInContext('lastBuildPack', ctx);
+  assert.strictEqual(bp.acoustics.boxType, 'bp4', 'Driver 12" EBP=58 Qts=0.48 deve escolher bp4');
+  assert(bp.acoustics.LvCm > 0, 'Driver BP4 deve ter Lv > 0');
+  assert(bp.validation.valid === true, `Driver BP4 deve gerar caixa válida: ${JSON.stringify(bp.validation.issues)}`);
 
   // 24.2 Driver B: Sub 12" equilibrado B4 (Qts ~ 0.39, Vas 65L, 500W)
   vm.runInContext(`applyDbDriver({ name: 'Test 12 B4', fs: 32, qes: 0.41, qms: 6.8, vas: 65, re: 3.4, pe: 500, sd: 510, xmax: 12, diameter_in: 12 })`, ctx);

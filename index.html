@@ -2847,7 +2847,7 @@ function applyDbDriver(drv) {
   const EBP = Fs / Qes;
   const Qts = (Qms * Qes) / (Qms + Qes);
   const bestTopo = (typeof chooseBestTopologyForDriver === 'function')
-    ? chooseBestTopologyForDriver({ Fs, Qes, Qms, Qts, EBP })
+    ? chooseBestTopologyForDriver({ Fs, Qes, Qms, Qts, EBP, dia })
     : (EBP >= 50 ? 'bass-reflex' : 'sealed');
 
   document.getElementById('tsFs').value = Fs;
@@ -3189,10 +3189,14 @@ let lastActiveTopology = 'bass-reflex';
 let autoDesignExactFb = null;
 let autoDesignVbRef = null;
 
-function chooseBestTopologyForDriver({ Fs, Qes, Qms, Qts, EBP }) {
+function chooseBestTopologyForDriver({ Fs, Qes, Qms, Qts, EBP, dia }) {
   const q = Number.isFinite(Qts) ? Qts : ((Qms * Qes) / Math.max(1e-6, Qms + Qes));
   const ebp = Number.isFinite(EBP) ? EBP : (Fs / Math.max(0.05, Qes));
-  if (ebp < 48 && q > 0.52) return 'sealed';
+  const d = parseFloat(dia) || 12;
+  if (ebp < 50 && q > 0.52) return 'sealed';
+  if (d >= 12 && ebp >= 110 && q <= 0.34 && Fs >= 45) return 'planar';
+  if (d >= 12 && ebp >= 95 && q <= 0.35 && Fs < 45) return 'bp6';
+  if (ebp >= 48 && ebp <= 72 && q >= 0.44 && q <= 0.58) return 'bp4';
   return 'bass-reflex';
 }
 
@@ -3251,21 +3255,24 @@ function synthesizeOptimalEnclosure(params) {
   }
 
   if (boxType === 'bp6') {
+    const diaBp6 = Math.max(4, params.dia || 12);
+    const minVfBp6 = nDrivers * (diaBp6 >= 18 ? 48 : (diaBp6 >= 15 ? 30 : (diaBp6 >= 12 ? 18 : (diaBp6 >= 10 ? 12 : (diaBp6 >= 8 ? 11.5 : 5)))));
+    const minVrBp6 = minVfBp6 * 1.45;
     if (profile === 'subgrave') {
-      Vr = Math.max(5.0 * nDrivers, Math.min(340.0 * nDrivers, Vas * 1.10));
-      Vb = Math.max(3.0 * nDrivers, Math.min(220.0 * nDrivers, Vas * 0.50));
+      Vr = Math.max(minVrBp6, Math.min(340.0 * nDrivers, Vas * 1.10));
+      Vb = Math.max(minVfBp6, Math.min(220.0 * nDrivers, Vas * 0.50));
       FbVr = Math.max(18.0, Fs * 0.78);
       Fb = FbVr * 1.92;
       alignTag = 'BP6 Paralela Subgrave';
     } else if (profile === 'spl') {
-      Vr = Math.max(5.0 * nDrivers, Math.min(280.0 * nDrivers, Vas * 0.68));
-      Vb = Math.max(3.0 * nDrivers, Math.min(180.0 * nDrivers, Vas * 0.36));
+      Vr = Math.max(minVrBp6, Math.min(280.0 * nDrivers, Vas * 0.68));
+      Vb = Math.max(minVfBp6, Math.min(180.0 * nDrivers, Vas * 0.36));
       FbVr = Math.max(20.0, Fs * 1.00);
       Fb = FbVr * 1.76;
       alignTag = 'BP6 Paralela SPL';
     } else {
-      Vr = Math.max(5.0 * nDrivers, Math.min(320.0 * nDrivers, Vas * 0.88));
-      Vb = Math.max(3.0 * nDrivers, Math.min(200.0 * nDrivers, Vas * 0.44));
+      Vr = Math.max(minVrBp6, Math.min(320.0 * nDrivers, Vas * 0.88));
+      Vb = Math.max(minVfBp6, Math.min(200.0 * nDrivers, Vas * 0.44));
       FbVr = Math.max(18.0, Fs * 0.86);
       Fb = FbVr * 1.85;
       alignTag = 'BP6 Paralela Quasi-Plana';
