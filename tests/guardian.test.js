@@ -268,7 +268,7 @@ runSuite('4. Golden Master (Oversound 18 SUB 800 XT) + Small (1973) Eq. 19', () 
   const fb = parseFloat(elements.get('kpi1Val').textContent);
   const vtot = parseFloat(elements.get('kpiVtotVal').textContent);
   approx(fb, 44.62, 0.02, 'Golden Master Fb');
-  approx(vtot, 149.05, 0.08, 'Golden Master Vtot (ISO 20°C c=343.37 m/s)');
+  approx(vtot, 150.81, 0.08, 'Golden Master Vtot (ISO 20°C c=343.37 m/s, per-duct end correction)');
 
   const brEval = vm.runInContext(
     "analyzeTransferAlignment({ boxType: 'bass-reflex', Fs: 40, Qts: 0.420, alpha: 185/130, Fb: 40 * Math.pow(185/130, 0.31), QL: 15 })",
@@ -418,9 +418,9 @@ runSuite('10. Build Pack P0 Validator & HTML Export (Oversound 18" Fixture)', ()
   assert(badCodes.includes('DIA_SD_MISMATCH'), `Expected DIA_SD_MISMATCH, got: ${badCodes.join(', ')}`);
   assert(badCodes.includes('DRIVER_HEIGHT_FIT'), `Expected DRIVER_HEIGHT_FIT, got: ${badCodes.join(', ')}`);
 
-  // Fix tsDia=18 and viable baffle dimensions (A=860, B=520) -> MUST pass & generate complete HTML
+  // Fix tsDia=18 and viable baffle dimensions (A=760, B=520) -> MUST pass & generate complete HTML
   elements.get('tsDia').value = '18';
-  elements.get('wlWidthA').value = '860';
+  elements.get('wlWidthA').value = '760';
   elements.get('wlHeightB').value = '520';
   vm.runInContext('updateWoodlock()', ctx);
   const okRes = vm.runInContext('generateBuildPackHtml()', ctx);

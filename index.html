@@ -4222,7 +4222,9 @@ function computePortGeometry(opts) {
 
   const omega_b = 2.0 * Math.PI * Fb;
   const LeffM = (cVal * cVal * Sp) / (Math.pow(omega_b, 2) * (Vb / 1000.0));
-  const deltaL = kEnd * DeqM;
+  // Para múltiplos dutos cilíndricos separados, a correção de extremidade atua na boca de cada tubo individual (Small 1973 / Dickason)
+  const dEndM = (!isSlot && !isTri) ? (Math.max(0.5, parseFloat(opts.ductDia) || 4.0) * 0.0254) : DeqM;
+  const deltaL = kEnd * dEndM;
   const LvM = LeffM - deltaL;
   const LvCm = LvM * 100.0;
   const fPipe1 = LeffM > 1e-4 ? (cVal / (2.0 * LeffM)) : 0;
@@ -4861,6 +4863,16 @@ function analyzeTransferAlignment(p) {
     const a1 = (sh / Qts_s) + (1.0 / (sh * QL_s));
     const a2 = ((1.0 + alpha_s + (h * h)) / h) + (1.0 / (Qts_s * QL_s));
     const a3 = (1.0 / (sh * Qts_s)) + (sh / QL_s);
+    const rho_s = p.rho || 1.205585;
+    const c_s = p.c || 343.37;
+    const Qes_s = Math.max(1e-3, p.Qes || Qts_s);
+    const hasAcoustic = (p.Vas > 0 && p.Sd_m2 > 0 && p.Pe > 0);
+    const ws_s = 2.0 * Math.PI * Fs_s;
+    const Cms_s = hasAcoustic ? ((p.Vas / 1000.0) / (rho_s * c_s * c_s * p.Sd_m2 * p.Sd_m2)) : 0;
+    const xRefRms = hasAcoustic ? Math.sqrt((p.Pe * Cms_s) / (ws_s * Qes_s)) : 0;
+    const hpfOn = Number.isFinite(p.hpfHz) && p.hpfHz > 0;
+    const hpfType = p.hpfType || 'LR24';
+    let maxUp = 0;
     for (let i = 0; i < N; i++) {
       const f = Math.pow(10, logMin + (i / (N - 1)) * (logMax - logMin));
       freqs[i] = f;
@@ -4868,9 +4880,15 @@ function analyzeTransferAlignment(p) {
       const rw2 = rw * rw;
       const dRe = rw2 * rw2 - a2 * rw2 + 1.0;
       const dIm = -a3 * rw2 * rw + a1 * rw;
-      const db = 10.0 * Math.log10(Math.max(1e-12, Math.pow(rw, 8) / (dRe * dRe + dIm * dIm)));
+      const dMag2 = dRe * dRe + dIm * dIm;
+      const db = 10.0 * Math.log10(Math.max(1e-12, Math.pow(rw, 8) / dMag2));
       dbs[i] = db;
       if (db > peakDb) { peakDb = db; fPeak = f; peakIdx = i; }
+      if (hasAcoustic) {
+        const hpfMag = hpfOn ? evalFilterComplex(f, p.hpfHz, 'hpf', hpfType).mag : 1.0;
+        const up = (2.0 * Math.PI * f * p.Sd_m2 * xRefRms / Math.sqrt(Math.max(1e-18, dMag2))) * hpfMag;
+        if (up > maxUp) maxUp = up;
+      }
     }
     let f3Exact = 0;
     for (let i = 1; i < N; i++) {
@@ -4880,7 +4898,7 @@ function analyzeTransferAlignment(p) {
         break;
       }
     }
-    return { f3Exact, peakDb, fPeak };
+    return { f3Exact, peakDb, fPeak, maxUp };
   }
 
   if (p.boxType === 'bp4' || p.boxType === 'bp6') {
@@ -5175,7 +5193,7 @@ function recalculate() {
 
   let alpha = Vas / Vb;
   let Fb, F3, FH = 0, Vtot, LvCm = 0, DeqIn = 0, airVel = 0, airVelVr = 0, machPct = 0, qtc, fc, fgmax, fxmax, ripple = 0, alignName = '', alignSub = '', alignLabel = 'Alinhamento 4ª Ordem', alignColor = '#38bdf8', kpi2SubTxt = '';
-  let fPipe1 = 0, velLimit = 17.0, portGeom = null, portGeomVr = null, bpEval = null, planarEval = null;
+  let fPipe1 = 0, velLimit = 17.0, portGeom = null, portGeomVr = null, bpEval = null, planarEval = null, brEvalRef = null;
 
   const optimalFb = Fs * Math.pow(alpha, 0.31);
   const optimalF3 = Fs * Math.pow(alpha, 0.44);
@@ -5215,7 +5233,7 @@ function recalculate() {
       }
       const h_ratio = Fb / Fs;
       const brEval = analyzeTransferAlignment({
-        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vb, alpha, Fb, QL, rho, c, hpfHz,
+        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vb, alpha, Fb, QL, rho, c, hpfHz, hpfType,
         planarStyle, planarTunnelMm,
         planarSt_m2: planarTunnelGeom.St_m2,
         planarRh_m: planarTunnelGeom.rh_m,
@@ -5226,10 +5244,11 @@ function recalculate() {
         if (brEval.fQuarterWave > 0) fQuarterWave = brEval.fQuarterWave;
         if (brEval.fHalfWave > 0) fHalfWave = brEval.fHalfWave;
       }
+      if (boxType === 'bass-reflex') brEvalRef = brEval;
       ripple = Math.max(0, brEval.peakDb);
-      F3 = (boxType === 'planar')
-        ? (brEval.f3Exact > 0 ? brEval.f3Exact : optimalF3)
-        : (isAutoTune ? optimalF3 : (brEval.f3Exact > 0 ? brEval.f3Exact : optimalF3 * Math.sqrt(Fb / optimalFb)));
+      F3 = (brEval.f3Exact > 0)
+        ? brEval.f3Exact
+        : (isAutoTune ? optimalF3 : optimalF3 * Math.sqrt(Fb / optimalFb));
 
       if (boxType === 'planar') {
         const styleTag = (planarStyle === 'triangle') ? 'Triângulo/Euclides' : 'Quadrada';
@@ -5381,7 +5400,9 @@ function recalculate() {
       ? (bpEval.maxUpf / Math.max(1e-6, portGeom.Sp))
       : ((boxType === 'planar' && planarEval && Number.isFinite(planarEval.maxUp))
         ? (planarEval.maxUp / Math.max(1e-6, portGeom.Sp))
-        : (4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb))));
+        : ((boxType === 'bass-reflex' && brEvalRef && Number.isFinite(brEvalRef.maxUp) && brEvalRef.maxUp > 0)
+          ? (brEvalRef.maxUp / Math.max(1e-6, portGeom.Sp))
+          : (4.540262351285604 * Math.sqrt(no_frac * Pe) / (Math.max(1e-6, portGeom.Sp) * Math.max(1.0, Fb)))));
     machPct = (airVel / c) * 100.0;
 
     const ptBox = document.getElementById('portTelemetryBox');
@@ -5614,11 +5635,11 @@ function generateSimulationData(p) {
   const a2 = ((1.0 + alpha_s + (h * h)) / h) + (1.0 / (Qts_s * QL_s));
   const a3 = (1.0 / (sh * Qts_s)) + (sh / QL_s);
 
-  // Coeficientes com QB = 7.0 para excursão do cone #8 (Small 1973 / Dickason)
-  const qb_disp = 7.0;
-  const a1_disp = (sh / Qts_s) + (1.0 / (sh * qb_disp));
-  const a2_disp = ((1.0 + alpha_s + (h * h)) / h) + (1.0 / (Qts_s * qb_disp));
-  const a3_disp = (1.0 / (sh * Qts_s)) + (sh / qb_disp);
+  // Coeficientes com QL real configurado para excursão do cone #8 (Small 1973 Eq. 24)
+  const qb_disp = QL_s;
+  const a1_disp = a1;
+  const a2_disp = a2;
+  const a3_disp = a3;
 
   // Coeficientes mecânicos puros (Qms) para impedância acoplada #11 (Small 1973 Eq. 11)
   const a1_m = (sh / Qms_s) + (1.0 / (sh * QL_s));
@@ -5739,10 +5760,11 @@ function generateSimulationData(p) {
       const p_max_f = (exc_mm > 1e-6) ? Math.min(p.Pe, p.Pe * Math.pow(p.Xmax_mm / exc_mm, 2)) : p.Pe;
       G1.push(p_max_f);
 
-      // G9: Port Air Velocity #9 (m/s) — Transferência de velocidade de Small |sn / D(sn)| * |H_HPF|
-      const v_peak_ref = p.airVel || 12.5963;
-      const hv_f = (rel_w / Math.sqrt(den_mag2)) * hpf_lin;
-      const vBr = v_peak_ref * (hv_f / max_hv);
+      // G9: Port Air Velocity #9 (m/s RMS) — Equação analítica exata de Small (1973): v(w) = w*Sd*x_ref_rms / (Sp*|D(sn)|) * |H_HPF*H_LPF|
+      const xRefRmsM = Math.sqrt((p.Pe * Cms) / (ws * Qes_s));
+      const vBr = (p.SpFront > 0 && xRefRmsM > 0)
+        ? ((w * p.Sd_m2 * xRefRmsM) / (p.SpFront * Math.sqrt(Math.max(1e-18, den_mag2)))) * hpf_lin
+        : ((p.airVel || 12.5963) * ((rel_w / Math.sqrt(den_mag2)) * hpf_lin / max_hv));
       G9.push(vBr);
       G9_front.push(vBr);
       G9_rear.push(0);
