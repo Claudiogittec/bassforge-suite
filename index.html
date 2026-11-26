@@ -7824,23 +7824,25 @@ function validateBuildGeometry(opts) {
   const isBp = (boxType === 'bp4' || boxType === 'bp6');
   const isPlanar = (boxType === 'planar');
   const isFreeAir = (boxType === 'free-air');
+  const portRouting = (!isBp && boxType === 'bass-reflex') ? (opts.portRouting || 'straight') : 'straight';
+  const isSideFiring = (portRouting === 'side_firing' && !isTri);
   const bpChambers = opts.bpChambers || null;
   const isBpSlot = !!(isBp && bpChambers && (boxType === 'bp4' || bpChambers.isBp6Parallel) && isSlot);
-  const isSharedCenterPort = (boxType === 'bass-reflex' && nDrivers === 2 && portLayout === 'center_shared' && (portType === 'round' || isSlot));
-  const isDualVertSlot = (boxType === 'bass-reflex' && nDrivers === 2 && !isSharedCenterPort && isSlot && slotOrient === 'vertical');
+  const isSharedCenterPort = (boxType === 'bass-reflex' && nDrivers === 2 && portLayout === 'center_shared' && !isSideFiring && (portType === 'round' || isSlot));
+  const isDualVertSlot = (boxType === 'bass-reflex' && nDrivers === 2 && !isSharedCenterPort && !isSideFiring && isSlot && slotOrient === 'vertical');
   const hasCenterDiv = (!isFreeAir && !isBp && nDrivers === 2 && !isSharedCenterPort && !isDualVertSlot);
   const triCount = Math.max(1, Math.min(4, parseInt(opts.triCount) || 2));
   const triAmm = (parseFloat(opts.triA) || 14.0) * 10.0;
   const triBmm = (parseFloat(opts.triB) || 14.0) * 10.0;
   const lvMm = isVented ? ((opts.LvCm || 0) * 10.0) : 0;
 
-  // Reserva de área para duto (quando 1+ driver + dutos redondos ou régua H/V) ou garganta Planar Quadrada (superior)
+  // Reserva de área para duto (quando 1+ driver + dutos redondos ou régua H/V no frontal; side_firing fura lateral_dir)
   const planarGeomOpt = opts.planarGeom || null;
   let portReserveLeft = 0;
   let portReserveRight = 0;
   let portReserveBottom = 0;
   let portReserveTop = 0;
-  if (isVented && !isTri && !isBp && !isSharedCenterPort) {
+  if (isVented && !isTri && !isBp && !isSharedCenterPort && !isSideFiring) {
     if (isSlot) {
       if (slotOrient === 'horizontal') portReserveBottom = slotHmm + slotWallThick;
       else if (isDualVertSlot) {
@@ -8013,6 +8015,54 @@ function validateBuildGeometry(opts) {
         xExt: +(A - slotHmm / 2 + t).toFixed(1), yExt: +(B / 2 + t).toFixed(1),
         w: +slotHmm.toFixed(1), h: +B.toFixed(1), lvMm: +lvMm.toFixed(1), collision: false
       });
+    } else if (isSideFiring && isSlot) {
+      // CAD-04: Duto Régua Side-Firing na face lateral direita (eixo Z=[0..C_min], eixo Y=[0..B])
+      const isHoriz = (slotOrient === 'horizontal');
+      const wSlot = isHoriz ? Math.min(C_min, slotWmm) : slotHmm;
+      const hSlot = isHoriz ? slotHmm : Math.min(B, slotWmm);
+      const xInt = isHoriz ? (C_min / 2) : (wSlot / 2);
+      const yInt = isHoriz ? (hSlot / 2) : (B / 2);
+      holes.push({
+        kind: 'port',
+        panel: 'lateral_dir',
+        shape: 'slot',
+        label: 'Duto Régua Lateral (Side-Firing)' + (isHoriz ? ' [Horiz.]' : ' [Vert.]'),
+        xInt: +xInt.toFixed(1),
+        yInt: +yInt.toFixed(1),
+        xExt: +(xInt + t).toFixed(1),
+        yExt: +(yInt + t).toFixed(1),
+        w: +wSlot.toFixed(1),
+        h: +hSlot.toFixed(1),
+        lvMm: +lvMm.toFixed(1),
+        collision: false
+      });
+    } else if (isSideFiring) {
+      // CAD-04: Duto(s) Cilíndrico(s) Side-Firing na face lateral direita (xInt = prof. Z [0..C_min], yInt = alt. Y [0..B])
+      for (let i = 0; i < numDucts; i++) {
+        const xInt = C_min / 2;
+        let yInt;
+        if (numDucts === 1) {
+          yInt = B / 2;
+        } else {
+          const yMin = edgeMargin + ductHoleDia / 2;
+          const yMax = Math.max(yMin + 10, B - edgeMargin - ductHoleDia / 2);
+          yInt = yMin + (i / (numDucts - 1)) * (yMax - yMin);
+        }
+        holes.push({
+          kind: 'port',
+          panel: 'lateral_dir',
+          shape: 'round',
+          label: `Duto Lateral (Side-Firing) #${i + 1}`,
+          xInt: +xInt.toFixed(1),
+          yInt: +yInt.toFixed(1),
+          xExt: +(xInt + t).toFixed(1),
+          yExt: +(yInt + t).toFixed(1),
+          dia: +ductHoleDia.toFixed(1),
+          flangeDia: +(ductHoleDia + 22).toFixed(1),
+          lvMm: +lvMm.toFixed(1),
+          collision: false
+        });
+      }
     } else if (isSlot) {
       const isHoriz = (slotOrient === 'horizontal');
       const wSlot = isHoriz ? Math.min(A, slotWmm) : slotHmm;
@@ -8160,6 +8210,22 @@ function validateBuildGeometry(opts) {
       }
       return;
     }
+    if (h.panel === 'lateral_dir') {
+      // CAD-04 & CAD-09: Verifica limites na face lateral direita [0..C_min] x [0..B]
+      if (h.shape === 'round') {
+        const rCheck = h.dia / 2 + minEdgeMdf;
+        if (h.xInt - rCheck < -0.5 || h.xInt + rCheck > C_min + 0.5 || h.yInt - rCheck < -0.5 || h.yInt + rCheck > B + 0.5) {
+          h.collision = true;
+          hasBorderError = true;
+        }
+      } else if (h.shape === 'slot') {
+        if (h.xInt - h.w / 2 < -0.5 || h.xInt + h.w / 2 > C_min + 0.5 || h.yInt - h.h / 2 < -0.5 || h.yInt + h.h / 2 > B + 0.5) {
+          h.collision = true;
+          hasBorderError = true;
+        }
+      }
+      return;
+    }
     if (h.panel && h.panel.startsWith('divisoria')) {
       const rCheck = (h.kind === 'driver') ? (h.flangeDia / 2) : (h.dia / 2 + minEdgeMdf);
       if (h.xInt - rCheck < 0 || h.xInt + rCheck > C_min) {
@@ -8293,7 +8359,6 @@ function validateBuildGeometry(opts) {
 
   // 6. Profundidade útil do duto (Lv vs C_min, ou L-Port 90°, ou Side-Firing ao longo de A, ou B em BP Slot de Topo)
   const portOffsetVal = Number(opts.portOffsetMm || 0);
-  const portRouting = (!isBp && boxType === 'bass-reflex') ? (opts.portRouting || 'straight') : 'straight';
   const lvMaxCheck = (bpChambers && bpChambers.isBp6Parallel && bpChambers.lvRearMm > 0)
     ? Math.max(lvMm, bpChambers.lvRearMm)
     : lvMm;
@@ -8400,6 +8465,33 @@ function validateBuildGeometry(opts) {
     msg: `Recorte (${cutoutDia} mm) e flange (${flangeOD} mm) estimados para ${effectiveDiaIn}″ — confirme no datasheet físico antes de furar.`
   });
 
+  // CAD-06: Velocidade do ar no duto (v_ar > velLimit: 17 m/s liso / 24 m/s flared) no gate de validação/exportação CAD
+  let aeroBlocked = false;
+  let aeroInfo = null;
+  if (isVented) {
+    const velConstraint = Array.isArray(opts.simConstraints)
+      ? opts.simConstraints.find(c => c && c.code === 'PORT_VELOCITY_OVER_LIMIT')
+      : null;
+    const velLimitEff = Number.isFinite(opts.velLimit) && opts.velLimit > 0
+      ? opts.velLimit
+      : (velConstraint && Number.isFinite(velConstraint.limit) ? velConstraint.limit : ((portType === 'flared') ? 24.0 : 17.0));
+    const airVelEff = Number.isFinite(opts.airVel)
+      ? opts.airVel
+      : (velConstraint && Number.isFinite(velConstraint.value) ? velConstraint.value : null);
+    if (Number.isFinite(airVelEff) && airVelEff > velLimitEff) {
+      aeroBlocked = true;
+      aeroInfo = { airVel: +airVelEff.toFixed(1), velLimit: +velLimitEff.toFixed(1), freq: velConstraint && Number.isFinite(velConstraint.freq) ? +velConstraint.freq.toFixed(1) : null };
+      issues.push({
+        level: 'warn',
+        code: 'PORT_AIR_VELOCITY_CRITICAL',
+        requiresConfirm: true,
+        airVel: aeroInfo.airVel,
+        velLimit: aeroInfo.velLimit,
+        msg: `CAD-06 (Sopro/Chuffing Crítico): Velocidade do ar (${aeroInfo.airVel} m/s) excede o limite laminar (${aeroInfo.velLimit} m/s${portType === 'flared' ? ' flared' : ' reto'}). Exportação CAD exige confirmação explícita ou aumento da área do duto.`
+      });
+    }
+  }
+
   const criticalCount = issues.filter(i => i.level === 'critical').length;
   const warnCount = issues.filter(i => i.level === 'warn').length;
 
@@ -8407,6 +8499,8 @@ function validateBuildGeometry(opts) {
     valid: criticalCount === 0,
     criticalCount,
     warnCount,
+    aeroBlocked,
+    aeroInfo,
     issues,
     driverGeom: drvGeom,
     holes,
@@ -8869,7 +8963,8 @@ function updateWoodlock() {
   const bev = isTrap ? angle : 0.0;
   const rearH = isTrap ? (B / Math.cos((angle * Math.PI) / 180.0)) : B;
 
-  const isSlotFrontReduced = (isVented && !isBp && portGeom && portGeom.isSlot);
+  const isSideFiring = (boxType === 'bass-reflex' && portRoutingRaw === 'side_firing' && !(portGeom && portGeom.isTri));
+  const isSlotFrontReduced = (isVented && !isBp && !isSideFiring && portGeom && portGeom.isSlot);
   const isTriFrontEmbedded = (isVented && !isBp && portGeom && portGeom.isTri);
   const isSharedSlotVert = (isSharedCenterPort && isSlotType);
   const slotC4 = Math.max(50.0, B - (slotH * 10.0) - slotWallThick);
@@ -9102,10 +9197,13 @@ function updateWoodlock() {
         pieces.push(pLine);
         portBom.push(pLine);
       } else {
-        const a4Mm = (portType === 'slot_wall')
-          ? ((slotOrient === 'horizontal') ? A : B)
-          : ((slotOrient === 'horizontal') ? Math.min(A, slotW * 10.0) : Math.min(B, slotW * 10.0));
         const portRoutingEff = (boxType === 'bass-reflex') ? portRoutingRaw : 'straight';
+        const isSideSlot = (portRoutingEff === 'side_firing');
+        const a4Mm = isSideSlot
+          ? ((slotOrient === 'horizontal') ? Math.min(C_top, D_bot) : B)
+          : ((portType === 'slot_wall')
+              ? ((slotOrient === 'horizontal') ? A : B)
+              : ((slotOrient === 'horizontal') ? Math.min(A, slotW * 10.0) : Math.min(B, slotW * 10.0)));
         const rpSlot = computePortRoutingPlan({
           portRouting: portRoutingEff, portType, slotOrient, A, B, C_min: Math.min(C_top, D_bot), t,
           lvMm: Math.max(0, lvMm - portOffsetMm), slotHmm: slotH * 10.0, slotWallThick, numDucts: 1
@@ -9127,9 +9225,11 @@ function updateWoodlock() {
           portBom.push(pLine1, pLine2);
         } else {
           const pLine = {
-            kind: 'port', orient: 'DUTO', name: `Divisória Duto Régua [A4×R] (${slotOrient === 'horizontal' ? 'Horiz.' : 'Vert.'})`,
+            kind: 'port', orient: 'DUTO', name: (isSideSlot ? 'Divisória Duto Régua Lateral [Side-Firing]' : 'Divisória Duto Régua [A4×R]') + ` (${slotOrient === 'horizontal' ? 'Horiz.' : 'Vert.'})`,
             qty: 1, w: a4Mm, h: lvMm, t: slotWallThick, bev: 0.0, area: (a4Mm * lvMm) / 1e6,
-            note: `MDF ${slotWallThick}mm — largura A4=${a4Mm.toFixed(0)} mm × comprimento R = Lv = ${lvMm} mm (${lvCmStr} cm)`
+            note: isSideSlot
+              ? `MDF ${slotWallThick}mm — Side-Firing (Lateral Dir. · Eixo A): largura A4=${a4Mm.toFixed(0)} mm × Lv = ${lvMm} mm (${lvCmStr} cm)`
+              : `MDF ${slotWallThick}mm — largura A4=${a4Mm.toFixed(0)} mm × comprimento R = Lv = ${lvMm} mm (${lvCmStr} cm)`
           };
           pieces.push(pLine);
           portBom.push(pLine);
@@ -9214,24 +9314,27 @@ function updateWoodlock() {
   if (minALbl) minALbl.textContent = `(mín. ${lastWoodlockFloors.minA} mm)`;
   if (minBLbl) minBLbl.textContent = `(mín. ${lastWoodlockFloors.minB} mm)`;
 
+  const meta = (currentCurves && currentCurves.meta) || {};
+  const activeEnv = getAnalysisEnv();
+  const simConstraints = currentCurves ? evaluatePhysicalConstraints(currentCurves, chartOpts.fMin, chartOpts.fMax) : [];
   const portRouting = (boxType === 'bass-reflex') ? portRoutingRaw : 'straight';
   const portRoutePlan = computePortRoutingPlan({
     portRouting, portType, slotOrient, A, B, C_min: Math.min(C_top, D_bot), t,
     lvMm: Math.max(0, Math.round(lvCmCanon * 10) - portOffsetMm), slotHmm: slotH * 10.0, slotWallThick,
-    odMm: ductDia * 25.4 + 2.0 * ductThick, numDucts
+    odMm: ductDia * 25.4 + 2.0 * ductThick, numDucts, hasCenterDiv
   });
   const validation = validateBuildGeometry({
     driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType, portOffsetMm, portRouting,
     A, B, C_top, D_bot, t, F_ext, E_ext, portGeom, planarGeom,
     portType, numDucts, ductDia, ductThick, numDuctsVr, ductDiaVr, ductThickVr, slotW, slotH, slotWallThick, slotOrient, portLayout,
     bpChambers, triCount, triA, triB, matrixCols, matrixRows,
-    LvCm: lvCmCanon
+    LvCm: lvCmCanon,
+    simConstraints,
+    airVel: Number.isFinite(meta.airVel) ? meta.airVel : undefined,
+    velLimit: Number.isFinite(meta.velLimit) ? meta.velLimit : (portGeom ? portGeom.velLimit : undefined)
   });
 
   // Congela snapshot de construção (bassforge-buildpack/v1)
-  const meta = (currentCurves && currentCurves.meta) || {};
-  const activeEnv = getAnalysisEnv();
-  const simConstraints = currentCurves ? evaluatePhysicalConstraints(currentCurves, chartOpts.fMin, chartOpts.fMax) : [];
   lastBuildPack = {
     schema: 'bassforge-buildpack/v1',
     generatedAt: new Date().toISOString(),
@@ -9329,7 +9432,14 @@ function updateWoodlock() {
     });
   }
   const g08Check = pgsChecks.find(c => c.code === 'G08');
-  if (g08Check && !g08Check.pass && !validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION' || i.code === 'BAFFLE_HOLE_COLLISION')) {
+  const col3dList = (pgsModel && Array.isArray(pgsModel.collisions3d)) ? pgsModel.collisions3d : [];
+  if (col3dList.length > 0) {
+    col3dList.forEach(c3 => {
+      if (!validation.issues.some(i => i.code === c3.code && i.msg === c3.msg)) {
+        validation.issues.push({ level: 'critical', code: c3.code, msg: c3.msg });
+      }
+    });
+  } else if (g08Check && !g08Check.pass && !validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION' || i.code === 'BAFFLE_HOLE_COLLISION')) {
     validation.issues.push({
       level: 'critical',
       code: 'PGS_G08_3D_COLLISION',
@@ -9632,6 +9742,231 @@ function buildAssemblySequence(parts) {
   }));
 }
 
+// CAD-03: Detector puro de colisões 3D entre dutos e ímã/cesta do driver ou travamentos internos (CROSS/FF/TB/LR/MATRIX)
+function detectPgs3dCollisions(model, ac) {
+  const collisions = [];
+  if (!model || !model.envelope) return collisions;
+  const env = model.envelope;
+  const t = (model.material && model.material.thickness) || 18;
+  const F = env.F || 500, E = env.E || 400, A = env.A || 464, B = env.B || 364;
+  const D_ext = env.D_ext || 350;
+  const C_min = Math.min(env.C || 300, env.D || 300);
+  const parts = model.parts || [];
+  const cutouts = model.cutouts || [];
+  const acSafe = ac || {};
+  const routing = acSafe.portRouting || 'straight';
+  const rp = acSafe.portRoutePlan || null;
+  const portOff = Number(acSafe.portOffsetMm || 0);
+  const isInverted = (acSafe.mountMode === 'inverted') || (model.drivers && model.drivers[0] && model.drivers[0].mountMode === 'inverted');
+  const tol = 2.0; // 2 mm tolerância numérica
+
+  const clampVal = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  const aabbOverlap = (a, b) => (
+    Math.min(a[1], b[1]) - Math.max(a[0], b[0]) > tol &&
+    Math.min(a[3], b[3]) - Math.max(a[2], b[2]) > tol &&
+    Math.min(a[5], b[5]) - Math.max(a[4], b[4]) > tol
+  );
+  const cylOverlapAabb = (cyl, box) => {
+    if (cyl.axis === '+Z') {
+      if (Math.min(cyl.z1, box[5]) - Math.max(cyl.z0, box[4]) <= tol) return false;
+      const qx = clampVal(cyl.cx, box[0], box[1]);
+      const qy = clampVal(cyl.cy, box[2], box[3]);
+      return Math.hypot(cyl.cx - qx, cyl.cy - qy) < cyl.r - tol;
+    }
+    if (cyl.axis === '-X') {
+      if (Math.min(cyl.x1, box[1]) - Math.max(cyl.x0, box[0]) <= tol) return false;
+      const qy = clampVal(cyl.cy, box[2], box[3]);
+      const qz = clampVal(cyl.cz, box[4], box[5]);
+      return Math.hypot(cyl.cy - qy, cyl.cz - qz) < cyl.r - tol;
+    }
+    if (cyl.axis === '-Y') {
+      if (Math.min(cyl.y1, box[3]) - Math.max(cyl.y0, box[2]) <= tol) return false;
+      const qx = clampVal(cyl.cx, box[0], box[1]);
+      const qz = clampVal(cyl.cz, box[4], box[5]);
+      return Math.hypot(cyl.cx - qx, cyl.cz - qz) < cyl.r - tol;
+    }
+    return false;
+  };
+  const ductOverlapDriverCyl = (du, drv) => {
+    if (du.kind === 'box') return cylOverlapAabb(drv, du.box);
+    if (du.axis === '+Z') {
+      if (Math.min(du.z1, drv.z1) - Math.max(du.z0, drv.z0) <= tol) return false;
+      return Math.hypot(du.cx - drv.cx, du.cy - drv.cy) < (du.r + drv.r - tol);
+    }
+    if (du.axis === '-X') {
+      // Cilindro ao longo de X (x0..x1, cy, cz, r) vs cilindro do driver ao longo de Z (cx, cy, z0..z1, r)
+      const qx = clampVal(drv.cx, du.x0, du.x1);
+      const qz = clampVal(du.cz, drv.z0, drv.z1);
+      const d3 = Math.hypot(qx - drv.cx, du.cy - drv.cy, du.cz - qz);
+      return d3 < (du.r + drv.r - tol);
+    }
+    if (du.axis === '-Y') {
+      const qy = clampVal(drv.cy, du.y0, du.y1);
+      const qz = clampVal(du.cz, drv.z0, drv.z1);
+      const d3 = Math.hypot(du.cx - drv.cx, qy - drv.cy, du.cz - qz);
+      return d3 < (du.r + drv.r - tol);
+    }
+    return false;
+  };
+
+  // 1. Coleta todos os volumes 3D reais dos dutos (incluindo numDucts > 1, l_bend, side_firing, slot, triMeta)
+  const ductPrims = [];
+  parts.filter(p => p.kind === 'port').forEach(p => {
+    const [ox, oy, oz] = p.origin;
+    const [dx, dy, dz] = p.size;
+    if (p.area <= 0) {
+      if (p.bpTopRound) {
+        const r = dx / 2;
+        const isRear = (p.id === 'P_PORT_REAR');
+        const hs = cutouts.filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_TOP' && ((/Traseir/.test(c.label || '')) === isRear));
+        hs.forEach((ch, idx) => {
+          const lv = ch.lvMm || dy;
+          const y0 = Math.max(t, E + portOff - lv);
+          ductPrims.push({ id: `${p.id}_${idx + 1}`, label: ch.label || p.name, kind: 'cyl', axis: '-Y', cx: t + ch.xInt, y0, y1: y0 + lv, cz: t + ch.yInt, r });
+        });
+      } else if (p.id === 'P_PORT_SERIES') {
+        const r = dy / 2;
+        const hs = cutouts.filter(c => c.partId && c.partId.startsWith('P_BP_DIVIDER') && c.kind === 'port');
+        if (hs.length) {
+          hs.forEach((ch, idx) => {
+            const lv = Math.min(dx, ch.lvMm || dx);
+            ductPrims.push({ id: `${p.id}_${idx + 1}`, label: ch.label || p.name, kind: 'cyl', axis: '-X', x0: ox, x1: ox + lv, cy: t + ch.yInt, cz: t + ch.xInt, r });
+          });
+        } else {
+          ductPrims.push({ id: p.id, label: p.name, kind: 'cyl', axis: '-X', x0: ox, x1: ox + dx, cy: oy + r, cz: oz + r, r });
+        }
+      } else if (routing === 'side_firing' || p.sideFiring) {
+        const r = dy / 2;
+        const lv = dx;
+        const hs = cutouts.filter(c => c.kind === 'port' && c.shape === 'round' && (c.partId === 'P_SIDES' || c.panel === 'lateral_dir'));
+        if (hs.length) {
+          hs.forEach((ch, idx) => {
+            const lCur = ch.lvMm || lv;
+            const x0 = Math.max(t, F - t + portOff - lCur);
+            ductPrims.push({ id: `${p.id}_${idx + 1}`, label: ch.label || p.name, kind: 'cyl', axis: '-X', x0, x1: x0 + lCur, cy: t + ch.yInt, cz: t + ch.xInt, r });
+          });
+        } else {
+          ductPrims.push({ id: p.id, label: p.name, kind: 'cyl', axis: '-X', x0: ox, x1: ox + lv, cy: oy + r, cz: oz + r, r });
+        }
+      } else {
+        const r = dx / 2;
+        const hs = cutouts.filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_FRONT_BAFFLE');
+        if (routing === 'l_bend' && rp && rp.l2Mm >= 10 && hs.length) {
+          const l1 = Math.max(40, rp.l1Mm);
+          const l2 = Math.max(10, rp.l2Mm);
+          const rElb = Math.max(r * 1.15, Number(rp.rElbow) || r * 1.6);
+          const zBack = Math.max(t + rElb + r, D_ext + portOff - l1);
+          hs.forEach((ch, idx) => {
+            const cx = t + ch.xInt, cy = t + ch.yInt;
+            const dirX = (cx <= F / 2) ? 1 : -1;
+            ductPrims.push({ id: `${p.id}_L1_${idx + 1}`, label: `${ch.label || p.name} (Trecho 1)`, kind: 'cyl', axis: '+Z', cx, cy, z0: zBack, z1: zBack + l1, r });
+            const xStartL2 = (dirX > 0) ? (cx + rElb) : (cx - rElb - l2);
+            ductPrims.push({ id: `${p.id}_L2_${idx + 1}`, label: `${ch.label || p.name} (Trecho 2 · 90°)`, kind: 'cyl', axis: '-X', x0: xStartL2, x1: xStartL2 + l2, cy, cz: zBack - rElb, r });
+          });
+        } else if (hs.length) {
+          hs.forEach((ch, idx) => {
+            const lv = ch.lvMm || dz;
+            const z0 = Math.max(t, D_ext + portOff - lv);
+            ductPrims.push({ id: `${p.id}_${idx + 1}`, label: ch.label || p.name, kind: 'cyl', axis: '+Z', cx: t + ch.xInt, cy: t + ch.yInt, z0, z1: z0 + lv, r });
+          });
+        } else {
+          ductPrims.push({ id: p.id, label: p.name, kind: 'cyl', axis: '+Z', cx: ox + r, cy: oy + r, z0: oz, z1: oz + dz, r });
+        }
+      }
+    } else if (p.triMeta) {
+      const tm = p.triMeta;
+      const ta = tm.triA || 140, tb = tm.triB || 140, lv = tm.lvMm || dz;
+      const z0 = Math.max(t, D_ext + portOff - lv);
+      (tm.corners || [0]).forEach((ci, idx) => {
+        const c = ((ci % 4) + 4) % 4;
+        const x0 = (c === 0 || c === 2) ? t : (t + A - ta);
+        const y0 = (c === 0 || c === 1) ? t : (t + B - tb);
+        ductPrims.push({ id: `P_PORT_TRI_${idx + 1}`, label: p.name, kind: 'box', box: [x0, x0 + ta, y0, y0 + tb, z0, z0 + lv] });
+      });
+    } else if (p.sharedCenterSlot) {
+      ductPrims.push({ id: `${p.id}_L`, label: p.name, kind: 'box', box: [p.sharedCenterSlot.xLeft, p.sharedCenterSlot.xLeft + dx, oy, oy + dy, oz, oz + dz] });
+      ductPrims.push({ id: `${p.id}_R`, label: p.name, kind: 'box', box: [p.sharedCenterSlot.xRight, p.sharedCenterSlot.xRight + dx, oy, oy + dy, oz, oz + dz] });
+    } else if (p.splitByCenterDiv) {
+      ductPrims.push({ id: `${p.id}_L`, label: p.name, kind: 'box', box: [p.splitByCenterDiv.xLeft, p.splitByCenterDiv.xLeft + dx, oy, oy + dy, oz, oz + dz] });
+      ductPrims.push({ id: `${p.id}_R`, label: p.name, kind: 'box', box: [p.splitByCenterDiv.xRight, p.splitByCenterDiv.xRight + dx, oy, oy + dy, oz, oz + dz] });
+    } else {
+      ductPrims.push({ id: p.id, label: p.name, kind: 'box', box: [ox, ox + dx, oy, oy + dy, oz, oz + dz] });
+    }
+  });
+
+  if (ductPrims.length === 0) return collisions;
+
+  // 2. Colisão 3D Duto × Ímã/Cesta do Driver (quando montagem normal, ímã interno)
+  if (!isInverted) {
+    const drvCyls = [];
+    cutouts.filter(c => c.kind === 'driver' && c.partId === 'P_FRONT_BAFFLE' && c.dia).forEach(dc => {
+      const dcx = t + dc.xInt, dcy = t + dc.yInt, dd = dc.dia;
+      const dBasket = Math.min(Math.max(40, C_min - 25), Math.min(110, dd * 0.28));
+      const dMagnet = Math.min(Math.max(60, C_min - 30), dd * 0.56);
+      drvCyls.push({ id: dc.id, label: dc.label || 'Driver', part: 'cesta', axis: '+Z', cx: dcx, cy: dcy, r: dd * 0.50, z0: D_ext - t - dBasket, z1: D_ext - t });
+      drvCyls.push({ id: dc.id, label: dc.label || 'Driver', part: 'ímã', axis: '+Z', cx: dcx, cy: dcy, r: dd * 0.34, z0: D_ext - t - dMagnet, z1: D_ext - t });
+    });
+    const reportedDrv = new Set();
+    ductPrims.forEach(du => {
+      drvCyls.forEach(drv => {
+        const key = `${du.id}::${drv.id}`;
+        if (reportedDrv.has(key)) return;
+        if (ductOverlapDriverCyl(du, drv)) {
+          reportedDrv.add(key);
+          collisions.push({
+            code: 'PORT_DRIVER_3D_COLLISION',
+            ductId: du.id,
+            targetId: drv.id,
+            msg: `Colisão 3D (CAD-03): ${du.label} intercepta ${drv.part} do ${drv.label} no interior da caixa. Reposicione o duto, reduza Lv ou aumente a profundidade C.`
+          });
+        }
+      });
+    });
+  }
+
+  // 3. Colisão 3D Duto × Travamentos Internos (CROSS/FF/TB/LR/BAFFLE/REAR) e Divisórias Matriz (MATRIX_V/H)
+  const braceBoxes = [];
+  parts.forEach(p => {
+    const [ox, oy, oz] = p.origin;
+    const [dx, dy, dz] = p.size;
+    if (p.kind === 'batten') {
+      braceBoxes.push({ id: p.id, label: p.name || p.id, box: [ox, ox + dx, oy, oy + dy, oz, oz + dz] });
+    } else if (p.id === 'P_MATRIX_V' && p.matrixMeta) {
+      const cols = Math.max(2, parseInt(p.matrixMeta.cols) || 2);
+      for (let k = 1; k < cols; k++) {
+        const xk = t + k * (A / cols) - t / 2;
+        braceBoxes.push({ id: `P_MATRIX_V_${k}`, label: `Divisória Matriz V#${k}`, box: [xk, xk + t, t, t + B, t, D_ext - t] });
+      }
+    } else if (p.id === 'P_MATRIX_H' && p.matrixMeta) {
+      const rows = Math.max(2, parseInt(p.matrixMeta.rows) || 2);
+      for (let j = 1; j < rows; j++) {
+        const yj = t + j * (B / rows) - t / 2;
+        braceBoxes.push({ id: `P_MATRIX_H_${j}`, label: `Divisória Matriz H#${j}`, box: [t, t + A, yj, yj + t, t, D_ext - t] });
+      }
+    }
+  });
+
+  const reportedBrace = new Set();
+  ductPrims.forEach(du => {
+    braceBoxes.forEach(br => {
+      const key = `${du.id}::${br.id}`;
+      if (reportedBrace.has(key)) return;
+      const hit = (du.kind === 'box') ? aabbOverlap(du.box, br.box) : cylOverlapAabb(du, br.box);
+      if (hit) {
+        reportedBrace.add(key);
+        collisions.push({
+          code: 'PORT_BRACE_3D_COLLISION',
+          ductId: du.id,
+          targetId: br.id,
+          msg: `Colisão 3D (CAD-03): ${du.label} intercepta travamento/divisória interna (${br.label}). Ajuste o travamento ou o roteamento do duto.`
+        });
+      }
+    });
+  });
+
+  return collisions;
+}
+
 function validatePgsGeometry(model, p0Validation) {
   const checks = [];
   const env = model.envelope;
@@ -9674,11 +10009,17 @@ function validatePgsGeometry(model, p0Validation) {
   const g07Pass = Math.abs(battenVol - model.volumes.Vbracing) <= 0.15;
   checks.push({ code: 'G07', label: 'Volume ocupado pelos reforços', pass: g07Pass, detail: `Vtravas=${model.volumes.Vbracing.toFixed(2)}L` });
 
-  // G08: Interferências e colisões (2D P0 + 3D profundidade duto)
+  // G08: Interferências e colisões (2D P0 + 3D profundidade duto + CAD-03 duto×driver/travamentos)
   const p0Crit = (p0Validation && p0Validation.issues) ? p0Validation.issues.filter(i => i.level === 'critical') : [];
-  const ductColl3d = (model.ducts || []).some(du => du.axis !== '-Y' && du.origin[2] < t + 39.5);
-  const g08Pass = p0Crit.length === 0 && !ductColl3d;
-  checks.push({ code: 'G08', label: 'Interferências e colisões (2D + 3D)', pass: g08Pass, detail: g08Pass ? 'Zero colisões de furos e sólidos' : `${p0Crit.map(i => i.code).join(', ')}${ductColl3d ? ' + DUCT_3D_COLLISION' : ''}` });
+  const ductColl3d = (model.ducts || []).some(du => {
+    if (du.axis === '-Y') return du.origin[1] < t + 39.5;
+    if (du.axis === '-X') return du.origin[0] < t + 39.5;
+    return du.origin[2] < t + 39.5;
+  });
+  const col3d = Array.isArray(model.collisions3d) ? model.collisions3d : [];
+  const g08Pass = p0Crit.length === 0 && !ductColl3d && col3d.length === 0;
+  const g08Codes = [...p0Crit.map(i => i.code), ...(ductColl3d ? ['DUCT_3D_COLLISION'] : []), ...col3d.map(c => c.code)];
+  checks.push({ code: 'G08', label: 'Interferências e colisões (2D + 3D)', pass: g08Pass, detail: g08Pass ? 'Zero colisões de furos e sólidos' : g08Codes.join(', ') });
 
   // G09: Comprimento físico dos dutos (CAD-02: exige Lv > espessura do painel t)
   const g09Pass = (model.ducts || []).every(du => Number.isFinite(du.lvMm) && du.lvMm > t);
@@ -9809,7 +10150,9 @@ function buildPgsGeometryModel(pack) {
       const bCode = bi ? bi.code : (String(p.orient || '').startsWith('TRAVA_') ? String(p.orient).replace('TRAVA_', '') : null);
       id = bCode ? `P_BRACE_${bCode}` : `P_BATTEN_${battenIdx}`;
       const drvFrontList = (ac.mountMode === 'inverted') ? [] : (pack.baffleHoles || []).filter(hl => hl.kind === 'driver' && (!hl.panel || hl.panel === 'frontal') && hl.dia);
+      const portFrontList = (pack.baffleHoles || []).filter(hl => hl.kind === 'port' && (!hl.panel || hl.panel === 'frontal'));
       const maxDrvDiaPgs = drvFrontList.reduce((mx, d) => Math.max(mx, d.dia || 0), 0);
+      const maxPortLvPgs = portFrontList.reduce((mx, d) => Math.max(mx, d.lvMm || 0), 0);
       if (bCode === 'CROSS') {
         let cxPgs = F * 0.5 - t / 2;
         drvFrontList.forEach(dc => {
@@ -9818,6 +10161,14 @@ function buildPgsGeometryModel(pack) {
             if (dcx - rClr - t >= t + 30) cxPgs = dcx - rClr - t;
             else if (dcx + rClr + t <= F - t - 30) cxPgs = dcx + rClr;
             else cxPgs = t + 35;
+          }
+        });
+        portFrontList.forEach(pc => {
+          const pcx = t + pc.xInt;
+          const rClr = (pc.shape === 'round' ? (pc.dia * 0.5) : ((pc.w || 60) * 0.5)) + 14;
+          if (Math.abs((cxPgs + t / 2) - pcx) < rClr) {
+            if (pcx - rClr - t >= t + 25) cxPgs = pcx - rClr - t;
+            else if (pcx + rClr + t <= F - t - 25) cxPgs = pcx + rClr;
           }
         });
         origin = [+cxPgs.toFixed(1), t, t];
@@ -9831,11 +10182,30 @@ function buildPgsGeometryModel(pack) {
         extraMeta.braceMeta = { code: 'TB', axis: 'Y', isWindow: false, holesAreaMm2: 0 };
       } else if (bCode === 'LR') {
         let zLr = t + C_med * 0.5 - t / 2;
+        let yLr = t + B * 0.5 - 25;
         if (maxDrvDiaPgs > 0) {
           const zBehind = (D_ext - t) - Math.min(Math.max(60, D_ext - 2 * t - 45), maxDrvDiaPgs * 0.56) - t;
           zLr = Math.max(t + t + 12, Math.min(zLr, zBehind));
         }
-        origin = [t, +(t + B * 0.5 - 25).toFixed(1), +zLr.toFixed(1)];
+        if (maxPortLvPgs > 0) {
+          const zBehindPort = (D_ext - maxPortLvPgs) - t - 12;
+          if (zBehindPort >= t + t + 12) {
+            zLr = Math.min(zLr, zBehindPort);
+          } else {
+            // Desvia verticalmente dos dutos frontais se o duto for profundo
+            const hitsPortY = yCand => portFrontList.some(pc => {
+              const py = t + pc.yInt;
+              const pr = pc.shape === 'round' ? (pc.dia * 0.5 + 8) : ((pc.h || 60) * 0.5 + 8);
+              return (yCand < py + pr && yCand + 50 > py - pr);
+            });
+            if (hitsPortY(yLr)) {
+              const cands = [t + B * 0.80 - 25, t + B * 0.20 - 25, t + 15, E - t - 65];
+              const clearY = cands.find(yc => yc >= t + 8 && yc + 50 <= E - t - 8 && !hitsPortY(yc));
+              if (Number.isFinite(clearY)) yLr = clearY;
+            }
+          }
+        }
+        origin = [t, +yLr.toFixed(1), +zLr.toFixed(1)];
         size = [A, 50, t];
         explodeDir = [0, 0.4, 0.3];
         extraMeta.braceMeta = { code: 'LR', axis: 'X', isWindow: false, holesAreaMm2: 0 };
@@ -9844,6 +10214,17 @@ function buildPgsGeometryModel(pack) {
         drvFrontList.forEach(dc => {
           if (Math.hypot((xFf + 25) - (t + dc.xInt), (t + 20 + t * 0.5) - (t + dc.yInt)) < dc.dia * 0.50 + 35) xFf = F - t - 58;
         });
+        const hitsPortFf = xCand => portFrontList.some(pc => {
+          const px = t + pc.xInt, py = t + pc.yInt;
+          const rx = pc.shape === 'round' ? (pc.dia * 0.5 + 10) : ((pc.w || 60) * 0.5 + 10);
+          const ry = pc.shape === 'round' ? (pc.dia * 0.5 + 10) : ((pc.h || 60) * 0.5 + 10);
+          return (xCand < px + rx && xCand + 50 > px - rx) && (t + 20 < py + ry && t + 20 + t > py - ry);
+        });
+        if (hitsPortFf(xFf)) {
+          const xCands = [t + 20, t + A * 0.22 - 25, t + A * 0.5 - 25, F - t - 70];
+          const clearX = xCands.find(xc => xc >= t + 10 && xc + 50 <= F - t - 10 && !hitsPortFf(xc));
+          if (Number.isFinite(clearX)) xFf = clearX;
+        }
         origin = [+xFf.toFixed(1), +(t + 20).toFixed(1), +(t + t).toFixed(1)];
         size = [50, t, Math.max(40, +(D_ext - 3 * t).toFixed(1))];
         explodeDir = [0, 0.3, 0.5];
@@ -9859,7 +10240,7 @@ function buildPgsGeometryModel(pack) {
         explodeDir = [0, 0.3, -0.5];
         extraMeta.braceMeta = { code: 'REAR', axis: 'X', isWindow: false, holesAreaMm2: 0 };
       } else {
-        origin = [+(F * 0.5 - 25).toFixed(1), t, +(t + C_med * 0.5).toFixed(1)];
+        origin = [+(F * 0.5 - 25).toFixed(1), t, t];
         size = [50, p.h, t];
         explodeDir = [0, 0.5, 0];
       }
@@ -9947,30 +10328,48 @@ function buildPgsGeometryModel(pack) {
         explodeDir = [0, 0, -0.45];
       } else if (isSlotP) {
         const isH = (ac.slotOrient !== 'vertical');
+        const isSideSlotP = (ac.portRouting === 'side_firing' && ac.boxType === 'bass-reflex');
         const slotHole = (pack.baffleHoles || []).find(hl => hl.kind === 'port' && hl.shape === 'slot');
-        const zStartSlot = Math.max(t, D_ext + portOff - p.h);
-        if (isH) {
-          const sh = slotHole && slotHole.h ? slotHole.h : 55;
-          if (p.qty === 2 && ac.hasCenterDiv) {
-            origin = [t, +(t + sh).toFixed(1), +zStartSlot.toFixed(1)];
-            size = [p.w, p.t, p.h];
-            extraMeta.splitByCenterDiv = { xLeft: t, xRight: +(t + p.w + t).toFixed(1) };
+        if (isSideSlotP) {
+          const xStartSide = Math.max(t, F - t + portOff - p.h);
+          if (isH) {
+            const sh = slotHole && slotHole.h ? slotHole.h : 55;
+            origin = [+xStartSide.toFixed(1), +(t + sh).toFixed(1), t];
+            size = [p.h, p.t, Math.min(C_med, p.w)];
           } else {
-            const sx = slotHole && Number.isFinite(slotHole.xInt)
-              ? Math.max(t, Math.min(F - t - p.w, t + slotHole.xInt - p.w / 2))
-              : t;
-            origin = [+sx.toFixed(1), +(t + sh).toFixed(1), +zStartSlot.toFixed(1)];
-            size = [p.w, p.t, p.h];
+            const sw = slotHole && slotHole.w ? slotHole.w : 60;
+            origin = [+xStartSide.toFixed(1), t, +(t + sw).toFixed(1)];
+            size = [p.h, Math.min(B, p.w), p.t];
           }
+          explodeDir = [0.65, 0, 0];
+          extraMeta.axis = '-X';
+          extraMeta.sideFiring = true;
+          ductAxis = '-X';
         } else {
-          const sw = slotHole && slotHole.w ? slotHole.w : 60;
-          const sy = slotHole && Number.isFinite(slotHole.yInt)
-            ? Math.max(t, Math.min(E - t - p.w, t + slotHole.yInt - p.w / 2))
-            : t;
-          origin = [+(t + sw).toFixed(1), +sy.toFixed(1), +zStartSlot.toFixed(1)];
-          size = [p.t, p.w, p.h];
+          const zStartSlot = Math.max(t, D_ext + portOff - p.h);
+          if (isH) {
+            const sh = slotHole && slotHole.h ? slotHole.h : 55;
+            if (p.qty === 2 && ac.hasCenterDiv) {
+              origin = [t, +(t + sh).toFixed(1), +zStartSlot.toFixed(1)];
+              size = [p.w, p.t, p.h];
+              extraMeta.splitByCenterDiv = { xLeft: t, xRight: +(t + p.w + t).toFixed(1) };
+            } else {
+              const sx = slotHole && Number.isFinite(slotHole.xInt)
+                ? Math.max(t, Math.min(F - t - p.w, t + slotHole.xInt - p.w / 2))
+                : t;
+              origin = [+sx.toFixed(1), +(t + sh).toFixed(1), +zStartSlot.toFixed(1)];
+              size = [p.w, p.t, p.h];
+            }
+          } else {
+            const sw = slotHole && slotHole.w ? slotHole.w : 60;
+            const sy = slotHole && Number.isFinite(slotHole.yInt)
+              ? Math.max(t, Math.min(E - t - p.w, t + slotHole.yInt - p.w / 2))
+              : t;
+            origin = [+(t + sw).toFixed(1), +sy.toFixed(1), +zStartSlot.toFixed(1)];
+            size = [p.t, p.w, p.h];
+          }
+          explodeDir = isH ? [0, -0.35, 0.5] : [-0.5, 0, 0.5];
         }
-        explodeDir = isH ? [0, -0.35, 0.5] : [-0.5, 0, 0.5];
       } else if (isTriP) {
         const triHoles = (pack.baffleHoles || []).filter(hl => hl.kind === 'port' && hl.shape === 'triangle');
         const ta = triHoles[0] && triHoles[0].triA ? triHoles[0].triA : 140;
@@ -10003,13 +10402,21 @@ function buildPgsGeometryModel(pack) {
         extraMeta.axis = '-Y';
         extraMeta.bpTopRound = true;
         ductAxis = '-Y';
+      } else if (ac.portRouting === 'side_firing' && ac.boxType === 'bass-reflex') {
+        const xStartSide = Math.max(t, F - t + portOff - p.h);
+        origin = [+xStartSide.toFixed(1), +(t + B * 0.5 - p.w * 0.5).toFixed(1), +(t + C_med * 0.5 - p.w * 0.5).toFixed(1)];
+        size = [p.h, p.w, p.w];
+        explodeDir = [0.75, 0, 0];
+        extraMeta.axis = '-X';
+        extraMeta.sideFiring = true;
+        ductAxis = '-X';
       } else {
         const px = F - t - p.w;
         origin = [+px.toFixed(1), +(t + 40).toFixed(1), +zStart.toFixed(1)];
         size = [p.w, p.w, p.h];
         explodeDir = [0, 0, 0.75];
       }
-      assemblyOrder = 5; frontFace = isSeriesP ? '-X' : ((isBpTopSlotP || isBpTopRoundP) ? '-Y' : '+Z');
+      assemblyOrder = 5; frontFace = (isSeriesP || extraMeta.sideFiring) ? '-X' : ((isBpTopSlotP || isBpTopRoundP) ? '-Y' : '+Z');
       ducts.push({ id, name: p.name, lvMm: Math.round(p.h), origin, size, axis: ductAxis, chamber: isSeriesP ? 'series' : (isRearP ? 'rear' : 'front') });
     } else if (p.orient === 'CIMA') {
       const topZ = isTrapModel ? +(D_ext - C_ext).toFixed(1) : 0;
@@ -10061,8 +10468,9 @@ function buildPgsGeometryModel(pack) {
     else if (hl.panel === 'divisoria_2' && partById.P_BP_DIVIDER_2) hostId = 'P_BP_DIVIDER_2';
     else if (hl.panel === 'divisoria' && partById.P_BP_DIVIDER) hostId = 'P_BP_DIVIDER';
     else if (hl.panel === 'topo' && partById.P_TOP) hostId = 'P_TOP';
+    else if (hl.panel === 'lateral_dir' && partById.P_SIDES) hostId = 'P_SIDES';
     cutouts.push({
-      id: cid, partId: hostId, kind: hl.kind, shape: hl.shape, label: hl.label,
+      id: cid, partId: hostId, panel: hl.panel || 'frontal', kind: hl.kind, shape: hl.shape, label: hl.label,
       xInt: hl.xInt, yInt: hl.yInt, xExt: hl.xExt, yExt: hl.yExt,
       dia: hl.dia || null, flangeDia: hl.flangeDia || null, w: hl.w || null, h: hl.h || null,
       triA: hl.triA || null, triB: hl.triB || null, cornerIdx: Number.isFinite(hl.cornerIdx) ? hl.cornerIdx : null,
@@ -10124,8 +10532,10 @@ function buildPgsGeometryModel(pack) {
       VgrossFromParts, VnetVerified, deltaL: +(VnetVerified - targetNet).toFixed(2)
     },
     manufacturing: { cutList, sheetLayout, assemblySequence },
+    collisions3d: [],
     validation: []
   };
+  model.collisions3d = detectPgs3dCollisions(model, ac);
   model.validation = validatePgsGeometry(model, pack.validation);
   return model;
 }
@@ -10491,14 +10901,22 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         const routing3d = (pack.acoustics && pack.acoustics.portRouting) || 'straight';
         const rp3d = (pack.acoustics && pack.acoustics.portRoutePlan) || null;
         const holes = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_FRONT_BAFFLE');
-        if (routing3d === 'side_firing') {
-          const nCyl = Math.max(1, holes.length || p.qty || 1);
-          const lv = p.size[2];
+        if (routing3d === 'side_firing' || p.sideFiring) {
+          const rSide = (p.sideFiring ? p.size[1] : p.size[0]) / 2;
+          const lv = p.sideFiring ? p.size[0] : p.size[2];
+          const sideHoles = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && (c.partId === 'P_SIDES' || c.panel === 'lateral_dir'));
           const xStartSide = Math.max(t, F - t + portOff3d - lv);
-          const zCenterSide = t + (D - 2 * t) * 0.5;
-          for (let ci = 0; ci < nCyl; ci++) {
-            const cySide = t + ((ci + 1) / (nCyl + 1)) * (E - 2 * t);
-            pushCylinderFaces(xStartSide + ex, cySide + ey, zCenterSide + ez, r, lv, '-X', [251, 146, 60], '#fdba74', pAlpha);
+          if (sideHoles.length) {
+            sideHoles.forEach(sh => {
+              pushCylinderFaces(xStartSide + ex, t + sh.yInt + ey, t + sh.xInt + ez, rSide, lv, '-X', [251, 146, 60], '#fdba74', pAlpha);
+            });
+          } else {
+            const nCyl = Math.max(1, p.qty || 1);
+            const zCenterSide = t + (D - 2 * t) * 0.5;
+            for (let ci = 0; ci < nCyl; ci++) {
+              const cySide = t + ((ci + 1) / (nCyl + 1)) * (E - 2 * t);
+              pushCylinderFaces(xStartSide + ex, cySide + ey, zCenterSide + ez, rSide, lv, '-X', [251, 146, 60], '#fdba74', pAlpha);
+            }
           }
         } else if (routing3d === 'l_bend' && rp3d && rp3d.l2Mm >= 10 && holes.length) {
           const l1 = Math.max(40, rp3d.l1Mm);
@@ -11516,11 +11934,38 @@ function printBuildPackA4() {
   return exportBuildPackHtml();
 }
 
-function exportBuildPackHtml() {
+// CAD-06: Gate centralizado de exportação CAD (bloqueia erro crítico P0 e exige confirmação explícita em sopro/chuffing v_ar > velLimit)
+function checkCadExportGate(pack, opts) {
+  if (!pack || !pack.validation || !pack.validation.valid) {
+    const msgs = (pack && pack.validation && pack.validation.issues)
+      ? pack.validation.issues.filter(i => i.level === 'critical').map(i => '• ' + i.msg).join('\n')
+      : 'Geometria inválida.';
+    return { ok: false, reason: 'GEOMETRY_CRITICAL', msg: '⛔ Exportação bloqueada por erro crítico de geometria:\n\n' + msgs + '\n\nCorrija as cotas na aba Marcenaria CAD antes de exportar.' };
+  }
+  const aeroIssue = (pack.validation.issues || []).find(i => i.code === 'PORT_AIR_VELOCITY_CRITICAL');
+  if (aeroIssue && !(opts && opts.confirmAeroOverride === true)) {
+    if (typeof confirm === 'function' && !(opts && opts.noPrompt)) {
+      const accepted = confirm('⚠️ CAD-06 — ALERTA CRÍTICO DE SOPRO (CHUFFING):\n\n' + aeroIssue.msg + '\n\nDeseja confirmar explicitamente a exportação CAD mesmo com velocidade do ar acima do limite laminar?');
+      if (!accepted) {
+        return { ok: false, reason: 'CAD_06_AIR_VELOCITY_BLOCKED', msg: aeroIssue.msg };
+      }
+      return { ok: true, aeroConfirmed: true };
+    }
+    return { ok: false, reason: 'CAD_06_AIR_VELOCITY_BLOCKED', msg: aeroIssue.msg };
+  }
+  return { ok: true, aeroConfirmed: false };
+}
+
+function exportBuildPackHtml(opts) {
   const res = generateBuildPackHtml();
   if (!res.ok) {
     const msgs = res.validation ? res.validation.issues.filter(i => i.level === 'critical').map(i => '• ' + i.msg).join('\n') : 'Geometria inválida.';
     alert('⛔ Exportação bloqueada por erro crítico de geometria:\n\n' + msgs + '\n\nCorrija as cotas na aba Marcenaria CAD antes de exportar.');
+    return false;
+  }
+  const gate = checkCadExportGate(res.pack, opts);
+  if (!gate.ok) {
+    if (gate.reason === 'GEOMETRY_CRITICAL') alert(gate.msg);
     return false;
   }
   const safe = (res.pack.driver.name || 'Projeto').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36);
@@ -11533,10 +11978,11 @@ function exportBuildPackHtml() {
   return true;
 }
 
-function exportBuildPackJson() {
+function exportBuildPackJson(opts) {
   if (!lastBuildPack) updateWoodlock();
-  if (!lastBuildPack || !lastBuildPack.validation.valid) {
-    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+  const gate = checkCadExportGate(lastBuildPack, opts);
+  if (!gate.ok) {
+    if (gate.reason === 'GEOMETRY_CRITICAL') alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
     return false;
   }
   const safe = (lastBuildPack.driver.name || 'Projeto').replace(/[^a-zA-Z0-9_-]+/g, '_').slice(0, 36);
@@ -11680,8 +12126,8 @@ function buildPgsDxfString(pack) {
   if (ac.bpChambers && ac.bpChambers.isBp) {
     addRect('PECAS_CORTE', bx0 + t + ac.bpChambers.A_rear, by0 + t, t, B);
   }
-  // Furos reais no painel frontal (exclui divisórias internas BP e tampo superior)
-  (pack.baffleHoles || []).filter(hl => !String(hl.panel || '').startsWith('divisoria') && hl.panel !== 'topo').forEach(hl => {
+  // Furos reais no painel frontal (exclui divisórias internas BP, tampo superior e lateral_dir Side-Firing)
+  (pack.baffleHoles || []).filter(hl => !String(hl.panel || '').startsWith('divisoria') && hl.panel !== 'topo' && hl.panel !== 'lateral_dir').forEach(hl => {
     const cx = bx0 + hl.xExt;
     const cy = by0 + hl.yExt;
     if (hl.shape === 'round') {
@@ -11726,6 +12172,28 @@ function buildPgsDxfString(pack) {
     const zBaf = sx0 + t + ac.planarGeom.C_chamber;
     addLine('BAFFLE_FURACAO', zBaf, sy0 + t, zBaf, sy0 + E - t);
     addText('TEXTO_COTAS', sx0, sy0 - 95, 20, `PLANAR ${ac.planarGeom.style.toUpperCase()} | CG=${ac.planarGeom.CG} mm (C=${ac.planarGeom.C_chamber} + G=${ac.planarGeom.recuoG} mm)`);
+  } else if (ac.portRouting === 'side_firing') {
+    // CAD-04: Furação Side-Firing real na face lateral direita (eixo Z = xExt, eixo Y = yExt)
+    const sideHoles2d = (pack.baffleHoles || []).filter(hl => hl.panel === 'lateral_dir');
+    sideHoles2d.forEach(hl => {
+      const cx = sx0 + hl.xExt;
+      const cy = sy0 + hl.yExt;
+      if (hl.shape === 'round') {
+        addCircle('BAFFLE_FURACAO', cx, cy, hl.dia / 2);
+        addText('TEXTO_COTAS', cx - 50, cy - 8, 16, `SIDE-FIRING D=${hl.dia.toFixed(0)}mm Lv=${(hl.lvMm || ac.lvMm || 0).toFixed(0)}`);
+      } else if (hl.shape === 'slot') {
+        addRect('BAFFLE_FURACAO', cx - hl.w / 2, cy - hl.h / 2, hl.w, hl.h);
+        addText('TEXTO_COTAS', cx - hl.w / 2 + 6, cy - 6, 16, `SIDE-FIRING SLOT ${hl.w.toFixed(0)}x${hl.h.toFixed(0)} Lv=${(hl.lvMm || ac.lvMm || 0).toFixed(0)}`);
+      }
+    });
+    addText('TEXTO_COTAS', sx0, sy0 - 95, 18, `SIDE-FIRING (EIXO A) Lv=${ac.lvMm} mm (${sideHoles2d.length}x recorte lateral)`);
+  } else if (ac.portRouting === 'l_bend' && ac.portRoutePlan && ac.portRoutePlan.l2Mm >= 10) {
+    // CAD-14: Duto em L (90°) na vista lateral (Trecho 1 + Curva 90° + Trecho 2)
+    const rp2d = ac.portRoutePlan;
+    const pH = Math.min(B * 0.25, 100);
+    const l1 = Math.max(40, rp2d.l1Mm);
+    addRect('BAFFLE_FURACAO', sx0 + D_ext - t - l1, sy0 + t + 10, l1, pH);
+    addText('TEXTO_COTAS', sx0 + D_ext - t - l1, sy0 + t + pH + 18, 16, `L-PORT L1=${Math.round(l1)} + 90deg + L2=${Math.round(rp2d.l2Mm)} mm (Lv=${ac.lvMm} mm)`);
   } else if (ac.lvMm > 0) {
     const pH = Math.min(B * 0.25, 110);
     addRect('BAFFLE_FURACAO', sx0 + D_ext - t - ac.lvMm, sy0 + t + 10, ac.lvMm, pH);
@@ -11741,10 +12209,11 @@ function buildPgsDxfString(pack) {
   return lines.join('\r\n') + '\r\n';
 }
 
-function exportBuildPackDxf() {
+function exportBuildPackDxf(opts) {
   if (!lastBuildPack) updateWoodlock();
-  if (!lastBuildPack || !lastBuildPack.validation.valid) {
-    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+  const gate = checkCadExportGate(lastBuildPack, opts);
+  if (!gate.ok) {
+    if (gate.reason === 'GEOMETRY_CRITICAL') alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
     return false;
   }
   const dxf = buildPgsDxfString(lastBuildPack);
@@ -11811,6 +12280,59 @@ function buildPgs3dDxfString(pack, explodeRatio = 0.0) {
       addFace3d(layer, pt(x0, y0, z0), pt(x1, y1, z0), pt(x1, y1, z0 + len), pt(x0, y0, z0 + len));
     }
   };
+  const addCylinderX = (layer, x0, cy, cz, r, len, segs = 20) => {
+    if (!(r > 0 && len > 0)) return;
+    for (let i = 0; i < segs; i++) {
+      const a0 = (i / segs) * Math.PI * 2;
+      const a1 = ((i + 1) / segs) * Math.PI * 2;
+      const y0 = cy + Math.cos(a0) * r, z0 = cz + Math.sin(a0) * r;
+      const y1 = cy + Math.cos(a1) * r, z1 = cz + Math.sin(a1) * r;
+      addFace3d(layer, pt(x0, y0, z0), pt(x0, y1, z1), pt(x0 + len, y1, z1), pt(x0 + len, y0, z0));
+    }
+  };
+  const addCylinderY = (layer, cx, y0, cz, r, len, segs = 20) => {
+    if (!(r > 0 && len > 0)) return;
+    for (let i = 0; i < segs; i++) {
+      const a0 = (i / segs) * Math.PI * 2;
+      const a1 = ((i + 1) / segs) * Math.PI * 2;
+      const x0 = cx + Math.cos(a0) * r, z0 = cz + Math.sin(a0) * r;
+      const x1 = cx + Math.cos(a1) * r, z1 = cz + Math.sin(a1) * r;
+      addFace3d(layer, pt(x0, y0, z0), pt(x1, y0, z1), pt(x1, y0 + len, z1), pt(x0, y0 + len, z0));
+    }
+  };
+  const addElbow90Dxf = (layer, cx, cy, zStart, r, rElbIn, dirX, arcSegs = 6, radSegs = 12) => {
+    if (!(r > 0)) return;
+    const R = Math.max(r * 1.15, rElbIn);
+    const xc = cx + dirX * R;
+    const zc = zStart;
+    const ringPt = (th, a) => {
+      const rx = -dirX * Math.cos(th), rz = -Math.sin(th);
+      const ca = Math.cos(a) * r, sa = Math.sin(a) * r;
+      return pt(xc + (R + ca) * rx, cy + sa, zc + (R + ca) * rz);
+    };
+    for (let j = 0; j < arcSegs; j++) {
+      const th0 = (j / arcSegs) * (Math.PI * 0.5);
+      const th1 = ((j + 1) / arcSegs) * (Math.PI * 0.5);
+      for (let i = 0; i < radSegs; i++) {
+        const a0 = (i / radSegs) * Math.PI * 2;
+        const a1 = ((i + 1) / radSegs) * Math.PI * 2;
+        addFace3d(layer, ringPt(th0, a0), ringPt(th0, a1), ringPt(th1, a1), ringPt(th1, a0));
+      }
+    }
+  };
+  const addPrismXYDxf = (layer, quadXY, z0, z1) => {
+    const pB = quadXY.map(([x, y]) => pt(x, y, z0));
+    const pF = quadXY.map(([x, y]) => pt(x, y, z1));
+    addFace3d(layer, pB[0], pB[1], pB[2], pB[3]);
+    addFace3d(layer, pF[0], pF[1], pF[2], pF[3]);
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      addFace3d(layer, pB[i], pB[j], pF[j], pF[i]);
+      addLine3d(layer, pB[i], pB[j]);
+      addLine3d(layer, pF[i], pF[j]);
+      addLine3d(layer, pB[i], pF[i]);
+    }
+  };
   const addCircleOnPlaneZ = (layer, cx, cy, zPlane, r, segs = 36) => {
     if (!(r > 0)) return;
     for (let i = 0; i < segs; i++) {
@@ -11819,6 +12341,16 @@ function buildPgs3dDxfString(pack, explodeRatio = 0.0) {
       addLine3d(layer,
         pt(cx + Math.cos(a0) * r, cy + Math.sin(a0) * r, zPlane),
         pt(cx + Math.cos(a1) * r, cy + Math.sin(a1) * r, zPlane));
+    }
+  };
+  const addCircleOnPlaneX = (layer, xPlane, cy, cz, r, segs = 36) => {
+    if (!(r > 0)) return;
+    for (let i = 0; i < segs; i++) {
+      const a0 = (i / segs) * Math.PI * 2;
+      const a1 = ((i + 1) / segs) * Math.PI * 2;
+      addLine3d(layer,
+        pt(xPlane, cy + Math.cos(a0) * r, cz + Math.sin(a0) * r),
+        pt(xPlane, cy + Math.cos(a1) * r, cz + Math.sin(a1) * r));
     }
   };
 
@@ -11851,26 +12383,134 @@ function buildPgs3dDxfString(pack, explodeRatio = 0.0) {
   // ENTITIES 3D
   push(0, 'SECTION', 2, 'ENTITIES');
 
+  const ac3d = pack.acoustics || {};
+  const portOff3d = Number(ac3d.portOffsetMm || 0);
+  const routing3d = ac3d.portRouting || 'straight';
+  const rp3d = ac3d.portRoutePlan || null;
+
   (geom.parts || []).forEach(p => {
-    const ox = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
-    const oy = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
-    const oz = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
+    const ex = p.explodeDir[0] * p.explodeDist * er;
+    const ey = p.explodeDir[1] * p.explodeDist * er;
+    const ez = p.explodeDir[2] * p.explodeDist * er;
+    const ox = p.origin[0] + ex;
+    const oy = p.origin[1] + ey;
+    const oz = p.origin[2] + ez;
     const [dx, dy, dz] = p.size;
 
     if (p.id === 'P_SIDES') {
+      const xRight = F - t + p.explodeDist * er;
       addBox3d('PAINEIS_3D', ox, oy, oz, dx, dy, dz);
-      addBox3d('PAINEIS_3D', F - t + p.explodeDist * er, oy, oz, dx, dy, dz);
+      addBox3d('PAINEIS_3D', xRight, oy, oz, dx, dy, dz);
+      // CAD-04: Recortes Side-Firing na face lateral direita (+X)
+      const xFaceR = xRight + dx + 0.5;
+      (geom.cutouts || []).filter(c => c.partId === 'P_SIDES' || c.panel === 'lateral_dir').forEach(c => {
+        if (c.shape === 'round' && c.dia) {
+          addCircleOnPlaneX('FURACAO_3D', xFaceR, t + c.yInt + ey, t + c.xInt + ez, c.dia / 2, 36);
+        } else if (c.shape === 'slot' && c.w && c.h) {
+          const z0s = t + c.xInt - c.w / 2 + ez, y0s = t + c.yInt - c.h / 2 + ey;
+          const a = pt(xFaceR, y0s, z0s), b = pt(xFaceR, y0s, z0s + c.w), d = pt(xFaceR, y0s + c.h, z0s + c.w), e = pt(xFaceR, y0s + c.h, z0s);
+          addLine3d('FURACAO_3D', a, b); addLine3d('FURACAO_3D', b, d); addLine3d('FURACAO_3D', d, e); addLine3d('FURACAO_3D', e, a);
+        }
+      });
     } else if (p.kind === 'divider') {
       addBox3d('DIVISORIAS_3D', ox, oy, oz, dx, dy, dz);
     } else if (p.kind === 'batten') {
       addBox3d('TRAVAMENTOS_3D', ox, oy, oz, dx, dy, dz);
     } else if (p.kind === 'port') {
       if (p.area <= 0) {
-        // Tubo PVC cilíndrico em 3D
-        addCylinderZ('DUTOS_3D', ox + dx / 2, oy + dy / 2, oz, dx / 2, dz, 20);
+        if (p.bpTopRound) {
+          const r = dx / 2;
+          const isRear = (p.id === 'P_PORT_REAR');
+          const hs = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_TOP' && ((/Traseir/.test(c.label || '')) === isRear));
+          const list = hs.length ? hs : (isRear ? [] : (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_TOP'));
+          list.forEach(ch => {
+            const lv = ch.lvMm || dy;
+            addCylinderY('DUTOS_3D', t + ch.xInt + ex, Math.max(t, env.E + portOff3d - lv) + ey, t + ch.yInt + ez, r, lv, 20);
+          });
+        } else if (p.id === 'P_PORT_SERIES') {
+          const r = dy / 2;
+          const hs = (geom.cutouts || []).filter(c => c.partId && c.partId.startsWith('P_BP_DIVIDER') && c.kind === 'port');
+          if (hs.length) {
+            hs.forEach(ch => addCylinderX('DUTOS_3D', ox, t + ch.yInt + ey, t + ch.xInt + ez, r, Math.min(dx, ch.lvMm || dx), 20));
+          } else {
+            addCylinderX('DUTOS_3D', ox, oy + r, oz + r, r, dx, 20);
+          }
+        } else if (routing3d === 'side_firing' || p.sideFiring) {
+          // CAD-04 & CAD-14: Duto(s) cilíndrico(s) Side-Firing ao longo do eixo -X
+          const r = (p.sideFiring ? dy : dx) / 2;
+          const lv = p.sideFiring ? dx : dz;
+          const sideHoles = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && (c.partId === 'P_SIDES' || c.panel === 'lateral_dir'));
+          const xStartSide = Math.max(t, F - t + portOff3d - lv);
+          if (sideHoles.length) {
+            sideHoles.forEach(sh => {
+              const lvCur = sh.lvMm || lv;
+              addCylinderX('DUTOS_3D', Math.max(t, F - t + portOff3d - lvCur) + ex, t + sh.yInt + ey, t + sh.xInt + ez, r, lvCur, 20);
+            });
+          } else {
+            addCylinderX('DUTOS_3D', xStartSide + ex, oy + r, oz + r, r, lv, 20);
+          }
+        } else {
+          // CAD-14: Suporta numDucts > 1 e l_bend (Trecho 1 + Joelho 90° + Trecho 2)
+          const r = dx / 2;
+          const frontHoles = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_FRONT_BAFFLE');
+          if (routing3d === 'l_bend' && rp3d && rp3d.l2Mm >= 10 && frontHoles.length) {
+            const l1 = Math.max(40, rp3d.l1Mm);
+            const l2 = Math.max(10, rp3d.l2Mm);
+            const rElb = Math.max(r * 1.15, Number(rp3d.rElbow) || r * 1.6);
+            const zBack = Math.max(t + rElb + r, env.D_ext + portOff3d - l1);
+            frontHoles.forEach(ch => {
+              const cx = t + ch.xInt + ex, cy = t + ch.yInt + ey;
+              const dirX = (cx <= F / 2) ? 1 : -1;
+              addCylinderZ('DUTOS_3D', cx, cy, zBack + ez, r, l1, 20);
+              addElbow90Dxf('DUTOS_3D', cx, cy, zBack + ez, r, rElb, dirX, 6, 12);
+              const xStartL2 = (dirX > 0) ? (cx + rElb) : (cx - rElb - l2);
+              addCylinderX('DUTOS_3D', xStartL2, cy, zBack - rElb + ez, r, l2, 20);
+            });
+          } else if (frontHoles.length) {
+            frontHoles.forEach(ch => {
+              const lv = ch.lvMm || dz;
+              addCylinderZ('DUTOS_3D', t + ch.xInt + ex, t + ch.yInt + ey, Math.max(t, env.D_ext + portOff3d - lv) + ez, r, lv, 20);
+            });
+          } else {
+            addCylinderZ('DUTOS_3D', ox + dx / 2, oy + dy / 2, oz, dx / 2, dz, 20);
+          }
+        }
+      } else if (p.triMeta) {
+        // CAD-14: Paredes angulares dos dutos triangulares de canto (triMeta)
+        const tm = p.triMeta;
+        const ta = tm.triA || 140, tb = tm.triB || 140, lv = tm.lvMm || dz;
+        const z0t = Math.max(t, env.D_ext + portOff3d - lv) + ez;
+        const z1t = z0t + lv;
+        const allCorners = [
+          [[t, t + tb], [t + ta, t], [tb, ta]],
+          [[t + env.A - ta, t], [t + env.A, t + tb], [-tb, ta]],
+          [[t, t + env.B - tb], [t + ta, t + env.B], [tb, -ta]],
+          [[t + env.A - ta, t + env.B], [t + env.A, t + env.B - tb], [-tb, -ta]]
+        ];
+        (tm.corners || [0, 1]).forEach(ci => {
+          const [p1, p2, n] = allCorners[((ci % 4) + 4) % 4];
+          const nl = Math.max(1e-6, Math.hypot(n[0], n[1]));
+          const ux = (n[0] / nl) * t, uy = (n[1] / nl) * t;
+          addPrismXYDxf('DUTOS_3D', [
+            [p1[0] + ex, p1[1] + ey], [p2[0] + ex, p2[1] + ey],
+            [p2[0] + ux + ex, p2[1] + uy + ey], [p1[0] + ux + ex, p1[1] + uy + ey]
+          ], z0t, z1t);
+        });
+      } else if (p.sharedCenterSlot) {
+        addBox3d('DUTOS_3D', p.sharedCenterSlot.xLeft + ex, oy, oz, dx, dy, dz);
+        addBox3d('DUTOS_3D', p.sharedCenterSlot.xRight + ex, oy, oz, dx, dy, dz);
+      } else if (p.splitByCenterDiv) {
+        addBox3d('DUTOS_3D', p.splitByCenterDiv.xLeft + ex, oy, oz, dx, dy, dz);
+        addBox3d('DUTOS_3D', p.splitByCenterDiv.xRight + ex, oy, oz, dx, dy, dz);
       } else {
         addBox3d('DUTOS_3D', ox, oy, oz, dx, dy, dz);
       }
+    } else if (p.id === 'P_FRONT_BAFFLE' && p.frontSplit) {
+      addBox3d('PAINEIS_3D', p.frontSplit.xLeft + ex, oy, oz, dx, dy, dz);
+      addBox3d('PAINEIS_3D', p.frontSplit.xRight + ex, oy, oz, dx, dy, dz);
+    } else if (p.id === 'P_TOP' && p.topSplit) {
+      addBox3d('PAINEIS_3D', p.topSplit.xLeft + ex, oy, oz, dx, dy, dz);
+      addBox3d('PAINEIS_3D', p.topSplit.xRight + ex, oy, oz, dx, dy, dz);
     } else {
       addBox3d('PAINEIS_3D', ox, oy, oz, dx, dy, dz);
     }
@@ -11880,14 +12520,23 @@ function buildPgs3dDxfString(pack, explodeRatio = 0.0) {
       const zFront = oz + dz + 0.5;
       (geom.cutouts || []).filter(c => c.partId === 'P_FRONT_BAFFLE').forEach(c => {
         if (c.shape === 'round') {
-          addCircleOnPlaneZ('FURACAO_3D', t + c.xInt, t + c.yInt, zFront, c.dia / 2, 36);
+          addCircleOnPlaneZ('FURACAO_3D', t + c.xInt + ex, t + c.yInt + ey, zFront, c.dia / 2, 36);
           if (c.kind === 'driver' && c.flangeDia) {
-            addCircleOnPlaneZ('FURACAO_3D', t + c.xInt, t + c.yInt, zFront, c.flangeDia / 2, 36);
+            addCircleOnPlaneZ('FURACAO_3D', t + c.xInt + ex, t + c.yInt + ey, zFront, c.flangeDia / 2, 36);
           }
         } else if (c.shape === 'slot') {
-          const x0 = t + c.xInt - c.w / 2, y0 = t + c.yInt - c.h / 2;
+          const x0 = t + c.xInt - c.w / 2 + ex, y0 = t + c.yInt - c.h / 2 + ey;
           const a = pt(x0, y0, zFront), b = pt(x0 + c.w, y0, zFront), d = pt(x0 + c.w, y0 + c.h, zFront), e = pt(x0, y0 + c.h, zFront);
           addLine3d('FURACAO_3D', a, b); addLine3d('FURACAO_3D', b, d); addLine3d('FURACAO_3D', d, e); addLine3d('FURACAO_3D', e, a);
+        } else if (c.shape === 'triangle' && c.triA && c.triB) {
+          const ta = c.triA, tb = c.triB, ci = ((c.cornerIdx || 0) % 4 + 4) % 4;
+          const tc = [
+            [[t, t], [t + ta, t], [t, t + tb]],
+            [[t + env.A, t], [t + env.A - ta, t], [t + env.A, t + tb]],
+            [[t, t + env.B], [t + ta, t + env.B], [t, t + env.B - tb]],
+            [[t + env.A, t + env.B], [t + env.A - ta, t + env.B], [t + env.A, t + env.B - tb]]
+          ][ci].map(([x, y]) => pt(x + ex, y + ey, zFront));
+          addLine3d('FURACAO_3D', tc[0], tc[1]); addLine3d('FURACAO_3D', tc[1], tc[2]); addLine3d('FURACAO_3D', tc[2], tc[0]);
         }
       });
     }
@@ -11897,10 +12546,11 @@ function buildPgs3dDxfString(pack, explodeRatio = 0.0) {
   return lines.join('\r\n') + '\r\n';
 }
 
-function exportBuildPackDxf3d() {
+function exportBuildPackDxf3d(opts) {
   if (!lastBuildPack) updateWoodlock();
-  if (!lastBuildPack || !lastBuildPack.validation.valid) {
-    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+  const gate = checkCadExportGate(lastBuildPack, opts);
+  if (!gate.ok) {
+    if (gate.reason === 'GEOMETRY_CRITICAL') alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
     return false;
   }
   const dxf = buildPgs3dDxfString(lastBuildPack, wlViewMode === 'exploded' ? wlExplodeRatio : 0.0);
@@ -11980,17 +12630,205 @@ function buildPgsObjString(pack, explodeRatio = 0.0) {
     }
   };
 
+  const addTubeX = (objName, x0, cy, cz, rOuter, rInner, len, segs = 28) => {
+    if (!(rOuter > 0 && len > 0)) return;
+    const ri = Math.max(1, Math.min(rOuter - 1, rInner));
+    out.push(`o ${objName}`);
+    const oA = [], oB = [], iA = [], iB = [];
+    for (let i = 0; i < segs; i++) {
+      const ang = (i / segs) * Math.PI * 2;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      oA.push(addV(x0, cy + ca * rOuter, cz + sa * rOuter));
+      oB.push(addV(x0 + len, cy + ca * rOuter, cz + sa * rOuter));
+      iA.push(addV(x0, cy + ca * ri, cz + sa * ri));
+      iB.push(addV(x0 + len, cy + ca * ri, cz + sa * ri));
+    }
+    for (let i = 0; i < segs; i++) {
+      const n = (i + 1) % segs;
+      addQuad(oA[i], oA[n], oB[n], oB[i]);
+      addQuad(iA[n], iA[i], iB[i], iB[n]);
+      addQuad(oB[i], oB[n], iB[n], iB[i]);
+      addQuad(iA[i], iA[n], oA[n], oA[i]);
+    }
+  };
+  const addTubeY = (objName, cx, y0, cz, rOuter, rInner, len, segs = 28) => {
+    if (!(rOuter > 0 && len > 0)) return;
+    const ri = Math.max(1, Math.min(rOuter - 1, rInner));
+    out.push(`o ${objName}`);
+    const oA = [], oB = [], iA = [], iB = [];
+    for (let i = 0; i < segs; i++) {
+      const ang = (i / segs) * Math.PI * 2;
+      const ca = Math.cos(ang), sa = Math.sin(ang);
+      oA.push(addV(cx + ca * rOuter, y0, cz + sa * rOuter));
+      oB.push(addV(cx + ca * rOuter, y0 + len, cz + sa * rOuter));
+      iA.push(addV(cx + ca * ri, y0, cz + sa * ri));
+      iB.push(addV(cx + ca * ri, y0 + len, cz + sa * ri));
+    }
+    for (let i = 0; i < segs; i++) {
+      const n = (i + 1) % segs;
+      addQuad(oA[i], oA[n], oB[n], oB[i]);
+      addQuad(iA[n], iA[i], iB[i], iB[n]);
+      addQuad(oB[i], oB[n], iB[n], iB[i]);
+      addQuad(iA[i], iA[n], oA[n], oA[i]);
+    }
+  };
+  const addElbow90Obj = (objName, cx, cy, zStart, rOuter, rElbIn, dirX, arcSegs = 8, radSegs = 16) => {
+    if (!(rOuter > 0)) return;
+    const R = Math.max(rOuter * 1.15, rElbIn);
+    const xc = cx + dirX * R, zc = zStart;
+    out.push(`o ${objName}`);
+    const rings = [];
+    for (let j = 0; j <= arcSegs; j++) {
+      const th = (j / arcSegs) * (Math.PI * 0.5);
+      const rx = -dirX * Math.cos(th), rz = -Math.sin(th);
+      const ring = [];
+      for (let i = 0; i < radSegs; i++) {
+        const a = (i / radSegs) * Math.PI * 2;
+        const ca = Math.cos(a) * rOuter, sa = Math.sin(a) * rOuter;
+        ring.push(addV(xc + (R + ca) * rx, cy + sa, zc + (R + ca) * rz));
+      }
+      rings.push(ring);
+    }
+    for (let j = 0; j < arcSegs; j++) {
+      for (let i = 0; i < radSegs; i++) {
+        const n = (i + 1) % radSegs;
+        addQuad(rings[j][i], rings[j][n], rings[j + 1][n], rings[j + 1][i]);
+      }
+    }
+  };
+  const addPrismXYObj = (objName, quadXY, z0, z1) => {
+    out.push(`o ${objName}`);
+    const b = quadXY.map(([x, y]) => addV(x, y, z0));
+    const fV = quadXY.map(([x, y]) => addV(x, y, z1));
+    addQuad(b[0], b[1], b[2], b[3]);
+    addQuad(fV[0], fV[3], fV[2], fV[1]);
+    for (let i = 0; i < 4; i++) {
+      const j = (i + 1) % 4;
+      addQuad(b[i], b[j], fV[j], fV[i]);
+    }
+  };
+
+  const acObj = pack.acoustics || {};
+  const portOffObj = Number(acObj.portOffsetMm || 0);
+  const routingObj = acObj.portRouting || 'straight';
+  const rpObj = acObj.portRoutePlan || null;
+
   (geom.parts || []).forEach(p => {
-    const ox = p.origin[0] + p.explodeDir[0] * p.explodeDist * er;
-    const oy = p.origin[1] + p.explodeDir[1] * p.explodeDist * er;
-    const oz = p.origin[2] + p.explodeDir[2] * p.explodeDist * er;
+    const ex = p.explodeDir[0] * p.explodeDist * er;
+    const ey = p.explodeDir[1] * p.explodeDist * er;
+    const ez = p.explodeDir[2] * p.explodeDist * er;
+    const ox = p.origin[0] + ex;
+    const oy = p.origin[1] + ey;
+    const oz = p.origin[2] + ez;
     const [dx, dy, dz] = p.size;
 
     if (p.id === 'P_SIDES') {
+      const xRight = F - t + p.explodeDist * er;
       addBox('P_SIDE_LEFT', ox, oy, oz, dx, dy, dz);
-      addBox('P_SIDE_RIGHT', F - t + p.explodeDist * er, oy, oz, dx, dy, dz);
-    } else if (p.kind === 'port' && p.area <= 0) {
-      addTubeZ(p.id, ox + dx / 2, oy + dy / 2, oz, dx / 2, dx / 2 - Math.max(2, p.thickness || 2), dz, 28);
+      addBox('P_SIDE_RIGHT', xRight, oy, oz, dx, dy, dz);
+      // CAD-04: Aros 3D dos dutos Side-Firing na face lateral direita (+X)
+      const xFaceR = xRight + dx;
+      (geom.cutouts || []).filter(c => c.partId === 'P_SIDES' || c.panel === 'lateral_dir').forEach((c, idx) => {
+        if (c.shape === 'round' && c.dia) {
+          addTubeX(`RING_SIDE_PORT_${idx + 1}`, xFaceR, t + c.yInt + ey, t + c.xInt + ez, c.dia / 2 + 8, c.dia / 2, 5, 36);
+        }
+      });
+    } else if (p.kind === 'port') {
+      if (p.area <= 0) {
+        const wall = Math.max(2, p.thickness || 2);
+        if (p.bpTopRound) {
+          const r = dx / 2;
+          const isRear = (p.id === 'P_PORT_REAR');
+          const hs = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_TOP' && ((/Traseir/.test(c.label || '')) === isRear));
+          const list = hs.length ? hs : (isRear ? [] : (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_TOP'));
+          list.forEach((ch, idx) => {
+            const lv = ch.lvMm || dy;
+            addTubeY(`${p.id}_${idx + 1}`, t + ch.xInt + ex, Math.max(t, env.E + portOffObj - lv) + ey, t + ch.yInt + ez, r, r - wall, lv, 28);
+          });
+        } else if (p.id === 'P_PORT_SERIES') {
+          const r = dy / 2;
+          const hs = (geom.cutouts || []).filter(c => c.partId && c.partId.startsWith('P_BP_DIVIDER') && c.kind === 'port');
+          if (hs.length) {
+            hs.forEach((ch, idx) => addTubeX(`${p.id}_${idx + 1}`, ox, t + ch.yInt + ey, t + ch.xInt + ez, r, r - wall, Math.min(dx, ch.lvMm || dx), 28));
+          } else {
+            addTubeX(p.id, ox, oy + r, oz + r, r, r - wall, dx, 28);
+          }
+        } else if (routingObj === 'side_firing' || p.sideFiring) {
+          // CAD-04 & CAD-14: Duto(s) cilíndrico(s) Side-Firing ao longo do eixo -X
+          const r = (p.sideFiring ? dy : dx) / 2;
+          const lv = p.sideFiring ? dx : dz;
+          const sideHoles = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && (c.partId === 'P_SIDES' || c.panel === 'lateral_dir'));
+          if (sideHoles.length) {
+            sideHoles.forEach((sh, idx) => {
+              const lvCur = sh.lvMm || lv;
+              const xStart = Math.max(t, F - t + portOffObj - lvCur);
+              addTubeX(`${p.id}_SIDE_${idx + 1}`, xStart + ex, t + sh.yInt + ey, t + sh.xInt + ez, r, r - wall, lvCur, 28);
+            });
+          } else {
+            addTubeX(`${p.id}_SIDE_1`, Math.max(t, F - t + portOffObj - lv) + ex, oy + r, oz + r, r, r - wall, lv, 28);
+          }
+        } else {
+          // CAD-14: Paridade completa para numDucts > 1 e l_bend (Trecho 1 + Joelho 90° + Trecho 2)
+          const r = dx / 2;
+          const frontHoles = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_FRONT_BAFFLE');
+          if (routingObj === 'l_bend' && rpObj && rpObj.l2Mm >= 10 && frontHoles.length) {
+            const l1 = Math.max(40, rpObj.l1Mm);
+            const l2 = Math.max(10, rpObj.l2Mm);
+            const rElb = Math.max(r * 1.15, Number(rpObj.rElbow) || r * 1.6);
+            const zBack = Math.max(t + rElb + r, env.D_ext + portOffObj - l1);
+            frontHoles.forEach((ch, idx) => {
+              const cx = t + ch.xInt + ex, cy = t + ch.yInt + ey;
+              const dirX = (cx <= F / 2) ? 1 : -1;
+              addTubeZ(`${p.id}_L1_${idx + 1}`, cx, cy, zBack + ez, r, r - wall, l1, 28);
+              addElbow90Obj(`${p.id}_ELBOW_${idx + 1}`, cx, cy, zBack + ez, r, rElb, dirX, 8, 16);
+              const xStartL2 = (dirX > 0) ? (cx + rElb) : (cx - rElb - l2);
+              addTubeX(`${p.id}_L2_${idx + 1}`, xStartL2, cy, zBack - rElb + ez, r, r - wall, l2, 28);
+            });
+          } else if (frontHoles.length) {
+            frontHoles.forEach((ch, idx) => {
+              const lv = ch.lvMm || dz;
+              addTubeZ(`${p.id}_${idx + 1}`, t + ch.xInt + ex, t + ch.yInt + ey, Math.max(t, env.D_ext + portOffObj - lv) + ez, r, r - wall, lv, 28);
+            });
+          } else {
+            addTubeZ(p.id, ox + dx / 2, oy + dy / 2, oz, r, r - wall, dz, 28);
+          }
+        }
+      } else if (p.triMeta) {
+        // CAD-14: Paredes angulares dos dutos triangulares de canto (triMeta)
+        const tm = p.triMeta;
+        const ta = tm.triA || 140, tb = tm.triB || 140, lv = tm.lvMm || dz;
+        const z0t = Math.max(t, env.D_ext + portOffObj - lv) + ez;
+        const z1t = z0t + lv;
+        const allCorners = [
+          [[t, t + tb], [t + ta, t], [tb, ta]],
+          [[t + env.A - ta, t], [t + env.A, t + tb], [-tb, ta]],
+          [[t, t + env.B - tb], [t + ta, t + env.B], [tb, -ta]],
+          [[t + env.A - ta, t + env.B], [t + env.A, t + env.B - tb], [-tb, -ta]]
+        ];
+        (tm.corners || [0, 1]).forEach((ci, idx) => {
+          const [p1, p2, n] = allCorners[((ci % 4) + 4) % 4];
+          const nl = Math.max(1e-6, Math.hypot(n[0], n[1]));
+          const ux = (n[0] / nl) * t, uy = (n[1] / nl) * t;
+          addPrismXYObj(`P_PORT_TRI_${idx + 1}`, [
+            [p1[0] + ex, p1[1] + ey], [p2[0] + ex, p2[1] + ey],
+            [p2[0] + ux + ex, p2[1] + uy + ey], [p1[0] + ux + ex, p1[1] + uy + ey]
+          ], z0t, z1t);
+        });
+      } else if (p.sharedCenterSlot) {
+        addBox(`${p.id}_L`, p.sharedCenterSlot.xLeft + ex, oy, oz, dx, dy, dz);
+        addBox(`${p.id}_R`, p.sharedCenterSlot.xRight + ex, oy, oz, dx, dy, dz);
+      } else if (p.splitByCenterDiv) {
+        addBox(`${p.id}_L`, p.splitByCenterDiv.xLeft + ex, oy, oz, dx, dy, dz);
+        addBox(`${p.id}_R`, p.splitByCenterDiv.xRight + ex, oy, oz, dx, dy, dz);
+      } else {
+        addBox(p.id, ox, oy, oz, dx, dy, dz);
+      }
+    } else if (p.id === 'P_FRONT_BAFFLE' && p.frontSplit) {
+      addBox('P_FRONT_BAFFLE_L', p.frontSplit.xLeft + ex, oy, oz, dx, dy, dz);
+      addBox('P_FRONT_BAFFLE_R', p.frontSplit.xRight + ex, oy, oz, dx, dy, dz);
+    } else if (p.id === 'P_TOP' && p.topSplit) {
+      addBox('P_TOP_L', p.topSplit.xLeft + ex, oy, oz, dx, dy, dz);
+      addBox('P_TOP_R', p.topSplit.xRight + ex, oy, oz, dx, dy, dz);
     } else {
       addBox(p.id, ox, oy, oz, dx, dy, dz);
     }
@@ -12002,7 +12840,7 @@ function buildPgsObjString(pack, explodeRatio = 0.0) {
         if (c.shape === 'round') {
           const rOut = (c.kind === 'driver' && c.flangeDia) ? (c.flangeDia / 2) : (c.dia / 2 + 8);
           const rIn = c.dia / 2;
-          addTubeZ(`RING_${c.kind.toUpperCase()}_${idx + 1}`, t + c.xInt, t + c.yInt, zFace, rOut, rIn, c.kind === 'driver' ? 8 : 5, 36);
+          addTubeZ(`RING_${c.kind.toUpperCase()}_${idx + 1}`, t + c.xInt + ex, t + c.yInt + ey, zFace, rOut, rIn, c.kind === 'driver' ? 8 : 5, 36);
         }
       });
     }
@@ -12011,10 +12849,11 @@ function buildPgsObjString(pack, explodeRatio = 0.0) {
   return out.join('\n') + '\n';
 }
 
-function exportBuildPackObj() {
+function exportBuildPackObj(opts) {
   if (!lastBuildPack) updateWoodlock();
-  if (!lastBuildPack || !lastBuildPack.validation.valid) {
-    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+  const gate = checkCadExportGate(lastBuildPack, opts);
+  if (!gate.ok) {
+    if (gate.reason === 'GEOMETRY_CRITICAL') alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
     return false;
   }
   const obj = buildPgsObjString(lastBuildPack, wlViewMode === 'exploded' ? wlExplodeRatio : 0.0);
@@ -12080,6 +12919,24 @@ def make_tube(cx, cy, z0, r_out, r_in, length, axis_vec=None):
     off = FreeCAD.Vector(-axis.x, -axis.y, -axis.z)
     inner = Part.makeCylinder(max(0.5, min(float(r_out) - 0.5, float(r_in))), float(length) + 2.0, base.add(off), axis)
     return outer.cut(inner)
+
+def make_elbow_90(cx, cy, z_start, r_out, r_in, r_elb, dir_x):
+    R = max(float(r_out) * 1.15, float(r_elb))
+    ri = max(0.5, min(float(r_out) - 0.5, float(r_in)))
+    xc = float(cx) + float(dir_x) * R
+    zc = float(z_start)
+    # Torus no plano XZ (PGS) => plano XY (FreeCAD), eixo de revolucao = Z_fc (Y_pgs)
+    center = pgs_vec(xc, float(cy), zc)
+    axis = FreeCAD.Vector(0.0, 0.0, 1.0)
+    t_out = Part.makeTorus(R, float(r_out), center, axis, -180.0, 180.0, 90.0)
+    t_in = Part.makeTorus(R, ri, center, axis, -180.0, 180.0, 90.0)
+    if float(dir_x) > 0:
+        t_out.rotate(center, axis, 180.0)
+        t_in.rotate(center, axis, 180.0)
+    else:
+        t_out.rotate(center, axis, -90.0)
+        t_in.rotate(center, axis, -90.0)
+    return t_out.cut(t_in)
 
 def make_trapezoid_side(x0, y0, z_rear_bot, z_rear_top, z_front, B, t):
     pts = [pgs_vec(x0, y0, z_rear_bot), pgs_vec(x0, y0, z_front), pgs_vec(x0, y0 + B, z_front), pgs_vec(x0, y0 + B, z_rear_top)]
@@ -12270,6 +13127,18 @@ def build_all():
             dy_r = dy + t if p.get("rightTopExtend") else dy
             s_l = make_trapezoid_side(0.0, oy, z_rb, z_rt, oz + dz, dy_l, t) if is_trap else make_box(ox, oy, oz, dx, dy_l, dz)
             s_r = make_trapezoid_side(F - t, oy, z_rb, z_rt, oz + dz, dy_r, t) if is_trap else make_box(F - t, oy, oz, dx, dy_r, dz)
+            # CAD-04: Furos Side-Firing reais na lateral direita (P_SIDE_RIGHT)
+            for c in cutouts:
+                if s_r and (c.get("partId") == "P_SIDES" or c.get("panel") == "lateral_dir"):
+                    cz_s = (z_rt if is_trap else t) + float(c["xInt"])
+                    cy_s = t + float(c["yInt"])
+                    if c.get("shape") == "round" and c.get("dia"):
+                        cyl_s = Part.makeCylinder(float(c["dia"]) / 2.0, t + 4.0, pgs_vec(F - t - 2.0, cy_s, cz_s), FreeCAD.Vector(1.0, 0.0, 0.0))
+                        s_r = s_r.cut(cyl_s)
+                    elif c.get("shape") == "slot" and c.get("w") and c.get("h"):
+                        sb_s = make_box(F - t - 2.0, cy_s - float(c["h"]) / 2.0, cz_s - float(c["w"]) / 2.0, t + 4.0, float(c["h"]), float(c["w"]))
+                        if sb_s:
+                            s_r = s_r.cut(sb_s)
             add_solid("P_SIDE_LEFT", "mdf", cut_wa(s_l), p, MDF_SIDE)
             p_r = dict(p, explodeDir=[1, 0, 0])
             add_solid("P_SIDE_RIGHT", "mdf", cut_wa(s_r), p_r, MDF_SIDE)
@@ -12433,18 +13302,49 @@ def build_all():
             continue
 
         if kind == "port" and float(p.get("area", 0)) <= 0.0:
-            r_out = dx / 2.0
             wall = max(1.5, float(p.get("thickness", 1.5)))
             port_off = float(ac.get("portOffsetMm") or 0.0)
+            routing_fc = str(ac.get("portRouting") or "straight")
+            rp_fc = ac.get("portRoutePlan") or {}
             is_rear = (pid == "P_PORT_REAR")
+            if routing_fc == "side_firing" or p.get("sideFiring"):
+                # CAD-04 & CAD-14: Duto(s) cilíndrico(s) Side-Firing ao longo do eixo -X
+                r_out = (dy if p.get("sideFiring") else dx) / 2.0
+                lv_def = dx if p.get("sideFiring") else dz
+                side_holes = [c for c in cutouts if c.get("kind") == "port" and c.get("shape") == "round" and (c.get("partId") == "P_SIDES" or c.get("panel") == "lateral_dir")]
+                if side_holes:
+                    for idx, ch in enumerate(side_holes):
+                        lv = float(ch.get("lvMm") or lv_def)
+                        x_start = max(t, F - t + port_off - lv)
+                        cy, cz = t + float(ch["yInt"]), (z_rt if is_trap else t) + float(ch["xInt"])
+                        add_solid(f"{pid}_SIDE_{idx + 1}", "port", make_tube(x_start, cy, cz, r_out, r_out - wall, lv, FreeCAD.Vector(1.0, 0.0, 0.0)), p, PORT_COL)
+                else:
+                    x_start = max(t, F - t + port_off - lv_def)
+                    add_solid(f"{pid}_SIDE_1", "port", make_tube(x_start, oy + r_out, oz + r_out, r_out, r_out - wall, lv_def, FreeCAD.Vector(1.0, 0.0, 0.0)), p, PORT_COL)
+                continue
+            r_out = dx / 2.0
             port_holes = [c for c in cutouts if c.get("kind") == "port" and c.get("shape") == "round" and c.get("partId") == "P_FRONT_BAFFLE" and (("Traseir" in c.get("label", "")) == is_rear)]
             if not port_holes and not is_rear:
                 port_holes = [c for c in cutouts if c.get("kind") == "port" and c.get("shape") == "round" and c.get("partId") == "P_FRONT_BAFFLE"]
-            for idx, ch in enumerate(port_holes):
-                cx, cy = t + float(ch["xInt"]), t + float(ch["yInt"])
-                lv = float(ch.get("lvMm") or dz)
-                z_start = max(t, D_ext + port_off - lv)
-                add_solid(f"{pid}_{idx + 1}", "port", make_tube(cx, cy, z_start, r_out, r_out - wall, lv), p, PORT_COL)
+            if routing_fc == "l_bend" and float(rp_fc.get("l2Mm") or 0.0) >= 10.0 and port_holes:
+                # CAD-14: Duto cilíndrico em L (90°) — Trecho 1 (+Z) + Joelho 90° + Trecho 2 (-X)
+                l1 = max(40.0, float(rp_fc.get("l1Mm") or 80.0))
+                l2 = max(10.0, float(rp_fc.get("l2Mm") or 40.0))
+                r_elb = max(r_out * 1.15, float(rp_fc.get("rElbow") or r_out * 1.6))
+                z_back = max(t + r_elb + r_out, D_ext + port_off - l1)
+                for idx, ch in enumerate(port_holes):
+                    cx, cy = t + float(ch["xInt"]), t + float(ch["yInt"])
+                    dir_x = 1.0 if cx <= F / 2.0 else -1.0
+                    add_solid(f"{pid}_L1_{idx + 1}", "port", make_tube(cx, cy, z_back, r_out, r_out - wall, l1), p, PORT_COL)
+                    add_solid(f"{pid}_ELBOW_{idx + 1}", "port", make_elbow_90(cx, cy, z_back, r_out, r_out - wall, r_elb, dir_x), p, PORT_COL)
+                    x_start_l2 = (cx + r_elb) if dir_x > 0 else (cx - r_elb - l2)
+                    add_solid(f"{pid}_L2_{idx + 1}", "port", make_tube(x_start_l2, cy, z_back - r_elb, r_out, r_out - wall, l2, FreeCAD.Vector(1.0, 0.0, 0.0)), p, PORT_COL)
+            else:
+                for idx, ch in enumerate(port_holes):
+                    cx, cy = t + float(ch["xInt"]), t + float(ch["yInt"])
+                    lv = float(ch.get("lvMm") or dz)
+                    z_start = max(t, D_ext + port_off - lv)
+                    add_solid(f"{pid}_{idx + 1}", "port", make_tube(cx, cy, z_start, r_out, r_out - wall, lv), p, PORT_COL)
             continue
 
         if kind == "batten":
@@ -12582,10 +13482,11 @@ build_all()
 `;
 }
 
-function exportBuildPackFreeCadMacro() {
+function exportBuildPackFreeCadMacro(opts) {
   if (!lastBuildPack) updateWoodlock();
-  if (!lastBuildPack || !lastBuildPack.validation.valid) {
-    alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
+  const gate = checkCadExportGate(lastBuildPack, opts);
+  if (!gate.ok) {
+    if (gate.reason === 'GEOMETRY_CRITICAL') alert('⛔ Exportação bloqueada: corrija os erros críticos de geometria na aba Marcenaria CAD.');
     return false;
   }
   const macro = buildFreeCadMacroString(lastBuildPack, wlViewMode === 'exploded' ? wlExplodeRatio : 0.0);

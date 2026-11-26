@@ -1829,6 +1829,207 @@ runSuite('28. Blacklist Gate P0 (FIS/CAD/ELE/PRO Invariants & Anti-XSS)', () => 
   vm.runInContext('loadPreset();', ctx);
 });
 
+// ============================================================================
+// SUITE 29: Lote P0-B — CAD 3D Collisions (CAD-03), Side-Firing (CAD-04),
+//           Air Velocity Gate (CAD-06) & Full 3D Exporter Parity (CAD-14)
+// ============================================================================
+runSuite('29. Lote P0-B CAD 3D (CAD-03 Collisions, CAD-04 Side-Firing, CAD-06 Aero Gate, CAD-14 Parity)', () => {
+  // --- 29.1 CAD-03: Colisão 3D duto × ímã/cesta do driver e duto × travamentos internos ---
+  const colDrvNormal = vm.runInContext(`(() => {
+    const mockModel = {
+      envelope: { F: 636, E: 536, A: 600, B: 500, C: 280, D: 280, D_ext: 316 },
+      material: { thickness: 18 },
+      drivers: [{ mountMode: 'normal' }],
+      parts: [
+        { id: 'P_PORT_1', name: 'Tubo Lateral', kind: 'port', area: 0, sideFiring: true, origin: [100, 210, 100], size: [420, 104, 104] }
+      ],
+      cutouts: [
+        { id: 'CUT_DRV_1', partId: 'P_FRONT_BAFFLE', kind: 'driver', shape: 'round', label: 'Driver 18"', xInt: 300, yInt: 250, dia: 420 },
+        { id: 'CUT_PORT_1', partId: 'P_SIDES', panel: 'lateral_dir', kind: 'port', shape: 'round', label: 'Duto Lateral #1', xInt: 180, yInt: 250, dia: 104, lvMm: 420 }
+      ]
+    };
+    return detectPgs3dCollisions(mockModel, { portRouting: 'side_firing', mountMode: 'normal' });
+  })()`, ctx);
+  assert(colDrvNormal.some(c => c.code === 'PORT_DRIVER_3D_COLLISION'), 'CAD-03: Duto side_firing atravessando ímã/cesta do driver deve gerar PORT_DRIVER_3D_COLLISION');
+
+  const colDrvInv = vm.runInContext(`(() => {
+    const mockModel = {
+      envelope: { F: 636, E: 536, A: 600, B: 500, C: 280, D: 280, D_ext: 316 },
+      material: { thickness: 18 },
+      drivers: [{ mountMode: 'inverted' }],
+      parts: [
+        { id: 'P_PORT_1', name: 'Tubo Lateral', kind: 'port', area: 0, sideFiring: true, origin: [100, 210, 100], size: [420, 104, 104] }
+      ],
+      cutouts: [
+        { id: 'CUT_DRV_1', partId: 'P_FRONT_BAFFLE', kind: 'driver', shape: 'round', label: 'Driver 18"', xInt: 300, yInt: 250, dia: 420 },
+        { id: 'CUT_PORT_1', partId: 'P_SIDES', panel: 'lateral_dir', kind: 'port', shape: 'round', label: 'Duto Lateral #1', xInt: 180, yInt: 250, dia: 104, lvMm: 420 }
+      ]
+    };
+    return detectPgs3dCollisions(mockModel, { portRouting: 'side_firing', mountMode: 'inverted' });
+  })()`, ctx);
+  assert.strictEqual(colDrvInv.some(c => c.code === 'PORT_DRIVER_3D_COLLISION'), false, 'CAD-03: Driver montado invertido (ímã p/ fora) não pode gerar colisão interna');
+
+  const colLBendDrv = vm.runInContext(`(() => {
+    const mockModel = {
+      envelope: { F: 736, E: 536, A: 700, B: 500, C: 300, D: 300, D_ext: 336 },
+      material: { thickness: 18 },
+      drivers: [{ mountMode: 'normal' }],
+      parts: [
+        { id: 'P_PORT_1', name: 'Tubo L-Port', kind: 'port', area: 0, origin: [580, 200, 150], size: [104, 104, 180] }
+      ],
+      cutouts: [
+        { id: 'CUT_DRV_1', partId: 'P_FRONT_BAFFLE', kind: 'driver', shape: 'round', label: 'Driver 15"', xInt: 250, yInt: 250, dia: 355 },
+        { id: 'CUT_PORT_1', partId: 'P_FRONT_BAFFLE', kind: 'port', shape: 'round', label: 'Duto L #1', xInt: 610, yInt: 250, dia: 104, lvMm: 520 }
+      ]
+    };
+    return detectPgs3dCollisions(mockModel, {
+      portRouting: 'l_bend', mountMode: 'normal',
+      portRoutePlan: { l1Mm: 110, l2Mm: 350, rElbow: 85 }
+    });
+  })()`, ctx);
+  assert(colLBendDrv.some(c => c.code === 'PORT_DRIVER_3D_COLLISION'), 'CAD-03: Trecho 2 de L-Port atravessando ímã do driver deve gerar PORT_DRIVER_3D_COLLISION');
+
+  const colBrace = vm.runInContext(`(() => {
+    const mockModel = {
+      envelope: { F: 736, E: 536, A: 700, B: 500, C: 400, D: 400, D_ext: 436 },
+      material: { thickness: 18 },
+      drivers: [{ mountMode: 'normal' }],
+      parts: [
+        { id: 'P_PORT_1', name: 'Tubo Frontal', kind: 'port', area: 0, origin: [580, 200, 150], size: [104, 104, 280] },
+        { id: 'P_BRACE_LR', name: 'Trava LR', kind: 'batten', origin: [18, 225, 220], size: [700, 50, 18] },
+        { id: 'P_MATRIX_V', name: 'Matriz V', kind: 'divider', matrixMeta: { axis: 'V', cols: 2, rows: 1 }, origin: [359, 18, 18], size: [18, 500, 400] }
+      ],
+      cutouts: [
+        { id: 'CUT_PORT_1', partId: 'P_FRONT_BAFFLE', kind: 'port', shape: 'round', label: 'Duto #1', xInt: 610, yInt: 250, dia: 104, lvMm: 280 }
+      ]
+    };
+    return detectPgs3dCollisions(mockModel, { portRouting: 'straight', mountMode: 'normal' });
+  })()`, ctx);
+  assert(colBrace.some(c => c.code === 'PORT_BRACE_3D_COLLISION' && c.targetId === 'P_BRACE_LR'), 'CAD-03: Duto interceptando P_BRACE_LR deve gerar PORT_BRACE_3D_COLLISION');
+
+  // --- 29.2 CAD-04: Side-Firing fura lateral_dir (não frontal) e exporta eixo lateral em DXF 2D/3D, OBJ e FreeCAD ---
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset(); selectTopology("bass-reflex");', ctx);
+  elements.get('portType').value = 'round';
+  elements.get('ductDia').value = '4.0';
+  elements.get('numDucts').value = '2';
+  elements.get('wlPortRouting').value = 'side_firing';
+  elements.get('wlWidthA').value = '820';
+  elements.get('wlHeightB').value = '560';
+  vm.runInContext('recalculate(); updateWoodlock();', ctx);
+  const sfPack = vm.runInContext('lastBuildPack', ctx);
+  const sfSideHoles = sfPack.baffleHoles.filter(h => h.kind === 'port' && h.panel === 'lateral_dir');
+  const sfFrontPorts = sfPack.baffleHoles.filter(h => h.kind === 'port' && h.panel === 'frontal');
+  assert.strictEqual(sfSideHoles.length, 2, `CAD-04: side_firing com 2 dutos deve alocar 2 furos em lateral_dir (obtido ${sfSideHoles.length})`);
+  assert.strictEqual(sfFrontPorts.length, 0, 'CAD-04: side_firing não pode alocar furos de duto no painel frontal');
+  assert(sfPack.geometry.cutouts.filter(c => c.kind === 'port').every(c => c.partId === 'P_SIDES' && c.panel === 'lateral_dir'), 'CAD-04: cutouts PGS de side_firing devem apontar para P_SIDES / lateral_dir');
+  assert.strictEqual(sfPack.geometry.ducts[0].axis, '-X', 'CAD-04: duto PGS side_firing deve ter axis === "-X"');
+
+  const sfDxf2d = vm.runInContext('buildPgsDxfString(lastBuildPack)', ctx);
+  assert(sfDxf2d.includes('SIDE-FIRING'), 'CAD-04: DXF 2D deve desenhar recorte SIDE-FIRING na vista lateral');
+  const sfDxf3d = vm.runInContext('buildPgs3dDxfString(lastBuildPack, 0)', ctx);
+  const sfDxf3dPortFaces = (sfDxf3d.match(/3DFACE\r\n8\r\nDUTOS_3D/g) || []).length;
+  assert(sfDxf3dPortFaces >= 40, `CAD-04/CAD-14: DXF 3D side_firing (2 dutos) deve gerar >= 40 faces em DUTOS_3D (obtido ${sfDxf3dPortFaces})`);
+  const sfObj = vm.runInContext('buildPgsObjString(lastBuildPack, 0)', ctx);
+  assert(sfObj.includes('o P_PORT_1_SIDE_1') && sfObj.includes('o P_PORT_1_SIDE_2'), 'CAD-04/CAD-14: OBJ side_firing deve exportar 2 tubos laterais P_PORT_1_SIDE_1 e _2');
+  assert(sfObj.includes('o RING_SIDE_PORT_1') && sfObj.includes('o RING_SIDE_PORT_2'), 'CAD-04: OBJ side_firing deve exportar aros laterais RING_SIDE_PORT_1 e _2');
+  const sfFc = vm.runInContext('buildFreeCadMacroString(lastBuildPack, 0)', ctx);
+  assert(sfFc.includes('c.get("panel") == "lateral_dir"') && sfFc.includes('{pid}_SIDE_') && sfFc.includes('"portRouting":"side_firing"'), 'CAD-04/CAD-14: FreeCAD macro deve cortar P_SIDE_RIGHT e extrudar dutos side_firing em +X');
+
+  // --- 29.3 CAD-06: Velocidade do ar (17 m/s reto / 24 m/s flared) no gate de validação e exportação CAD ---
+  const cad06StraightOver = vm.runInContext(`validateBuildGeometry({
+    A: 700, B: 520, C_top: 420, D_bot: 420, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'round', numDucts: 1, ductDia: 4, ductThick: 1.5, LvCm: 15.0,
+    airVel: 21.5, velLimit: 17.0
+  })`, ctx);
+  assert.strictEqual(cad06StraightOver.aeroBlocked, true, 'CAD-06: duto reto com 21.5 m/s (> 17 m/s) deve marcar aeroBlocked=true');
+  assert(cad06StraightOver.issues.some(i => i.code === 'PORT_AIR_VELOCITY_CRITICAL' && i.requiresConfirm === true), 'CAD-06: deve emitir PORT_AIR_VELOCITY_CRITICAL com requiresConfirm=true');
+
+  const gateBlocked = vm.runInContext(`checkCadExportGate({ validation: validateBuildGeometry({
+    A: 700, B: 520, C_top: 420, D_bot: 420, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'round', numDucts: 1, ductDia: 4, ductThick: 1.5, LvCm: 15.0,
+    airVel: 21.5, velLimit: 17.0
+  }) }, { noPrompt: true })`, ctx);
+  assert.strictEqual(gateBlocked.ok, false, 'CAD-06: checkCadExportGate sem confirmação deve bloquear exportação');
+  assert.strictEqual(gateBlocked.reason, 'CAD_06_AIR_VELOCITY_BLOCKED', 'CAD-06: reason deve ser CAD_06_AIR_VELOCITY_BLOCKED');
+
+  const gateConfirmed = vm.runInContext(`checkCadExportGate({ validation: validateBuildGeometry({
+    A: 700, B: 520, C_top: 420, D_bot: 420, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'round', numDucts: 1, ductDia: 4, ductThick: 1.5, LvCm: 15.0,
+    airVel: 21.5, velLimit: 17.0
+  }) }, { confirmAeroOverride: true })`, ctx);
+  assert.strictEqual(gateConfirmed.ok, true, 'CAD-06: checkCadExportGate com confirmAeroOverride=true deve liberar exportação');
+
+  const cad06FlaredOk = vm.runInContext(`validateBuildGeometry({
+    A: 700, B: 520, C_top: 420, D_bot: 420, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'flared', numDucts: 1, ductDia: 4, ductThick: 1.5, LvCm: 15.0,
+    airVel: 21.5
+  })`, ctx);
+  assert.strictEqual(cad06FlaredOk.aeroBlocked, false, 'CAD-06: duto flared com 21.5 m/s (<= 24 m/s) não pode bloquear');
+
+  const cad06FlaredOver = vm.runInContext(`validateBuildGeometry({
+    A: 700, B: 520, C_top: 420, D_bot: 420, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'flared', numDucts: 1, ductDia: 4, ductThick: 1.5, LvCm: 15.0,
+    airVel: 26.0
+  })`, ctx);
+  assert.strictEqual(cad06FlaredOver.aeroBlocked, true, 'CAD-06: duto flared com 26.0 m/s (> 24 m/s) deve marcar aeroBlocked=true');
+
+  // --- 29.4 CAD-14: Paridade 3D completa (numDucts > 1, triMeta, l_bend) em OBJ, DXF 3D, DXF 2D e FreeCAD ---
+  // 29.4A: numDucts = 3 (múltiplos dutos cilíndricos retos)
+  elements.get('wlPortRouting').value = 'straight';
+  elements.get('portType').value = 'round';
+  elements.get('ductDia').value = '4.0';
+  elements.get('numDucts').value = '3';
+  elements.get('wlWidthA').value = '820';
+  elements.get('wlHeightB').value = '560';
+  vm.runInContext('recalculate(); updateWoodlock();', ctx);
+  const obj3 = vm.runInContext('buildPgsObjString(lastBuildPack, 0)', ctx);
+  assert(obj3.includes('o P_PORT_1_1') && obj3.includes('o P_PORT_1_2') && obj3.includes('o P_PORT_1_3'), 'CAD-14: OBJ com numDucts=3 deve exportar 3 tubos distintos P_PORT_1_1..3');
+  const dxf3d3 = vm.runInContext('buildPgs3dDxfString(lastBuildPack, 0)', ctx);
+  const faces3 = (dxf3d3.match(/3DFACE\r\n8\r\nDUTOS_3D/g) || []).length;
+  assert.strictEqual(faces3, 60, `CAD-14: DXF 3D com numDucts=3 deve gerar 60 faces 3DFACE em DUTOS_3D (obtido ${faces3})`);
+
+  // 29.4B: triMeta (4 dutos triangulares de canto)
+  elements.get('portType').value = 'triangle';
+  elements.get('triCount').value = '4';
+  elements.get('triA').value = '14';
+  elements.get('triB').value = '14';
+  vm.runInContext('recalculate(); updateWoodlock();', ctx);
+  const objTri = vm.runInContext('buildPgsObjString(lastBuildPack, 0)', ctx);
+  assert(objTri.includes('o P_PORT_TRI_1') && objTri.includes('o P_PORT_TRI_4'), 'CAD-14: OBJ com triMeta (4 cantos) deve exportar P_PORT_TRI_1..4');
+  const dxf3dTri = vm.runInContext('buildPgs3dDxfString(lastBuildPack, 0)', ctx);
+  const facesTri = (dxf3dTri.match(/3DFACE\r\n8\r\nDUTOS_3D/g) || []).length;
+  assert.strictEqual(facesTri, 24, `CAD-14: DXF 3D com triMeta (4 cantos × 6 faces) deve gerar 24 faces em DUTOS_3D (obtido ${facesTri})`);
+
+  // 29.4C: l_bend (90° L-Port cilíndrico com 2 dutos — Trecho 1 + Joelho 90° + Trecho 2)
+  elements.get('portType').value = 'round';
+  elements.get('ductDia').value = '4.0';
+  elements.get('numDucts').value = '2';
+  elements.get('wlPortRouting').value = 'l_bend';
+  vm.runInContext(`(() => {
+    recalculate(); updateWoodlock();
+    const p = JSON.parse(JSON.stringify(lastBuildPack));
+    p.acoustics.portRouting = 'l_bend';
+    p.acoustics.portRoutePlan = { routing: 'l_bend', fits: true, l1Mm: 140, l2Mm: 110, rElbow: 85, bendArcMm: 133, clearBackMm: 60 };
+    globalThis.__lbPack = p;
+  })()`, ctx);
+  const objLb = vm.runInContext('buildPgsObjString(globalThis.__lbPack, 0)', ctx);
+  assert(objLb.includes('o P_PORT_1_L1_1') && objLb.includes('o P_PORT_1_ELBOW_1') && objLb.includes('o P_PORT_1_L2_1'), 'CAD-14: OBJ l_bend deve exportar L1 + ELBOW + L2 para duto #1');
+  assert(objLb.includes('o P_PORT_1_L1_2') && objLb.includes('o P_PORT_1_ELBOW_2') && objLb.includes('o P_PORT_1_L2_2'), 'CAD-14: OBJ l_bend deve exportar L1 + ELBOW + L2 para duto #2');
+  const dxf3dLb = vm.runInContext('buildPgs3dDxfString(globalThis.__lbPack, 0)', ctx);
+  const facesLb = (dxf3dLb.match(/3DFACE\r\n8\r\nDUTOS_3D/g) || []).length;
+  assert(facesLb >= 200, `CAD-14: DXF 3D l_bend (2 dutos × [L1+Elbow+L2]) deve gerar >= 200 faces em DUTOS_3D (obtido ${facesLb})`);
+  const dxf2dLb = vm.runInContext('buildPgsDxfString(globalThis.__lbPack)', ctx);
+  assert(dxf2dLb.includes('L-PORT L1=140') && dxf2dLb.includes('L2=110'), 'CAD-14: DXF 2D l_bend deve cotar L1 e L2 na vista lateral');
+  const fcLb = vm.runInContext('buildFreeCadMacroString(globalThis.__lbPack, 0)', ctx);
+  assert(fcLb.includes('def make_elbow_90(') && fcLb.includes('_ELBOW_') && fcLb.includes('_L2_'), 'CAD-14: FreeCAD macro deve conter make_elbow_90 e gerar L1 + ELBOW + L2');
+
+  // Restaura estado padrão limpo
+  elements.get('wlPortRouting').value = 'straight';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('delete globalThis.__lbPack; loadPreset();', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');
