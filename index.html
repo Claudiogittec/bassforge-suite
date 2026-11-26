@@ -1513,6 +1513,14 @@
               <label for="wlPortOffset" id="wlPortOffsetLabel" title="0 mm = faceado com o painel; limites físicos automáticos por tipo de duto">Posição Duto (mm · 0=Faceado)</label>
               <input type="number" id="wlPortOffset" value="0" min="0" max="300" step="5" onchange="updateWoodlock()">
             </div>
+            <div class="form-group">
+              <label for="wlPortRouting" title="Roteamento interno do duto quando Lv excede a profundidade C">Roteamento do Duto</label>
+              <select id="wlPortRouting" onchange="updateWoodlock()">
+                <option value="straight" selected>Reto (Frontal · Eixo C)</option>
+                <option value="l_bend">Duto em "L" (90° Interno)</option>
+                <option value="side_firing">Lateral (Side-Firing · Eixo A)</option>
+              </select>
+            </div>
           </div>
           <div class="input-row" style="margin-bottom:10px;">
             <div class="form-group">
@@ -2551,7 +2559,7 @@ const PROJECT_FIELD_IDS = [
   'hpfCutoff', 'hpfType', 'lpfCutoff', 'lpfType', 'thermalDeltaT',
   'tsFs', 'tsQes', 'tsQms', 'tsVas', 'tsRe', 'tsPe', 'tsSd', 'tsXmax', 'tsVsub',
   'tsLe', 'tsZnom', 'tsDia', 'tsCoils', 'tsMmsCat', 'tsBlCat',
-  'wlShape', 'wlMountMode', 'wlSlotOrient', 'wlPortLayout', 'wlPortOffset', 'wlPlanarStyle', 'wlPlanarRecuoG', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD', 'wlMatrixCols', 'wlMatrixRows', 'wlWheelK', 'wlWheelH', 'wlWheelJ',
+  'wlShape', 'wlMountMode', 'wlSlotOrient', 'wlPortLayout', 'wlPortOffset', 'wlPortRouting', 'wlPlanarStyle', 'wlPlanarRecuoG', 'wlThickness', 'wlWidthA', 'wlHeightB', 'wlAngle', 'wlBattens', 'wlSheetPrice', 'wlWheelCut', 'wlTrunkW', 'wlTrunkH', 'wlTrunkD', 'wlMatrixCols', 'wlMatrixRows', 'wlWheelK', 'wlWheelH', 'wlWheelJ',
   'wlBraceFF', 'wlBraceTB', 'wlBraceLR', 'wlBraceCross', 'wlBraceBaffle', 'wlBraceRear', 'wlWheelArch', 'wlProtectBar', 'elDerate70',
   'elNumSpk', 'elCoils', 'elZCoil', 'elCoilMode', 'elSpkMode',
   'elAmpPower', 'elVbat', 'elPwrLen', 'elPwrGauge', 'elSpkLen', 'elSpkGauge',
@@ -7986,13 +7994,21 @@ function validateBuildGeometry(opts) {
     });
   }
 
-  // 6. Profundidade útil do duto (Lv vs C_min ou B em BP Slot de Topo) — considera deslocamento axial portOffsetMm (+ = fora, - = dentro)
+  // 6. Profundidade útil do duto (Lv vs C_min, ou L-Port 90°, ou Side-Firing ao longo de A, ou B em BP Slot de Topo)
   const portOffsetVal = Number(opts.portOffsetMm || 0);
+  const portRouting = (!isBp && boxType === 'bass-reflex') ? (opts.portRouting || 'straight') : 'straight';
   const lvMaxCheck = (bpChambers && bpChambers.isBp6Parallel && bpChambers.lvRearMm > 0)
     ? Math.max(lvMm, bpChambers.lvRearMm)
     : lvMm;
   const lvInternalCheck = Math.max(0, lvMaxCheck - portOffsetVal);
-  const clearanceMm = isVented ? ((isBp ? B : C_min) - lvInternalCheck) : C_min;
+  const routePlan = computePortRoutingPlan({
+    portRouting, portType, slotOrient, A, B, C_min, t,
+    lvMm: lvInternalCheck, slotHmm, slotWallThick: slotWallThick || t,
+    odMm: ductHoleDia, numDucts
+  });
+  const clearanceMm = isVented
+    ? (isBp ? (B - lvInternalCheck) : routePlan.clearanceMm)
+    : C_min;
   if (isVented) {
     const deqMm = ((opts.portGeom && opts.portGeom.DeqM) ? opts.portGeom.DeqM * 1000.0 : ductHoleDia);
     if (lvMm <= 0) {
@@ -8007,6 +8023,34 @@ function validateBuildGeometry(opts) {
         code: 'PORT_LV_NEGATIVE',
         msg: `Comprimento cortado do duto VR Lv_VR é nulo/negativo. Ajuste Diâm. VR / Qtde. VR ou Sintonia VR.`
       });
+    } else if (!isBp && portRouting === 'l_bend') {
+      if (!routePlan.fits) {
+        issues.push({
+          level: 'critical',
+          code: 'PORT_DEPTH_COLLISION',
+          msg: `Duto em L (Lv = ${lvMaxCheck.toFixed(0)} mm) excede o espaço interno mesmo dobrado em 90° (Trecho 1 = ${routePlan.l1Mm.toFixed(0)} mm, Trecho 2 = ${routePlan.l2Mm.toFixed(0)} mm > limite ${routePlan.maxL2Mm.toFixed(0)} mm).`
+        });
+      } else {
+        issues.push({
+          level: 'ok',
+          code: 'PORT_L_BEND_ACTIVE',
+          msg: `Duto em L (90° interno) ativo: Trecho 1 = ${routePlan.l1Mm.toFixed(0)} mm + Curva 90° (${routePlan.bendArcMm.toFixed(0)} mm) + Trecho 2 = ${routePlan.l2Mm.toFixed(0)} mm (folga útil ${clearanceMm.toFixed(0)} mm).`
+        });
+      }
+    } else if (!isBp && portRouting === 'side_firing') {
+      if (clearanceMm < 40) {
+        issues.push({
+          level: 'critical',
+          code: 'PORT_DEPTH_COLLISION',
+          msg: `Duto Lateral Side-Firing (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na largura interna A = ${A.toFixed(0)} mm (folga ${clearanceMm.toFixed(0)} mm < 40 mm).`
+        });
+      } else {
+        issues.push({
+          level: 'ok',
+          code: 'PORT_SIDE_FIRING_ACTIVE',
+          msg: `Duto Lateral (Side-Firing) montado na face direita ao longo de A = ${A.toFixed(0)} mm (Lv = ${lvMaxCheck.toFixed(0)} mm, folga oposta ${clearanceMm.toFixed(0)} mm).`
+        });
+      }
     } else if (clearanceMm < 40) {
       issues.push({
         level: 'critical',
@@ -8080,6 +8124,182 @@ function getPortOffsetBounds({ boxType, portType, lvMm, t }) {
   return { min: minIn, max: 0, disabled: false, hint: `${minIn} a 0 mm` };
 }
 
+function computePortRoutingPlan(opts) {
+  const routing = opts.portRouting || 'straight';
+  const portType = opts.portType || 'round';
+  const isSlot = (portType === 'slot' || portType === 'slot_wall');
+  const slotOrient = opts.slotOrient || 'horizontal';
+  const A = Math.max(100, Number(opts.A) || 500);
+  const B = Math.max(100, Number(opts.B) || 400);
+  const C_min = Math.max(80, Number(opts.C_min) || 350);
+  const t = Math.max(6, Number(opts.t) || 18);
+  const lvMm = Math.max(0, Number(opts.lvMm) || 0);
+  const slotHmm = Math.max(15, Number(opts.slotHmm) || 60);
+  const slotWallThick = Math.max(6, Number(opts.slotWallThick) || t);
+  const odMm = Math.max(25, Number(opts.odMm) || 104.6);
+
+  if (routing === 'side_firing') {
+    const clearanceMm = A - lvMm;
+    return {
+      routing, fits: clearanceMm >= 40, clearanceMm,
+      l1Mm: lvMm, l2Mm: 0, bendArcMm: 0, clearBackMm: clearanceMm, maxL2Mm: 0
+    };
+  }
+  if (routing === 'l_bend') {
+    if (isSlot) {
+      const clearBackMm = Math.max(45, slotHmm);
+      const l1Max = C_min - clearBackMm;
+      const l1Mm = Math.max(40, Math.min(lvMm, l1Max));
+      // Comprimento efetivo de linha de centro no trecho 1 + curva 90° (Small / Dickason)
+      const bendArcMm = slotWallThick + slotHmm * 0.5;
+      const l2Mm = Math.max(0, lvMm - l1Mm - bendArcMm);
+      const transSpan = (slotOrient === 'horizontal') ? B : A;
+      const maxL2Mm = Math.max(0, transSpan - slotHmm - slotWallThick - 50);
+      const fits = (l1Max >= 40) && (l2Mm <= maxL2Mm);
+      const clearanceMm = Math.min(clearBackMm, maxL2Mm - l2Mm + 50);
+      return { routing, fits, clearanceMm, l1Mm, l2Mm, bendArcMm, clearBackMm, maxL2Mm };
+    } else {
+      // Duto cilíndrico / aeroport com joelho 90° (raio médio ~0.85 * OD, arco = pi/2 * R)
+      const rElbow = Math.max(45, odMm * 0.85);
+      const bendArcMm = (Math.PI / 2) * rElbow;
+      const clearBackMm = Math.max(45, odMm * 0.55);
+      const l1Max = C_min - clearBackMm - rElbow;
+      const l1Mm = Math.max(40, Math.min(lvMm, l1Max));
+      const l2Mm = Math.max(0, lvMm - l1Mm - bendArcMm);
+      const maxL2Mm = Math.max(0, A - odMm - 60);
+      const fits = (l1Max >= 40) && (l2Mm <= maxL2Mm);
+      const clearanceMm = Math.min(clearBackMm, maxL2Mm - l2Mm + 60);
+      return { routing, fits, clearanceMm, l1Mm, l2Mm, bendArcMm, clearBackMm, maxL2Mm, rElbow };
+    }
+  }
+  const clearanceMm = C_min - lvMm;
+  return {
+    routing: 'straight', fits: clearanceMm >= 40, clearanceMm,
+    l1Mm: lvMm, l2Mm: 0, bendArcMm: 0, clearBackMm: clearanceMm, maxL2Mm: 0
+  };
+}
+
+function computeSmartPortSuggestion(pack) {
+  if (!pack || !pack.acoustics || pack.acoustics.boxType !== 'bass-reflex') return null;
+  const ac = pack.acoustics;
+  const dims = pack.dims || {};
+  const C_avail = Math.max(80, Math.min(dims.C_top || 350, dims.D_bot || 350) - 45);
+  const Vb = ac.Vb || 70;
+  const Fb = ac.Fb || 40;
+  const tempC = parseFloat(document.getElementById('tempInput')?.value) || 20;
+  const cVal = 20.0547605 * Math.sqrt(273.15 + tempC);
+  const curVel = (currentCurves && currentCurves.meta && currentCurves.meta.airVel) || 18;
+  const curSp = (pack.acoustics.portGeom && pack.acoustics.portGeom.Sp) || 0.02;
+  const portType = document.getElementById('portType')?.value || 'round';
+  const velMaxSafe = (portType === 'flared') ? 24.0 : 18.5;
+
+  if (portType === 'round' || portType === 'flared') {
+    const curN = parseInt(document.getElementById('numDucts')?.value) || 2;
+    const curD = parseFloat(document.getElementById('ductDia')?.value) || 4;
+    const candidates = [];
+    const dias = [3, 3.5, 4, 4.5, 5, 6];
+    for (let n = 1; n <= 4; n++) {
+      for (const d of dias) {
+        if (n === curN && Math.abs(d - curD) < 0.05) continue;
+        const g = computePortGeometry({ portType, numDucts: n, ductDia: d, ductThick: 1.5, Fb, Vb, c: cVal });
+        const lvMm = g.LvCm * 10;
+        const estVel = curVel * (curSp / Math.max(1e-6, g.Sp));
+        if (lvMm >= 40 && lvMm <= C_avail && estVel <= velMaxSafe * 1.15) {
+          candidates.push({ n, d, lvMm, estVel, score: Math.abs(estVel - velMaxSafe * 0.85) + (lvMm / 500) });
+        }
+      }
+    }
+    candidates.sort((a, b) => a.score - b.score);
+    if (candidates.length) {
+      const best = candidates[0];
+      return {
+        kind: 'round', numDucts: best.n, ductDia: best.d,
+        label: `Ajustar p/ ${best.n}× ${best.d}″ (Lv ${(best.lvMm / 10).toFixed(1)}cm · ${best.estVel.toFixed(1)} m/s)`
+      };
+    }
+  } else if (portType === 'slot' || portType === 'slot_wall') {
+    const wCm = parseFloat(document.getElementById('slotW')?.value) || 35;
+    const curH = parseFloat(document.getElementById('slotH')?.value) || 6;
+    for (let h = curH - 0.5; h >= 2.5; h -= 0.5) {
+      const g = computePortGeometry({ portType, slotW: wCm, slotH: h, slotWallThick: 18, Fb, Vb, c: cVal });
+      const lvMm = g.LvCm * 10;
+      const estVel = curVel * (curSp / Math.max(1e-6, g.Sp));
+      if (lvMm >= 40 && lvMm <= C_avail && estVel <= velMaxSafe * 1.15) {
+        return {
+          kind: 'slot', slotH: +h.toFixed(1),
+          label: `Reduzir Alt. H p/ ${h.toFixed(1)} cm (Lv ${(lvMm / 10).toFixed(1)}cm · ${estVel.toFixed(1)} m/s)`
+        };
+      }
+    }
+  }
+  return null;
+}
+
+function applyPortFix(action) {
+  const pack = lastBuildPack;
+  if (!pack) return;
+  const routeEl = document.getElementById('wlPortRouting');
+  const offEl = document.getElementById('wlPortOffset');
+
+  if (action === 'l_bend') {
+    if (routeEl) routeEl.value = 'l_bend';
+    if (offEl) offEl.value = '0';
+    updateWoodlock();
+    return;
+  }
+  if (action === 'side_firing') {
+    if (routeEl) routeEl.value = 'side_firing';
+    if (offEl) offEl.value = '0';
+    updateWoodlock();
+    return;
+  }
+  if (action === 'slot_l_bend') {
+    const ptEl = document.getElementById('portType');
+    const curSpCm2 = ((pack.acoustics.portGeom && pack.acoustics.portGeom.Sp) || 0.024) * 10000;
+    const A = parseFloat(document.getElementById('wlWidthA')?.value) || 550;
+    const wCm = +(A / 10).toFixed(1);
+    const hCm = Math.max(3.5, Math.min(12.0, +(curSpCm2 / Math.max(10, wCm)).toFixed(1)));
+    if (ptEl) ptEl.value = 'slot_wall';
+    const swEl = document.getElementById('slotW');
+    const shEl = document.getElementById('slotH');
+    if (swEl) swEl.value = wCm.toFixed(1);
+    if (shEl) shEl.value = hCm.toFixed(1);
+    const soEl = document.getElementById('wlSlotOrient');
+    if (soEl) soEl.value = 'horizontal';
+    if (routeEl) routeEl.value = 'l_bend';
+    if (offEl) offEl.value = '0';
+    onPortTypeChange();
+    return;
+  }
+  if (action === 'stretch_depth') {
+    const minA = (lastWoodlockFloors && lastWoodlockFloors.minA) ? lastWoodlockFloors.minA : 400;
+    const minB = (lastWoodlockFloors && lastWoodlockFloors.minB) ? lastWoodlockFloors.minB : 400;
+    const aEl = document.getElementById('wlWidthA');
+    const bEl = document.getElementById('wlHeightB');
+    if (aEl) aEl.value = String(Math.ceil(minA));
+    if (bEl) bEl.value = String(Math.ceil(minB));
+    if (routeEl) routeEl.value = 'straight';
+    updateWoodlock();
+    return;
+  }
+  if (action === 'reduce_area') {
+    const sug = computeSmartPortSuggestion(pack);
+    if (!sug) return;
+    if (sug.kind === 'round') {
+      const nEl = document.getElementById('numDucts');
+      const dEl = document.getElementById('ductDia');
+      if (nEl) nEl.value = String(sug.numDucts);
+      if (dEl) dEl.value = String(sug.ductDia);
+    } else if (sug.kind === 'slot') {
+      const hEl = document.getElementById('slotH');
+      if (hEl) hEl.value = String(sug.slotH);
+    }
+    if (routeEl) routeEl.value = 'straight';
+    if (offEl) offEl.value = '0';
+    recalculate();
+  }
+}
+
 function updateWoodlock() {
   const shapeEl = document.getElementById('wlShape');
   if (!shapeEl) return;
@@ -8088,6 +8308,7 @@ function updateWoodlock() {
   const mountMode = document.getElementById('wlMountMode')?.value || 'normal';
   const slotOrient = document.getElementById('wlSlotOrient')?.value || 'horizontal';
   const portLayout = document.getElementById('wlPortLayout')?.value || 'standard';
+  const portRoutingRaw = document.getElementById('wlPortRouting')?.value || 'straight';
   const portOffsetEl = document.getElementById('wlPortOffset');
   let portOffsetMm = parseFloat(portOffsetEl?.value) || 0;
   const planarStyle = document.getElementById('wlPlanarStyle')?.value || 'square';
@@ -8555,21 +8776,53 @@ function updateWoodlock() {
         const a4Mm = (portType === 'slot_wall')
           ? ((slotOrient === 'horizontal') ? A : B)
           : ((slotOrient === 'horizontal') ? Math.min(A, slotW * 10.0) : Math.min(B, slotW * 10.0));
-        const pLine = {
-          kind: 'port', orient: 'DUTO', name: `Divisória Duto Régua [A4×R] (${slotOrient === 'horizontal' ? 'Horiz.' : 'Vert.'})`,
-          qty: 1, w: a4Mm, h: lvMm, t: slotWallThick, bev: 0.0, area: (a4Mm * lvMm) / 1e6,
-          note: `MDF ${slotWallThick}mm — largura A4=${a4Mm.toFixed(0)} mm × comprimento R = Lv = ${lvMm} mm (${lvCmStr} cm)`
-        };
-        pieces.push(pLine);
-        portBom.push(pLine);
+        const portRoutingEff = (boxType === 'bass-reflex') ? portRoutingRaw : 'straight';
+        const rpSlot = computePortRoutingPlan({
+          portRouting: portRoutingEff, portType, slotOrient, A, B, C_min: Math.min(C_top, D_bot), t,
+          lvMm: Math.max(0, lvMm - portOffsetMm), slotHmm: slotH * 10.0, slotWallThick, numDucts: 1
+        });
+        if (portRoutingEff === 'l_bend' && rpSlot.l2Mm >= 10) {
+          const l1Cut = Math.round(rpSlot.l1Mm);
+          const l2Cut = Math.round(rpSlot.l2Mm);
+          const pLine1 = {
+            kind: 'port', orient: 'DUTO', name: `Divisória Duto em L — Trecho 1 [A4×L1] (${slotOrient === 'horizontal' ? 'Horiz.' : 'Vert.'})`,
+            qty: 1, w: a4Mm, h: l1Cut, t: slotWallThick, bev: 0.0, area: (a4Mm * l1Cut) / 1e6,
+            note: `MDF ${slotWallThick}mm — parte do baffle p/ trás: L1 = ${l1Cut} mm (folga fundo ${Math.round(rpSlot.clearBackMm)} mm)`
+          };
+          const pLine2 = {
+            kind: 'port', orient: 'DUTO_L2', name: `Divisória Duto em L — Trecho 2 (90° Fundo) [A4×L2]`,
+            qty: 1, w: a4Mm, h: l2Cut, t: slotWallThick, bev: 0.0, area: (a4Mm * l2Cut) / 1e6,
+            note: `MDF ${slotWallThick}mm — dobra 90° paralelo ao fundo: L2 = ${l2Cut} mm (Total linha de centro Lv = ${lvMm} mm)`
+          };
+          pieces.push(pLine1, pLine2);
+          portBom.push(pLine1, pLine2);
+        } else {
+          const pLine = {
+            kind: 'port', orient: 'DUTO', name: `Divisória Duto Régua [A4×R] (${slotOrient === 'horizontal' ? 'Horiz.' : 'Vert.'})`,
+            qty: 1, w: a4Mm, h: lvMm, t: slotWallThick, bev: 0.0, area: (a4Mm * lvMm) / 1e6,
+            note: `MDF ${slotWallThick}mm — largura A4=${a4Mm.toFixed(0)} mm × comprimento R = Lv = ${lvMm} mm (${lvCmStr} cm)`
+          };
+          pieces.push(pLine);
+          portBom.push(pLine);
+        }
       }
     } else {
       const idMm = ductDia * 25.4;
       const odMm = idMm + 2.0 * ductThick;
+      const portRoutingEff = (boxType === 'bass-reflex') ? portRoutingRaw : 'straight';
+      const rpCyl = computePortRoutingPlan({
+        portRouting: portRoutingEff, portType, slotOrient, A, B, C_min: Math.min(C_top, D_bot), t,
+        lvMm: Math.max(0, lvMm - portOffsetMm), odMm, numDucts
+      });
+      const cylNote = (portRoutingEff === 'l_bend' && rpCyl.l2Mm >= 10)
+        ? `Montagem em L (90°): ${numDucts}× [Trecho 1: ${Math.round(rpCyl.l1Mm)} mm + Joelho 90° (${Math.round(rpCyl.bendArcMm)} mm) + Trecho 2: ${Math.round(rpCyl.l2Mm)} mm] · Lv = ${lvMm} mm`
+        : (portRoutingEff === 'side_firing'
+          ? `Side-Firing (Lateral Dir. · Eixo A): cortar ${numDucts}× tubo(s) com Lv = ${lvMm} mm (${lvCmStr} cm)`
+          : `Cortar ${numDucts}× tubo(s) com comprimento exato Lv = ${lvMm} mm (${lvCmStr} cm)`);
       const pLine = {
         kind: 'port', orient: 'DUTO', name: (isBp ? `Tubo Frontal VF Ø ${ductDia}"` : `Tubo PVC/ABS Ø ${ductDia}"`) + ` (Int ${idMm.toFixed(1)} / Ext ${odMm.toFixed(1)} mm)`,
         qty: numDucts, w: odMm, h: lvMm, t: ductThick, bev: 0.0, area: 0.0,
-        note: `Cortar ${numDucts}× tubo(s) com comprimento exato Lv = ${lvMm} mm (${lvCmStr} cm)`
+        note: cylNote
       };
       pieces.push(pLine);
       portBom.push(pLine);
@@ -8632,8 +8885,14 @@ function updateWoodlock() {
   if (minALbl) minALbl.textContent = `(mín. ${lastWoodlockFloors.minA} mm)`;
   if (minBLbl) minBLbl.textContent = `(mín. ${lastWoodlockFloors.minB} mm)`;
 
+  const portRouting = (boxType === 'bass-reflex') ? portRoutingRaw : 'straight';
+  const portRoutePlan = computePortRoutingPlan({
+    portRouting, portType, slotOrient, A, B, C_min: Math.min(C_top, D_bot), t,
+    lvMm: Math.max(0, Math.round(lvCmCanon * 10) - portOffsetMm), slotHmm: slotH * 10.0, slotWallThick,
+    odMm: ductDia * 25.4 + 2.0 * ductThick, numDucts
+  });
   const validation = validateBuildGeometry({
-    driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType, portOffsetMm,
+    driverName, tsDia: tsDiaVal, Sd_cm2: sdVal, nDrivers, boxType, portOffsetMm, portRouting,
     A, B, C_top, D_bot, t, F_ext, E_ext, portGeom, planarGeom,
     portType, numDucts, ductDia, ductThick, numDuctsVr, ductDiaVr, ductThickVr, slotW, slotH, slotWallThick, slotOrient, portLayout,
     bpChambers, triCount, triA, triB, matrixCols, matrixRows,
@@ -8670,6 +8929,9 @@ function updateWoodlock() {
       slotOrient,
       portLayout,
       portOffsetMm,
+      portRouting,
+      portRoutePlan,
+      portGeom,
       hasCenterDiv,
       isSharedCenterPort,
       isDualVertSlot,
@@ -8733,19 +8995,43 @@ function updateWoodlock() {
   toggleFieldGroup('wlAngle', shape === 'trapezoidal');
   toggleFieldGroup('wlSlotOrient', isSlotType && !isPlanar && !isFreeAir);
   toggleFieldGroup('wlPortLayout', nDrivers >= 2 && boxType === 'bass-reflex');
+  toggleFieldGroup('wlPortRouting', boxType === 'bass-reflex');
   if (valBox) {
     const hdrColor = validation.valid ? (validation.warnCount > 0 ? 'var(--warning)' : 'var(--success)') : 'var(--danger)';
     const hdrText = validation.valid
       ? (validation.warnCount > 0 ? `VIÁVEL COM AVISOS (${validation.warnCount})` : 'GEOMETRIA APROVADA PARA CORTE E FURAÇÃO')
       : `EXPORTAÇÃO BLOQUEADA — ${validation.criticalCount} ERRO(S) CRÍTICO(S) DE GEOMETRIA`;
     valBox.style.borderColor = hdrColor;
+    const hasDepthErr = validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION');
+    let quickFixHtml = '';
+    if (hasDepthErr && boxType === 'bass-reflex') {
+      const smartSug = computeSmartPortSuggestion(lastBuildPack);
+      const isRoundNow = (portType === 'round' || portType === 'flared');
+      const btns = [];
+      if (portRouting !== 'l_bend') {
+        btns.push(`<button type="button" class="chart-pill-btn" style="border-color:var(--accent); color:var(--accent);" onclick="applyPortFix('l_bend')">Dobrar em "L" (90°)</button>`);
+      }
+      if (isRoundNow) {
+        btns.push(`<button type="button" class="chart-pill-btn" style="border-color:var(--accent); color:var(--accent);" onclick="applyPortFix('slot_l_bend')">Converter p/ Régua em "L"</button>`);
+      }
+      if (portRouting !== 'side_firing' && A > Math.min(C_top, D_bot) + 15) {
+        btns.push(`<button type="button" class="chart-pill-btn" onclick="applyPortFix('side_firing')">Duto na Lateral (Eixo A)</button>`);
+      }
+      if (smartSug) {
+        btns.push(`<button type="button" class="chart-pill-btn" style="border-color:var(--success); color:var(--success);" onclick="applyPortFix('reduce_area')">${escapeHtmlStr(smartSug.label)}</button>`);
+      }
+      btns.push(`<button type="button" class="chart-pill-btn" onclick="applyPortFix('stretch_depth')">Alongar Profundidade C</button>`);
+      quickFixHtml = `<div style="margin-top:8px; padding-top:7px; border-top:1px dashed rgba(248,113,113,0.35);">` +
+        `<div style="font-size:10px; font-weight:600; color:#cbd5e1; margin-bottom:5px; text-transform:uppercase; letter-spacing:0.4px;">Correção Rápida (1 Clique):</div>` +
+        `<div style="display:flex; flex-wrap:wrap; gap:5px;">${btns.join('')}</div></div>`;
+    }
     valBox.innerHTML =
       `<div style="font-weight:600; color:${hdrColor}; margin-bottom:4px;">${hdrText}</div>` +
       validation.issues.map(it => {
         const ic = it.level === 'critical' ? '[CRÍTICO]' : (it.level === 'warn' ? '[AVISO]' : '[INFO]');
         const cl = it.level === 'critical' ? '#fca5a5' : (it.level === 'warn' ? '#fde68a' : '#94a3b8');
         return `<div style="color:${cl}; margin-top:2px;"><b>${ic}</b> ${escapeHtmlStr(it.msg)}</div>`;
-      }).join('');
+      }).join('') + quickFixHtml;
   }
   const btnExpHtml = document.getElementById('btnExportBuildPack');
   const btnExpJson = document.getElementById('btnExportBuildJson');
@@ -9240,6 +9526,28 @@ function buildPgsGeometryModel(pack) {
         size = [p.t, B, p.h];
         explodeDir = [0, 0, 0.6];
         extraMeta.sharedCenterSlot = { xLeft: +xLeftWall.toFixed(1), xRight: +xRightWall.toFixed(1) };
+      } else if (p.orient === 'DUTO_L2') {
+        const isH = (ac.slotOrient !== 'vertical');
+        const rp = ac.portRoutePlan || {};
+        const clearBack = Math.max(45, Number(rp.clearBackMm) || 60);
+        const zL2 = +(t + clearBack).toFixed(1);
+        const slotHole = (pack.baffleHoles || []).find(hl => hl.kind === 'port' && hl.shape === 'slot');
+        if (isH) {
+          const sh = slotHole && slotHole.h ? slotHole.h : 55;
+          const sx = slotHole && Number.isFinite(slotHole.xInt)
+            ? Math.max(t, Math.min(F - t - p.w, t + slotHole.xInt - p.w / 2))
+            : t;
+          origin = [+sx.toFixed(1), +(t + sh + p.t).toFixed(1), zL2];
+          size = [p.w, p.h, p.t];
+        } else {
+          const sw = slotHole && slotHole.w ? slotHole.w : 60;
+          const sy = slotHole && Number.isFinite(slotHole.yInt)
+            ? Math.max(t, Math.min(E - t - p.w, t + slotHole.yInt - p.w / 2))
+            : t;
+          origin = [+(t + sw + p.t).toFixed(1), +sy.toFixed(1), zL2];
+          size = [p.h, p.w, p.t];
+        }
+        explodeDir = [0, 0, -0.45];
       } else if (isSlotP) {
         const isH = (ac.slotOrient !== 'vertical');
         const slotHole = (pack.baffleHoles || []).find(hl => hl.kind === 'port' && hl.shape === 'slot');
@@ -9747,8 +10055,32 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         }
       } else {
         const r = p.size[0] / 2;
+        const routing3d = (pack.acoustics && pack.acoustics.portRouting) || 'straight';
+        const rp3d = (pack.acoustics && pack.acoustics.portRoutePlan) || null;
         const holes = (geom.cutouts || []).filter(c => c.kind === 'port' && c.shape === 'round' && c.partId === 'P_FRONT_BAFFLE');
-        if (holes.length) {
+        if (routing3d === 'side_firing') {
+          const nCyl = Math.max(1, holes.length || p.qty || 1);
+          const lv = p.size[2];
+          const xStartSide = Math.max(t, F - t + portOff3d - lv);
+          const zCenterSide = t + (D - 2 * t) * 0.5;
+          for (let ci = 0; ci < nCyl; ci++) {
+            const cySide = t + ((ci + 1) / (nCyl + 1)) * (E - 2 * t);
+            pushCylinderFaces(xStartSide + ex, cySide + ey, zCenterSide + ez, r, lv, '-X', [251, 146, 60], '#fdba74', pAlpha);
+          }
+        } else if (routing3d === 'l_bend' && rp3d && rp3d.l2Mm >= 10 && holes.length) {
+          const l1 = Math.max(40, rp3d.l1Mm);
+          const l2 = Math.max(10, rp3d.l2Mm);
+          const zBack = Math.max(t + r, D + portOff3d - l1);
+          holes.forEach(ch => {
+            const cx = t + ch.xInt + ex;
+            const cy = t + ch.yInt + ey;
+            // Trecho 1 (frontal ao longo de +Z)
+            pushCylinderFaces(cx, cy, zBack + ez, r, l1, '+Z', [251, 146, 60], '#fdba74', pAlpha);
+            // Trecho 2 (dobrado 90° paralelo ao painel traseiro ao longo do eixo X)
+            const xEndL2 = (cx > F / 2) ? Math.max(t + 10, cx - l2) : Math.min(F - t - 10 - l2, cx);
+            pushCylinderFaces(xEndL2, cy, zBack + ez, r, l2, '-X', [245, 158, 11], '#fde68a', pAlpha);
+          });
+        } else if (holes.length) {
           holes.forEach(ch => {
             const lv = ch.lvMm || p.size[2];
             pushCylinderFaces(t + ch.xInt + ex, t + ch.yInt + ey, Math.max(t, D + portOff3d - lv) + ez, r, lv, '+Z', [251, 146, 60], '#fdba74', pAlpha);
