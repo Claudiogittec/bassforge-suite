@@ -10000,6 +10000,42 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
     }
   };
 
+  const pushElbow90Faces = (cx, cy, zStart, r, R_in, dirX, baseRgb, strokeCol, alpha) => {
+    const R = Math.max(r * 1.15, R_in);
+    const xc = cx + dirX * R;
+    const zc = zStart;
+    const arcSegs = 6;
+    const radSegs = 12;
+    const ringPt = (th, a) => {
+      const rx = -dirX * Math.cos(th);
+      const rz = -Math.sin(th);
+      const ca = Math.cos(a) * r;
+      const sa = Math.sin(a) * r;
+      return project(xc + (R + ca) * rx, cy + sa, zc + (R + ca) * rz);
+    };
+    for (let j = 0; j < arcSegs; j++) {
+      const th0 = (j / arcSegs) * (Math.PI * 0.5);
+      const th1 = ((j + 1) / arcSegs) * (Math.PI * 0.5);
+      const thm = 0.5 * (th0 + th1);
+      for (let i = 0; i < radSegs; i++) {
+        const a0 = (i / radSegs) * Math.PI * 2;
+        const a1 = ((i + 1) / radSegs) * Math.PI * 2;
+        const am = 0.5 * (a0 + a1);
+        const p0 = ringPt(th0, a0), p1 = ringPt(th0, a1);
+        const p2 = ringPt(th1, a1), p3 = ringPt(th1, a0);
+        const nx = -dirX * Math.cos(thm) * Math.cos(am);
+        const ny = Math.sin(am);
+        const nz = -Math.sin(thm) * Math.cos(am);
+        faces.push({
+          depth: (p0.z + p1.z + p2.z + p3.z) * 0.25,
+          pts: [p0, p1, p2, p3],
+          fill: shadeRgb(baseRgb, nx, ny, nz, alpha),
+          stroke: strokeCol
+        });
+      }
+    }
+  };
+
   const pushPrismFaces = (quadXY, z0, z1, baseRgb, strokeCol, alpha) => {
     const pB = quadXY.map(([x, y]) => project(x, y, z0));
     const pF = quadXY.map(([x, y]) => project(x, y, z1));
@@ -10070,15 +10106,19 @@ function drawWoodlockExploded3D(pack, targetCanvas, explodeRatio = 1.0) {
         } else if (routing3d === 'l_bend' && rp3d && rp3d.l2Mm >= 10 && holes.length) {
           const l1 = Math.max(40, rp3d.l1Mm);
           const l2 = Math.max(10, rp3d.l2Mm);
-          const zBack = Math.max(t + r, D + portOff3d - l1);
+          const rElb = Math.max(r * 1.15, Number(rp3d.rElbow) || r * 1.6);
+          const zBack = Math.max(t + rElb + r, D + portOff3d - l1);
           holes.forEach(ch => {
             const cx = t + ch.xInt + ex;
             const cy = t + ch.yInt + ey;
-            // Trecho 1 (frontal ao longo de +Z)
+            const dirX = (cx <= F / 2) ? 1 : -1;
+            // 1. Trecho 1 (frontal ao longo de +Z)
             pushCylinderFaces(cx, cy, zBack + ez, r, l1, '+Z', [251, 146, 60], '#fdba74', pAlpha);
-            // Trecho 2 (dobrado 90° paralelo ao painel traseiro ao longo do eixo X)
-            const xEndL2 = (cx > F / 2) ? Math.max(t + 10, cx - l2) : Math.min(F - t - 10 - l2, cx);
-            pushCylinderFaces(xEndL2, cy, zBack + ez, r, l2, '-X', [245, 158, 11], '#fde68a', pAlpha);
+            // 2. Joelho 90° toroidal contínuo (conecta Trecho 1 ao Trecho 2)
+            pushElbow90Faces(cx, cy, zBack + ez, r, rElb, dirX, [234, 88, 12], '#fed7aa', pAlpha);
+            // 3. Trecho 2 (dobrado 90° paralelo ao painel traseiro ao longo do eixo X)
+            const xStartL2 = (dirX > 0) ? (cx + rElb) : (cx - rElb - l2);
+            pushCylinderFaces(xStartL2, cy, zBack - rElb + ez, r, l2, '-X', [245, 158, 11], '#fde68a', pAlpha);
           });
         } else if (holes.length) {
           holes.forEach(ch => {
