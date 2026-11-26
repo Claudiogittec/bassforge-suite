@@ -5116,6 +5116,7 @@ function recalculate() {
   const Qes_nom = parseFloat(document.getElementById('tsQes').value);
   const Qms = parseFloat(document.getElementById('tsQms').value);
   const Re_nom = parseFloat(document.getElementById('tsRe').value);
+  const Le_mH = Math.max(0, parseFloat(document.getElementById('tsLe')?.value) || 0);
   const Vas_single = parseFloat(document.getElementById('tsVas').value);
   const Pe_single = parseFloat(document.getElementById('tsPe').value);
   const Sd_single_m2 = parseFloat(document.getElementById('tsSd').value) / 10000.0;
@@ -5583,7 +5584,7 @@ function recalculate() {
 
   // Síntese dos 13 Gráficos (suporta Selada, Dutada, BP4, BP6 e Planar TMM)
   generateSimulationData({
-    boxType, Fs, Qes, Qms, Re, Sd_m2, Vas, Xmax_mm, Pe, Qts,
+    boxType, Fs, Qes, Qms, Re, Le_mH, Sd_m2, Vas, Xmax_mm, Pe, Qts,
     Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, hpfType, lpfHz, lpfType, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
     fPipe1, velLimit, nDrivers, deltaT, powerCompDb, fQuarterWave, fHalfWave, planarTunnelMm, planarStyle,
     planarSt_m2: planarTunnelGeom.St_m2,
@@ -5713,14 +5714,16 @@ function generateSimulationData(p) {
     // Função de transferência de pressurização acústica pura da cabine T_cabin(f) (+12 dB/oitava abaixo de F100)
     const t_cabin_db = (f > 0.0) ? 20.0 * Math.log10(1.0 + (Math.SQRT2 - 1.0) * Math.pow(p.F100 / f, 2)) : 0.0;
 
-    // Free Air Impedance #3 (Small 1972 RLC motional impedance)
+    // Free Air Impedance #3 (Small 1972 RLC motional impedance + voice-coil inductance j*w*Le)
+    const Le_H = Math.max(0, Number(p.Le_mH) || 0) / 1000.0;
+    const z_le_im = w * Le_H;
     const rel_fs = f / Fs_s;
     const inv_qes_eff = (1.0 / Qts_s) - (1.0 / Qms_s);
     const d_free_re = 1.0 - Math.pow(rel_fs, 2);
     const d_free_im = rel_fs / Qms_s;
     const d_free_mag2 = d_free_re*d_free_re + d_free_im*d_free_im;
     const z_free_re = p.Re * (1.0 + inv_qes_eff * (rel_fs * d_free_im) / d_free_mag2);
-    const z_free_im = p.Re * (inv_qes_eff * (rel_fs * d_free_re) / d_free_mag2);
+    const z_free_im = p.Re * (inv_qes_eff * (rel_fs * d_free_re) / d_free_mag2) + z_le_im;
     G3.push(Math.sqrt(z_free_re*z_free_re + z_free_im*z_free_im));
 
     if (isBrLike) {
@@ -5777,12 +5780,12 @@ function generateSimulationData(p) {
       G9_front.push(vBr);
       G9_rear.push(0);
 
-      // G11: In Box Impedance #11 (Ohms) — Identidade de Polinômios Acoplados de Small (1973) Eq. 11
+      // G11: In Box Impedance #11 (Ohms) — Identidade de Polinômios Acoplados de Small (1973) Eq. 11 + j*w*Le
       const dm_re = Math.pow(rel_w, 4) - a2_m*Math.pow(rel_w, 2) + 1.0;
       const dm_im = -a3_m*Math.pow(rel_w, 3) + a1_m*rel_w;
       const dm_mag2 = dm_re*dm_re + dm_im*dm_im;
       const z_in_re = p.Re * ((den_re*dm_re + den_im*dm_im) / dm_mag2);
-      const z_in_im = p.Re * ((den_im*dm_re - den_re*dm_im) / dm_mag2);
+      const z_in_im = p.Re * ((den_im*dm_re - den_re*dm_im) / dm_mag2) + z_le_im;
       const z_box = Math.sqrt(z_in_re*z_in_re + z_in_im*z_in_im);
       G11.push(z_box);
 
@@ -5826,10 +5829,11 @@ function generateSimulationData(p) {
       G9_front.push(vFront);
       G9_rear.push(vRear);
 
-      // Impedância complexa real Zin(jw) e EPDR real
-      const zBoxVal = Math.hypot(ev.Zin_re, ev.Zin_im);
+      // Impedância complexa real Zin(jw) + j*w*Le e EPDR real
+      const zBpIm = ev.Zin_im + z_le_im;
+      const zBoxVal = Math.hypot(ev.Zin_re, zBpIm);
       G11.push(zBoxVal);
-      const zPhase = Math.atan2(ev.Zin_im, ev.Zin_re);
+      const zPhase = Math.atan2(zBpIm, ev.Zin_re);
       const epdr_f = computeEpdrAes(zBoxVal, zPhase);
       if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
 
@@ -5870,10 +5874,11 @@ function generateSimulationData(p) {
       G9_front.push(vPort);
       G9_rear.push(0);
 
-      // G11: Impedância elétrica complexa real Zin(jw) carregada pelo túnel + EPDR
-      const zBoxVal = Math.hypot(ev.Zin_re, ev.Zin_im);
+      // G11: Impedância elétrica complexa real Zin(jw) carregada pelo túnel + j*w*Le + EPDR
+      const zPlIm = ev.Zin_im + z_le_im;
+      const zBoxVal = Math.hypot(ev.Zin_re, zPlIm);
       G11.push(zBoxVal);
-      const zPhase = Math.atan2(ev.Zin_im, ev.Zin_re);
+      const zPhase = Math.atan2(zPlIm, ev.Zin_re);
       const epdr_f = computeEpdrAes(zBoxVal, zPhase);
       if (epdr_f < minEpdrVal) { minEpdrVal = epdr_f; minEpdrFreq = f; }
 
@@ -5910,7 +5915,7 @@ function generateSimulationData(p) {
       const z_m_im = (w * Mms) - (1.0 / (w * c_tot));
       const z_m_mag2 = z_m_re*z_m_re + z_m_im*z_m_im;
       const z_in_re = p.Re + (Bl*Bl * z_m_re) / z_m_mag2;
-      const z_in_im = -(Bl*Bl * z_m_im) / z_m_mag2;
+      const z_in_im = -(Bl*Bl * z_m_im) / z_m_mag2 + z_le_im;
       const z_box = Math.sqrt(z_in_re*z_in_re + z_in_im*z_in_im);
       G11.push(z_box);
 
