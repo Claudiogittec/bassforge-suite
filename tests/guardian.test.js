@@ -326,9 +326,10 @@ runSuite('6. All 5 Topologies (Sealed, BR, BP4, BP6 Parallel, Planar)', () => {
   for (const cfg of configs) {
     vm.runInContext(`selectTopology('${cfg.topo}')`, ctx);
     const curves = vm.runInContext('currentCurves', ctx);
+    assert(curves.frequencies[0] <= 5.01 && curves.frequencies[curves.frequencies.length - 1] >= 19999, `${cfg.topo}: frequencies must span 5..20000 Hz`);
     for (const k of curveKeys) {
       const arr = curves[k];
-      assert(Array.isArray(arr) && arr.length === 600, `${cfg.topo}: ${k} length invalid`);
+      assert(Array.isArray(arr) && arr.length === 900, `${cfg.topo}: ${k} length invalid`);
       const bad = arr.filter(v => !Number.isFinite(v)).length;
       assert.strictEqual(bad, 0, `${cfg.topo}: ${k} has ${bad} NaN/Infinity values`);
     }
@@ -510,14 +511,14 @@ runSuite('12. Analysis Engine (Architectural/Automotive, slots N/D, invariância
   assert.strictEqual(displayCheck.auto13, '#13 Cone SPL (dB-SPL)', `Auto #13 title: ${displayCheck.auto13}`);
   assert.strictEqual(displayCheck.internalG4, '#4 Normalized Amplitude (dB)', 'Prefixo interno de CHARTS_INFO deve ser preservado');
 
-  // --- 12.2 Registro: todo slot calculado/modelado aponta para uma série real de 600 pontos ---
+  // --- 12.2 Registro: todo slot calculado/modelado aponta para uma série real de 900 pontos ---
   const registry = vm.runInContext('Object.keys(CHART_REGISTRY).map(id => ({ id, key: CHART_REGISTRY[id].key, av: CHART_REGISTRY[id].availability }))', ctx);
   const curves = vm.runInContext('currentCurves', ctx);
   const calculated = registry.filter(r => r.av !== 'unimplemented');
   assert.strictEqual(calculated.length, 15, `Expected 15 calculated/modeled charts (G1..G13 + RoomGain + SPLinRoom), got ${calculated.length}`);
   for (const r of calculated) {
     const arr = curves[r.key];
-    assert(Array.isArray(arr) && arr.length === 600, `${r.id}: série ${r.key} ausente ou com tamanho inválido`);
+    assert(Array.isArray(arr) && arr.length === 900, `${r.id}: série ${r.key} ausente ou com tamanho inválido`);
     assert(arr.every(v => Number.isFinite(v)), `${r.id}: série ${r.key} contém NaN/Infinity`);
   }
 
@@ -1356,7 +1357,7 @@ runSuite('26. Planar Horn TMM / ABCD 1D Coupled Physics, Recuo G & Square vs Tri
   const curveKeys = ['G1_MaxPower', 'G2_VentSPL', 'G3_FreeAirZ', 'G4_NormAmp', 'G5_SPLinCar', 'G6_SPLThermic', 'G6_SPLMaxReal', 'G7_CabinGain', 'G8_ConeExcursion', 'G9_PortAirVel', 'G10_ConeSPL', 'G11_InBoxZ', 'G12_Phase', 'G13_GroupDelay'];
   curveKeys.forEach(k => {
     const arr = cSqAuto[k];
-    assert(Array.isArray(arr) && arr.length === 600, `Curva ${k} deve ter 600 pontos`);
+    assert(Array.isArray(arr) && arr.length === 900, `Curva ${k} deve ter 900 pontos`);
     assert(arr.every(v => Number.isFinite(v)), `Curva ${k} contém NaN/Infinity em Planar TMM`);
   });
 
@@ -1437,7 +1438,7 @@ runSuite('26. Planar Horn TMM / ABCD 1D Coupled Physics, Recuo G & Square vs Tri
   assert(Math.abs(stSq - stTri) > 0.005, `Seção St_m2 deve diferir fisicamente entre Quadrado (${stSq}) e Triângulo/Euclides (${stTri})`);
 
   let maxAmpDiff = 0, maxZDiff = 0;
-  for (let i = 0; i < 600; i++) {
+  for (let i = 0; i < cSq240.frequencies.length; i++) {
     maxAmpDiff = Math.max(maxAmpDiff, Math.abs(cSq240.G4_NormAmp[i] - cTri240.G4_NormAmp[i]));
     maxZDiff = Math.max(maxZDiff, Math.abs(cSq240.G11_InBoxZ[i] - cTri240.G11_InBoxZ[i]));
   }

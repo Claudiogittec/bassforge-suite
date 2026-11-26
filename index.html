@@ -1419,6 +1419,7 @@
         <button type="button" class="chart-pill-btn" data-freq-btn="15-500" onclick="setFreqRange(15, 500, this)">15–500</button>
         <button type="button" class="chart-pill-btn active" data-freq-btn="10-1000" onclick="setFreqRange(10, 1000, this)">10–1k</button>
         <button type="button" class="chart-pill-btn" data-freq-btn="10-2000" onclick="setFreqRange(10, 2000, this)">10–2k</button>
+        <button type="button" class="chart-pill-btn" data-freq-btn="5-20000" onclick="setFreqRange(5, 20000, this)">5–20k</button>
         <span id="snapshotABadge" style="display:none; font-family:var(--mono); font-size:10.5px; color:var(--warning); font-weight:600; margin-left:2px;"></span>
         <button type="button" id="btnClearA" class="chart-pill-btn" style="display:none; border-color:rgba(212,148,42,0.5); color:var(--warning);" onclick="clearSnapshotA()">Limpar A</button>
         <button type="button" class="chart-pill-btn" onclick="openConfigModal('modalGraphPrefs')" title="Preferências dos Gráficos (F7)">Prefs (F7)</button>
@@ -1942,10 +1943,11 @@
       <div class="form-group">
         <label>Banda de Frequência (Eixo X Logarítmico)</label>
         <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
-          <button type="button" class="chart-pill-btn" onclick="setFreqRange(15, 200, document.querySelector('[data-freq-btn=&quot;15-200&quot;]'))">15–200 Hz</button>
-          <button type="button" class="chart-pill-btn" onclick="setFreqRange(15, 500, document.querySelector('[data-freq-btn=&quot;15-500&quot;]'))">15–500 Hz</button>
-          <button type="button" class="chart-pill-btn" onclick="setFreqRange(10, 1000, document.querySelector('[data-freq-btn=&quot;10-1000&quot;]'))">10–1k Hz</button>
-          <button type="button" class="chart-pill-btn" onclick="setFreqRange(10, 2000, document.querySelector('[data-freq-btn=&quot;10-2000&quot;]'))">10–2k Hz</button>
+          <button type="button" class="chart-pill-btn" data-freq-btn-modal="15-200" onclick="setFreqRange(15, 200, document.querySelector('[data-freq-btn=&quot;15-200&quot;]'))">15–200 Hz</button>
+          <button type="button" class="chart-pill-btn" data-freq-btn-modal="15-500" onclick="setFreqRange(15, 500, document.querySelector('[data-freq-btn=&quot;15-500&quot;]'))">15–500 Hz</button>
+          <button type="button" class="chart-pill-btn active" data-freq-btn-modal="10-1000" onclick="setFreqRange(10, 1000, document.querySelector('[data-freq-btn=&quot;10-1000&quot;]'))">10–1k Hz</button>
+          <button type="button" class="chart-pill-btn" data-freq-btn-modal="10-2000" onclick="setFreqRange(10, 2000, document.querySelector('[data-freq-btn=&quot;10-2000&quot;]'))">10–2k Hz</button>
+          <button type="button" class="chart-pill-btn" data-freq-btn-modal="5-20000" onclick="setFreqRange(5, 20000, document.querySelector('[data-freq-btn=&quot;5-20000&quot;]'))">5–20k Hz</button>
         </div>
       </div>
       <div class="form-group">
@@ -2627,6 +2629,14 @@ function applyProjectData(proj, opts = {}) {
   if (typeof proj.analysisEnv === 'string' && ENV_PROFILES[proj.analysisEnv]) {
     analysisEnv = proj.analysisEnv;
   }
+  if (proj.chartOpts && Number.isFinite(proj.chartOpts.fMin) && Number.isFinite(proj.chartOpts.fMax) && proj.chartOpts.fMax > proj.chartOpts.fMin) {
+    chartOpts.fMin = proj.chartOpts.fMin;
+    chartOpts.fMax = proj.chartOpts.fMax;
+    const key = `${chartOpts.fMin}-${chartOpts.fMax}`;
+    document.querySelectorAll('[data-freq-btn], [data-freq-btn-modal]').forEach(b => b.classList.remove('active'));
+    document.querySelector(`[data-freq-btn="${key}"]`)?.classList.add('active');
+    document.querySelector(`[data-freq-btn-modal="${key}"]`)?.classList.add('active');
+  }
   if (!opts.skipAutofix) autofixWoodlockGeometry('abertura de projeto');
   setAnalysisEnvironment(getAnalysisEnv());
   return true;
@@ -2657,8 +2667,11 @@ function importProjectJsonFile(input) {
 function setFreqRange(fMin, fMax, btnEl) {
   chartOpts.fMin = fMin;
   chartOpts.fMax = fMax;
-  document.querySelectorAll('[data-freq-btn]').forEach(b => b.classList.remove('active'));
+  const key = `${fMin}-${fMax}`;
+  document.querySelectorAll('[data-freq-btn], [data-freq-btn-modal]').forEach(b => b.classList.remove('active'));
   if (btnEl) btnEl.classList.add('active');
+  else document.querySelector(`[data-freq-btn="${key}"]`)?.classList.add('active');
+  document.querySelector(`[data-freq-btn-modal="${key}"]`)?.classList.add('active');
   drawAllCharts();
   renderExpanded();
 }
@@ -5563,9 +5576,9 @@ function recalculate() {
 
 function generateSimulationData(p) {
   const freqs = [];
-  const logMin = Math.log10(10);
-  const logMax = Math.log10(2000);
-  const N = 600;
+  const logMin = Math.log10(5);
+  const logMax = Math.log10(20000);
+  const N = 900;
   for(let i=0; i<N; i++) {
     freqs.push(Math.pow(10, logMin + (i/(N-1))*(logMax-logMin)));
   }
@@ -6054,13 +6067,14 @@ function getLogFreqTicks(fMin, fMax) {
     '15-200':  [15, 20, 30, 40, 50, 70, 100, 150, 200],
     '15-500':  [15, 20, 30, 50, 70, 100, 200, 300, 500],
     '10-1000': [10, 20, 30, 50, 100, 200, 300, 500, 1000],
-    '10-2000': [10, 20, 50, 100, 200, 500, 1000, 2000]
+    '10-2000': [10, 20, 50, 100, 200, 500, 1000, 2000],
+    '5-20000': [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]
   };
   const key = `${fMin}-${fMax}`;
-  const majors = majorMap[key] || [10, 20, 50, 100, 200, 500, 1000, 2000].filter(f => f >= fMin && f <= fMax);
+  const majors = majorMap[key] || [5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000].filter(f => f >= fMin && f <= fMax);
   const majorSet = new Set(majors);
   const minors = [];
-  for (let exp = 1; exp <= 3; exp++) {
+  for (let exp = 0; exp <= 4; exp++) {
     const base = Math.pow(10, exp);
     for (let m = 1; m <= 9; m++) {
       const f = m * base;
@@ -6317,18 +6331,30 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
     ctx.fillText(formatYTickLabel(yVal, yScale.step, cfg.unit), padL - 7, y + 3.5);
   });
 
-  // Rótulos do eixo X centralizados + tickzinhos
+  // Rótulos do eixo X centralizados + tickzinhos (com anti-colisão em bandas largas)
   ctx.textAlign = 'center';
+  let lastLabelRight = -Infinity;
+  const lastIdx = majors.length - 1;
+  const lastLabelTxt = lastIdx >= 0 ? formatFreqTick(majors[lastIdx]) : '';
+  const lastLabelW = lastIdx >= 0 ? ctx.measureText(lastLabelTxt).width : 0;
+  const lastLabelX = lastIdx >= 0 ? xMap(majors[lastIdx]) : Infinity;
+  const lastLabelLeft = (lastLabelX > w - 16) ? (lastLabelX - lastLabelW) : (lastLabelX - lastLabelW / 2);
   majors.forEach((f, idx) => {
     const x = xMap(f);
     ctx.strokeStyle = '#475569';
     ctx.beginPath(); ctx.moveTo(x, padT + ph); ctx.lineTo(x, padT + ph + 4); ctx.stroke();
-    // Evita corte na extrema direita
-    if (idx === majors.length - 1 && x > w - 16) ctx.textAlign = 'right';
-    else if (idx === 0 && x < padL + 10) ctx.textAlign = 'left';
-    else ctx.textAlign = 'center';
+    const txt = formatFreqTick(f);
+    const tw = ctx.measureText(txt).width;
+    let align = 'center';
+    let left = x - tw / 2;
+    let right = x + tw / 2;
+    if (idx === lastIdx && x > w - 16) { align = 'right'; left = x - tw; right = x; }
+    else if (idx === 0 && x < padL + 10) { align = 'left'; left = x; right = x + tw; }
+    if (idx > 0 && idx < lastIdx && (left < lastLabelRight + 5 || right > lastLabelLeft - 5)) return;
+    ctx.textAlign = align;
     ctx.fillStyle = '#8fa1b8';
-    ctx.fillText(formatFreqTick(f), x, padT + ph + (isExpanded ? 16 : 13));
+    ctx.fillText(txt, x, padT + ph + (isExpanded ? 16 : 13));
+    lastLabelRight = right;
   });
 
   // Unidades explícitas nos eixos
