@@ -1524,6 +1524,311 @@ runSuite('27. Complex HPF / LPF Crossover Engine (BW/LR/Bessel 6-48 dB/oct, Phas
   vm.runInContext("document.getElementById('hpfType').value = 'LR24'; document.getElementById('lpfType').value = 'LR24'; setHpfEnabled(false, false); setLpfEnabled(false, false); loadPreset();", ctx);
 });
 
+// ============================================================================
+// SUITE 28: Blacklist Gate P0 (FIS / CAD / ELE / PRO Invariants)
+// ============================================================================
+runSuite('28. Blacklist Gate P0 (FIS/CAD/ELE/PRO Invariants & Anti-XSS)', () => {
+  // --- 28.1 FIS-01/02/03/06/08: Bloqueio de entradas <=0 / NaN / T<=-273.15 / Le<0 / EPDR sentinela ---
+  vm.runInContext('loadPreset(); recalculate();', ctx);
+  const baseKpi1 = elements.get('kpi1Val').textContent;
+  const badCases = [
+    ['tsFs', '0'], ['tsFs', '-35'], ['tsVas', '-10'], ['tsQes', '0'],
+    ['tsQms', '-2'], ['tsRe', '0'], ['tsSd', '0'], ['tsXmax', '-5'],
+    ['tsPe', '0'], ['qlInput', '0'], ['cabinLen', '-1'], ['tempInput', '-273.15'],
+    ['tsLe', '-1.5']
+  ];
+  for (const [id, badVal] of badCases) {
+    const orig = elements.get(id).value;
+    elements.get(id).value = badVal;
+    vm.runInContext('recalculate()', ctx);
+    assert.strictEqual(elements.get('kpi1Val').textContent, baseKpi1, `FIS-02: ${id}=${badVal} não pode corromper KPIs`);
+    assert(vm.runInContext('lastInputValidationError !== null', ctx), `FIS-02: ${id}=${badVal} deve registrar lastInputValidationError`);
+    elements.get(id).value = orig;
+  }
+  vm.runInContext('recalculate()', ctx);
+  const epdrMeta = vm.runInContext('currentCurves.meta.minEpdrVal', ctx);
+  assert(Number.isFinite(epdrMeta) && epdrMeta > 0 && epdrMeta < 1e8, `FIS-08: minEpdrVal inválido (${epdrMeta})`);
+
+  // --- 28.2 ELE-01/02: HPF >= LPF e fc <= 0 ou >= 20 kHz ---
+  const invFlt = vm.runInContext("evalFilterComplex(50, 0, 'hpf', 'LR24')", ctx);
+  const invFltHi = vm.runInContext("evalFilterComplex(50, 25000, 'lpf', 'LR24')", ctx);
+  assert.strictEqual(invFlt.invalid, true, 'ELE-02: fc=0 deve sinalizar invalid=true');
+  assert.strictEqual(invFltHi.invalid, true, 'ELE-02: fc>=20kHz deve sinalizar invalid=true');
+
+  elements.get('hpfCutoff').value = '100';
+  elements.get('lpfCutoff').value = '80';
+  vm.runInContext('setHpfEnabled(true, false); setLpfEnabled(true, true);', ctx);
+  const dspOverlap = vm.runInContext('evaluatePhysicalConstraints(currentCurves, 10, 1000).some(c => c.code === "DSP_HPF_GE_LPF")', ctx);
+  assert.strictEqual(dspOverlap, true, 'ELE-01: HPF >= LPF com ambos ativos deve emitir DSP_HPF_GE_LPF');
+
+  elements.get('hpfCutoff').value = '-5';
+  vm.runInContext('recalculate()', ctx);
+  const dspHpfBad = vm.runInContext('evaluatePhysicalConstraints(currentCurves, 10, 1000).some(c => c.code === "DSP_HPF_INVALID")', ctx);
+  assert.strictEqual(dspHpfBad, true, 'ELE-02: HPF <= 0 ativo deve emitir DSP_HPF_INVALID');
+  elements.get('hpfCutoff').value = '36';
+  elements.get('lpfCutoff').value = '80';
+  vm.runInContext('setHpfEnabled(false, false); setLpfEnabled(false, true);', ctx);
+
+  // --- 28.3 ELE-04/06/07/08/10: Segurança Elétrica & Térmica ---
+  // DVC paralelo não pode dividir Re duas vezes (ELE-10)
+  elements.get('elNumSpk').value = '1';
+  elements.get('elCoils').value = '2';
+  elements.get('elZCoil').value = '4';
+  elements.get('tsRe').value = '3.6';
+  elements.get('elCoilMode').value = 'parallel';
+  elements.get('elSpkMode').value = 'parallel';
+  vm.runInContext('updateElectrical(false)', ctx);
+  const dvcRe = vm.runInContext('lastElectricalAudit.reTotal', ctx);
+  approx(dvcRe, 1.8, 0.01, 'ELE-10: DVC paralelo deve resultar Re/2 (1.8 Ω), nunca Re/4 (0.9 Ω)');
+
+  // Z < 0.5 Ω (ELE-04) + Série-Paralelo em ímpar + Amp > 2x Pe (ELE-06) + Cabo 10mm² em 20kW (ELE-08) + Bobina > 250°C (ELE-07)
+  elements.get('elNumSpk').value = '4';
+  elements.get('elCoils').value = '2';
+  elements.get('elZCoil').value = '2';
+  elements.get('elCoilMode').value = 'parallel';
+  elements.get('elSpkMode').value = 'parallel'; // Z_total = 0.25 Ω
+  elements.get('tsPe').value = '500'; // Pe_total = 2000 W
+  elements.get('elAmpPower').value = '20000'; // > 2x Pe_total + 1900 A
+  elements.get('elPwrGauge').value = '10';
+  elements.get('elMeasV').value = '60'; // 60^2 / 0.25 = 14400 W -> >> 250 °C
+  elements.get('elLeMh').value = '-5';
+  vm.runInContext('updateElectrical(false)', ctx);
+  const elCodes = vm.runInContext('lastElectricalAudit.issues.map(i => i.code)', ctx);
+  assert(elCodes.includes('ELE_IMPEDANCE_TOO_LOW'), 'ELE-04: Z < 0.5 Ω deve gerar ELE_IMPEDANCE_TOO_LOW');
+  assert(elCodes.includes('ELE_AMP_OVERPOWER'), 'ELE-06: Amp > 2x Pe_total deve gerar ELE_AMP_OVERPOWER');
+  assert(elCodes.includes('ELE_COIL_OVERTEMP'), 'ELE-07: Bobina > 250 °C deve gerar ELE_COIL_OVERTEMP');
+  assert(elCodes.includes('ELE_CABLE_AMPACITY'), 'ELE-08: Cabo 10 mm² sobrecarregado deve gerar ELE_CABLE_AMPACITY');
+  assert(elCodes.includes('ELE_VOLTAGE_DROP_CRITICAL'), 'ELE-08: Queda > 5% / V_amp < 10.5 V deve gerar ELE_VOLTAGE_DROP_CRITICAL');
+  assert(!elements.get('elDspResult').innerHTML.includes('C_z = <b>-'), 'FIS-06: Zobel nunca pode exibir capacitância negativa');
+
+  elements.get('elNumSpk').value = '3';
+  elements.get('elSpkMode').value = 'series-parallel';
+  vm.runInContext('updateElectrical(false)', ctx);
+  assert(vm.runInContext('lastElectricalAudit.issues.some(i => i.code === "ELE_INVALID_SERIES_PARALLEL")', ctx), 'ELE-04: Série-Paralelo em 3 drivers deve gerar ELE_INVALID_SERIES_PARALLEL');
+
+  // --- 28.4 CAD-01/02/05/08/09/10: Folga proporcional, Lv<=t, L-Port c/ divisória, colisões, MDF<15mm ---
+  const cad01Round = vm.runInContext(`validateBuildGeometry({
+    A: 700, B: 520, C_top: 355, D_bot: 355, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'round', numDucts: 1, ductDia: 6, ductThick: 1.5, LvCm: 30.0
+  })`, ctx); // folga = 55 mm (>40 antigo, mas < 0.50*152.4 = 76.2 mm)
+  assert(cad01Round.issues.some(i => i.code === 'PORT_DEPTH_COLLISION'), 'CAD-01: 6" cilíndrico com 55 mm (< 0.50×D = 76.2 mm) deve bloquear');
+
+  const cad01Slot = vm.runInContext(`validateBuildGeometry({
+    A: 700, B: 520, C_top: 350, D_bot: 350, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'slot_wall', slotW: 40, slotH: 8, slotWallThick: 18, LvCm: 30.0
+  })`, ctx); // folga = 50 mm (< 0.75*80 = 60 mm)
+  assert(cad01Slot.issues.some(i => i.code === 'PORT_DEPTH_COLLISION'), 'CAD-01: Slot H=80mm com 50 mm (< 0.75×H = 60 mm) deve bloquear');
+
+  const cad02Lv = vm.runInContext(`validateBuildGeometry({
+    A: 700, B: 520, C_top: 400, D_bot: 400, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'round', numDucts: 1, ductDia: 4, ductThick: 1.5, LvCm: 1.5
+  })`, ctx);
+  assert(cad02Lv.issues.some(i => i.code === 'PORT_LV_SHORTER_THAN_WALL'), 'CAD-02: 0 < Lv <= t (15 mm <= 18 mm) deve bloquear');
+
+  const cad05Div = vm.runInContext(`computePortRoutingPlan({
+    portRouting: 'l_bend', portType: 'round', A: 800, B: 450, C_min: 300, t: 18,
+    lvMm: 580, odMm: 104.6, numDucts: 2, hasCenterDiv: true
+  })`, ctx);
+  assert.strictEqual(cad05Div.fits, false, 'CAD-05: L-Port com divisória central (câmara 391 mm) não pode caber para Lv=580mm');
+
+  const cad08Tri = vm.runInContext(`validateBuildGeometry({
+    A: 420, B: 420, C_top: 400, D_bot: 400, t: 18, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'triangle', triCount: 2, triA: 20, triB: 20, LvCm: 18.0
+  })`, ctx);
+  assert(cad08Tri.issues.some(i => i.code === 'BAFFLE_HOLE_COLLISION'), 'CAD-08: Colisão triângulo × driver deve gerar BAFFLE_HOLE_COLLISION');
+
+  const cad10Thin = vm.runInContext(`validateBuildGeometry({
+    A: 700, B: 520, C_top: 450, D_bot: 450, t: 12, nDrivers: 1, tsDia: 15, Sd_cm2: 855,
+    boxType: 'bass-reflex', portType: 'slot_wall', slotW: 40, slotH: 6, slotWallThick: 10, LvCm: 20.0
+  })`, ctx);
+  assert(cad10Thin.issues.some(i => i.code === 'MDF_THICKNESS_TOO_THIN'), 'CAD-10: MDF 12 mm (< 15 mm) deve gerar MDF_THICKNESS_TOO_THIN');
+  assert(cad10Thin.issues.some(i => i.code === 'PORT_WALL_TOO_THIN'), 'CAD-10: Parede de duto 10 mm (< 15 mm) deve gerar PORT_WALL_TOO_THIN');
+
+  // --- 28.5 CAD-11 & PRO-10: Nesting oversized + #btnPrintDossierA4 travado ---
+  const nestBad = vm.runInContext(`computeSheetNesting2D([
+    { id: 'P_HUGE', name: 'Painel Gigante', kind: 'mdf', qty: 1, cutSize: { w: 3000, h: 2000 } },
+    { id: 'P_ZERO', name: 'Painel Nulo', kind: 'mdf', qty: 1, cutSize: { w: 0, h: 500 } }
+  ])`, ctx);
+  assert.strictEqual(nestBad.oversizedParts.length, 1, 'CAD-11: Peça > 2750×1830 mm deve aparecer em oversizedParts');
+  assert.strictEqual(nestBad.invalidParts.length, 1, 'CAD-11: Peça <= 0 mm deve aparecer em invalidParts');
+
+  elements.get('wlThickness').value = '12';
+  vm.runInContext('updateWoodlock()', ctx);
+  assert.strictEqual(elements.get('btnPrintDossierA4').disabled, true, 'PRO-10: #btnPrintDossierA4 deve ficar disabled quando há erro crítico P0');
+  assert.strictEqual(elements.get('menuExportBuildPackHtml').disabled, true, 'PRO-10: #menuExportBuildPackHtml deve ficar disabled quando há erro crítico P0');
+  assert.strictEqual(elements.get('menuPrintBuildPackA4').disabled, true, 'PRO-10: #menuPrintBuildPackA4 deve ficar disabled quando há erro crítico P0');
+  elements.get('wlThickness').value = '18';
+  vm.runInContext('loadPreset();', ctx);
+
+  // --- 28.5b FIS-03 (BP6 Fb/FbVr <= 0), FIS-07 (Passividade), ELE-03 (HPF OFF + Xmax), FIS-15 (upsertDbDrivers), CAD-02 (G09) ---
+  elements.get('boxType').value = 'bp6';
+  vm.runInContext('setTuningMode(false); recalculate();', ctx);
+  const bp6BaseKpi = elements.get('kpi1Val').textContent;
+  elements.get('fbInput').value = '-45';
+  vm.runInContext('recalculate()', ctx);
+  assert.strictEqual(elements.get('kpi1Val').textContent, bp6BaseKpi, 'FIS-03: BP6 manual Fb=-45 deve ser bloqueado');
+  assert(vm.runInContext('lastInputValidationError !== null', ctx), 'FIS-03: BP6 manual Fb=-45 deve registrar lastInputValidationError');
+  elements.get('fbInput').value = '65';
+  elements.get('fbVrInput').value = '-30';
+  vm.runInContext('recalculate()', ctx);
+  assert(vm.runInContext('lastInputValidationError !== null', ctx), 'FIS-03: BP6 manual FbVr=-30 deve registrar lastInputValidationError');
+  elements.get('fbVrInput').value = '35';
+  elements.get('boxType').value = 'bass-reflex';
+  vm.runInContext('setTuningMode(true); loadPreset();', ctx);
+
+  // FIS-07: Passividade pós-varredura
+  const passMeta = vm.runInContext('({ ok: currentCurves.meta.passivityOk, minZ: currentCurves.meta.minZMag, re: currentCurves.meta.Re })', ctx);
+  assert.strictEqual(passMeta.ok, true, 'FIS-07: Varredura normal deve ser passiva (passivityOk=true)');
+  assert(passMeta.minZ >= passMeta.re * 0.999, `FIS-07: minZ (${passMeta.minZ}) deve ser >= Re (${passMeta.re})`);
+  const fakePassViolation = vm.runInContext(`(() => {
+    const fake = Object.assign({}, currentCurves, { meta: Object.assign({}, currentCurves.meta, { passivityOk: false, minZMag: 1.0 }) });
+    return evaluatePhysicalConstraints(fake, 10, 1000).some(c => c.code === 'FIS_PASSIVITY_VIOLATION');
+  })()`, ctx);
+  assert.strictEqual(fakePassViolation, true, 'FIS-07: passivityOk=false deve emitir FIS_PASSIVITY_VIOLATION');
+
+  // ELE-03: Caixa ventilada sem HPF com Xpk > Xmax
+  vm.runInContext('setHpfEnabled(false, true);', ctx);
+  const noHpfRisk = vm.runInContext('evaluatePhysicalConstraints(currentCurves, 10, 1000).some(c => c.subCode === "ELE_NO_HPF_XMAX_RISK" && c.noHpfProtection === true)', ctx);
+  assert.strictEqual(noHpfRisk, true, 'ELE-03: Caixa ventilada em Pe com HPF OFF e Xpk > Xmax deve emitir ELE_NO_HPF_XMAX_RISK');
+
+  // FIS-15: upsertDbDrivers rejeita drivers inválidos e aceita válidos
+  const upsertRes = vm.runInContext(`upsertDbDrivers([
+    { brand: 'Bad1', model: 'NegFs', fs: -35, vas: 50, qes: 0.4, qms: 5, re: 4, sd: 500, pe: 500, xmax: 10 },
+    { brand: 'Bad2', model: 'NegLe', fs: 35, vas: 50, qes: 0.4, qms: 5, re: 4, sd: 500, pe: 500, xmax: 10, le: -1 },
+    { brand: 'Bad3', model: 'ZeroPe', fs: 35, vas: 50, qes: 0.4, qms: 5, re: 4, sd: 500, pe: 0, xmax: 10 },
+    { brand: 'Good', model: 'Valid12', fs: 35, vas: 50, qes: 0.4, qms: 5, re: 4, sd: 500, pe: 500, xmax: 10, le: 1.2, diameter_in: 12, znom: 4 }
+  ])`, ctx);
+  assert.strictEqual(upsertRes.length, 1, `FIS-15: upsertDbDrivers deve aceitar apenas 1 driver válido (aceitou ${upsertRes.length})`);
+
+  // CAD-02: PGS G09 reprova lvMm <= t
+  const g09Fail = vm.runInContext(`validatePgsGeometry({
+    envelope: { A: 500, B: 400, C: 300, D: 300, F: 536, E: 436, C_ext: 336, D_ext: 336 },
+    material: { thickness: 18 }, topology: 'bass-reflex',
+    volumes: { VbTarget: 50, VrTarget: 0, VnetVerified: 50, deltaL: 0, Vsub: 2, Vduto: 1, Vbracing: 0 },
+    parts: [], drivers: [{ mountMode: 'normal' }], ducts: [{ id: 'D1', lvMm: 15, axis: '-Z', origin: [0,0,100] }],
+    cutouts: [], joints: [], manufacturing: { assemblySequence: [], cutList: [] }
+  }, { issues: [] }).find(c => c.code === 'G09').pass`, ctx);
+  assert.strictEqual(g09Fail, false, 'CAD-02: PGS G09 deve reprovar quando lvMm (15 mm) <= t (18 mm)');
+
+  // --- 28.6 PRO-03 / PRO-04 / PRO-05 / PRO-12: Anti-XSS, Anti-NaN Dossiê & Sanitização FreeCAD ---
+  vm.runInContext(`applyDbDriver({ name: '<img src=x onerror=alert(1)>', fs: 40, qes: 0.42, qms: 6.0, vas: 185, re: 5.1, pe: 800, sd: 1210, xmax: 10, diameter_in: 18 })`, ctx);
+  const badgeHtml = elements.get('dbDriverBadge').innerHTML;
+  assert(!badgeHtml.includes('<img') && badgeHtml.includes('&lt;img'), `PRO-03: applyDbDriver deve escapar HTML no badge (obtido: ${badgeHtml})`);
+
+  const safeDossierHtml = vm.runInContext(`(() => {
+    const p = JSON.parse(JSON.stringify(lastBuildPack));
+    p.acoustics.Vb = NaN;
+    p.acoustics.Fb = Infinity;
+    p.acoustics.F3 = undefined;
+    return buildPackHtmlString(p, [], '', '', '');
+  })()`, ctx);
+  assert(!safeDossierHtml.includes('NaN') && !safeDossierHtml.includes('Infinity'), 'PRO-04: buildPackHtmlString não pode emitir NaN/Infinity');
+
+  const fcMacro = vm.runInContext(`(() => {
+    const p = JSON.parse(JSON.stringify(lastBuildPack));
+    p.driver.name = 'Sub """ ; import os';
+    p.acoustics.Vb = NaN;
+    return buildFreeCadMacroString(p, 0);
+  })()`, ctx);
+  const docLines = fcMacro.split('\n').slice(0, 4).join('\n');
+  assert(!docLines.includes('Sub """'), 'PRO-05: buildFreeCadMacroString deve sanitizar """ na docstring Python');
+  assert(!fcMacro.includes(':NaN') && !fcMacro.includes('Infinity'), 'PRO-12: Payload JSON da macro FreeCAD não pode conter NaN/Infinity');
+
+  // --- 28.7 PRO-01 (docs auxiliares) & drivers-db.html VM Runtime Gate (PRO-02/03/04/09, FIS-02/06/15) ---
+  const forbiddenAll = /\b(bassbox|bb6|elisa|winisd|ht audio|hornresp|vituixcad|boxsim|unibox|akabak)\b/gi;
+  const mdFiles = fs.readdirSync(ROOT).filter(f => f.endsWith('.md'));
+  for (const mf of mdFiles) {
+    const txt = fs.readFileSync(path.join(ROOT, mf), 'utf8');
+    const hits = txt.match(forbiddenAll) || [];
+    assert.strictEqual(hits.length, 0, `PRO-01: ${mf} contém termo proibido: ${[...new Set(hits)].join(', ')}`);
+  }
+  assert(dbHtml.includes('URL.revokeObjectURL('), 'PRO-09: drivers-db.html deve revogar Blob URLs');
+
+  // Execução real em VM do script de drivers-db.html
+  const dbScriptMatch = dbHtml.match(/<script>([\s\S]*?)<\/script>/g);
+  const dbMainJs = dbScriptMatch[dbScriptMatch.length - 1].replace(/^<script>|<\/script>$/g, '');
+  const dbEls = new Map();
+  const mkDbEl = id => {
+    if (!dbEls.has(id)) {
+      dbEls.set(id, {
+        id, value: '', innerHTML: '', textContent: '', checked: false, disabled: false,
+        style: {}, classList: { add() {}, remove() {}, toggle() {}, contains() { return false; } },
+        addEventListener() {}, appendChild() {}, removeChild() {}, click() {},
+        querySelector() { return null; }, querySelectorAll() { return []; }
+      });
+    }
+    return dbEls.get(id);
+  };
+  let dbAlerts = [];
+  const dbCtx = vm.createContext({
+    console, Math, Date, JSON, Number, String, Array, Object, Boolean, RegExp, parseFloat, parseInt, isNaN, isFinite,
+    setTimeout: () => 0, clearTimeout: () => {},
+    alert: msg => { dbAlerts.push(String(msg)); },
+    confirm: () => true,
+    localStorage: { _m: {}, getItem(k) { return this._m[k] || null; }, setItem(k, v) { this._m[k] = String(v); }, removeItem(k) { delete this._m[k]; } },
+    URL: { createObjectURL: () => 'blob:mock', revokeObjectURL: () => {} },
+    Blob: function(p, o) { this.parts = p; this.opts = o; },
+    window: { location: { href: 'http://localhost/drivers-db.html', search: '', hash: '' }, addEventListener() {} },
+    document: {
+      getElementById: id => mkDbEl(id),
+      querySelector: () => null,
+      querySelectorAll: () => [],
+      createElement: tag => mkDbEl('dyn_' + tag),
+      addEventListener() {},
+      body: { appendChild() {}, removeChild() {} }
+    },
+    html2pdf: () => ({ set() { return this; }, from() { return this; }, save() {} })
+  });
+  vm.runInContext(dbMainJs, dbCtx);
+
+  // Testa CLAudioDatabaseAgent.validate() em runtime
+  const dbValBad = vm.runInContext(`CLAudioDatabaseAgent.validate({ brand: 'Test', model: 'X', diameter_in: 12, znom: 4, pe: -100, xmax: 0, fs: 40, qes: 0.4, qms: 6, vas: 50, sd: 500, re: 3.5, le: -2 })`, dbCtx);
+  assert.strictEqual(dbValBad.valid, false, 'FIS-02/06: drivers-db validate() deve reprovar Pe<=0, Xmax<=0 e Le<0');
+  assert(dbValBad.errors.some(e => e.includes('Le')), 'FIS-06: validate() deve reportar erro de Le < 0');
+
+  // Testa confirmTSVImport() rejeitando inválido e aceitando válido
+  const beforeLen = vm.runInContext('DRIVER_CATALOG.length', dbCtx);
+  vm.runInContext(`
+    parsedTsvData = [
+      { brand: 'BadTsv', model: 'NegLe', diameter_in: 12, znom: 4, pe: 500, xmax: 10, fs: 40, qes: 0.4, qms: 6, vas: 50, sd: 500, re: 3.5, le: -1 },
+      { brand: '<img src=x onerror=alert(1)>', model: 'Safe12', year: '<b>2025</b>', diameter_in: 12, znom: 4, pe: 500, xmax: 10, fs: 40, qes: 0.4, qms: 6, vas: 50, sd: 500, re: 3.5, le: 1.2 }
+    ];
+    confirmTSVImport();
+  `, dbCtx);
+  const afterLen = vm.runInContext('DRIVER_CATALOG.length', dbCtx);
+  assert.strictEqual(afterLen, beforeLen + 1, 'FIS-15: confirmTSVImport() deve importar apenas o driver válido e rejeitar o inválido');
+
+  // Testa renderTable() anti-XSS em runtime
+  const tblHtml = dbEls.get('db-table-body').innerHTML;
+  assert(!tblHtml.includes('<img src=x') && tblHtml.includes('&lt;img src=x'), 'PRO-03: drivers-db renderTable() deve escapar payload XSS em brand');
+  assert(!tblHtml.includes('<b>2025</b>') && tblHtml.includes('&lt;b&gt;2025&lt;/b&gt;'), 'PRO-03: drivers-db renderTable() deve escapar payload XSS em year');
+
+  // Testa renderPrintableReport() anti-XSS e anti-NaN + downloadReportPDF() bloqueio P0
+  mkDbEl('inp-brand').value = '<img src=x onerror=alert(1)>';
+  mkDbEl('inp-model').value = 'BadModel';
+  mkDbEl('inp-dia').value = '12';
+  mkDbEl('inp-znom').value = '4';
+  mkDbEl('inp-pe').value = '0';
+  mkDbEl('inp-xmax').value = '-5';
+  mkDbEl('inp-fs').value = '';
+  mkDbEl('inp-vas').value = '50';
+  mkDbEl('inp-qes').value = '0';
+  mkDbEl('inp-qms').value = '6';
+  mkDbEl('inp-sd').value = '500';
+  mkDbEl('inp-re').value = '3.5';
+  mkDbEl('inp-le').value = '-1';
+  vm.runInContext('renderPrintableReport()', dbCtx);
+  const repHtml = mkDbEl('report-printable').innerHTML;
+  assert(!repHtml.includes('<img src=x') && repHtml.includes('&lt;img src=x'), 'PRO-03: renderPrintableReport() deve escapar HTML XSS');
+  assert(!repHtml.includes('NaN') && !repHtml.includes('Infinity'), 'PRO-04: renderPrintableReport() não pode emitir NaN/Infinity');
+  const pdfOk = vm.runInContext('downloadReportPDF()', dbCtx);
+  assert.strictEqual(pdfOk, false, 'PRO-02: downloadReportPDF() deve retornar false e bloquear driver inválido');
+
+  // Restaura Golden Master limpo
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset();', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

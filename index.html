@@ -979,11 +979,11 @@
         <button type="button" class="menu-action" onclick="resetCurrentProject(); closeAllMenus()"><span>Novo Projeto (Padrão)</span><kbd>Ctrl+N</kbd></button>
         <button type="button" class="menu-action" onclick="document.getElementById('projJsonInput').click(); closeAllMenus()"><span>Abrir Projeto (.json)...</span><kbd>Ctrl+O</kbd></button>
         <button type="button" class="menu-action" onclick="exportProjectJson(); closeAllMenus()"><span>Salvar Projeto (.json)</span><kbd>Ctrl+S</kbd></button>
-        <button type="button" class="menu-action" onclick="exportBuildPackHtml(); closeAllMenus()"><span>Exportar Pacote de Obra (HTML)</span><kbd>CAD</kbd></button>
+        <button type="button" id="menuExportBuildPackHtml" class="menu-action" onclick="exportBuildPackHtml(); closeAllMenus()"><span>Exportar Pacote de Obra (HTML)</span><kbd>CAD</kbd></button>
         <div class="menu-sep"></div>
         <button type="button" class="menu-action" onclick="document.getElementById('dbJsonInput').click(); closeAllMenus()"><span>Importar Driver (.json)</span></button>
         <button type="button" class="menu-action" onclick="exportExpandedPNG(); closeAllMenus()"><span>Exportar Gráfico (PNG)</span></button>
-        <button type="button" class="menu-action" onclick="printBuildPackA4(); closeAllMenus()"><span>Imprimir / Salvar Dossiê A4 (PDF)</span><kbd>Ctrl+P</kbd></button>
+        <button type="button" id="menuPrintBuildPackA4" class="menu-action" onclick="printBuildPackA4(); closeAllMenus()"><span>Imprimir / Salvar Dossiê A4 (PDF)</span><kbd>Ctrl+P</kbd></button>
       </div>
     </div>
     <div class="menu-item">
@@ -2287,10 +2287,19 @@ function evaluatePhysicalConstraints(curves, fMin, fMax) {
   if (xmax && exc.value !== null) {
     const ratio = exc.value / xmax;
     if (ratio >= 1.0) {
+      const isVentedBox = (m.boxType === 'bass-reflex' || m.boxType === 'bp4' || m.boxType === 'bp6' || m.boxType === 'planar');
+      const noHpfRisk = isVentedBox && !(Number.isFinite(m.hpfHz) && m.hpfHz > 0);
       out.push({
-        id: 'G8', code: 'EXCURSION_OVER_XMAX', severity: 'critical',
-        badge: `Xmax ${(ratio * 100).toFixed(0)}%`, value: exc.value, limit: xmax, freq: exc.freq,
-        message: `Excursão de ${exc.value.toFixed(1)} mm em ${exc.freq.toFixed(0)} Hz excede o Xmax de ${xmax.toFixed(1)} mm.`
+        id: 'G8',
+        code: 'EXCURSION_OVER_XMAX',
+        subCode: noHpfRisk ? 'ELE_NO_HPF_XMAX_RISK' : null,
+        severity: 'critical',
+        noHpfProtection: noHpfRisk,
+        badge: noHpfRisk ? `Xmax ${(ratio * 100).toFixed(0)}% (SEM HPF!)` : `Xmax ${(ratio * 100).toFixed(0)}%`,
+        value: exc.value, limit: xmax, freq: exc.freq,
+        message: noHpfRisk
+          ? `Risco mecânico P0 (ELE-03): caixa ventilada sem filtro subsônico (HPF OFF) com excursão ${exc.value.toFixed(1)} mm > Xmax (${xmax.toFixed(1)} mm) em ${exc.freq.toFixed(0)} Hz — ative o HPF.`
+          : `Excursão de ${exc.value.toFixed(1)} mm em ${exc.freq.toFixed(0)} Hz excede o Xmax de ${xmax.toFixed(1)} mm.`
       });
     } else if (ratio >= T.excursionWarnRatio) {
       out.push({
@@ -2357,6 +2366,20 @@ function evaluatePhysicalConstraints(curves, fMin, fMax) {
       id: 'G13', code: 'GROUP_DELAY_HIGH', severity: 'warn',
       badge: `${gd.value.toFixed(0)} ms`, value: gd.value, limit: T.groupDelayWarnMs, freq: gd.freq,
       message: `Atraso de grupo de ${gd.value.toFixed(1)} ms em ${gd.freq.toFixed(0)} Hz acima do limiar audível de ${T.groupDelayWarnMs} ms.`
+    });
+  }
+
+  // 6. Validação DSP P0 (ELE-01: HPF >= LPF | ELE-02: fc <= 0 ou >= 20 kHz)
+  if (Array.isArray(m.dspIssues) && m.dspIssues.length) {
+    m.dspIssues.forEach(di => out.push(di));
+  }
+
+  // 7. Asserção pós-varredura de passividade elétrica (FIS-07: |Z(f)| >= Re(T))
+  if (m.passivityOk === false) {
+    out.push({
+      id: 'G11', code: 'FIS_PASSIVITY_VIOLATION', severity: 'critical',
+      badge: '|Z| < Re', value: m.minZMag, limit: m.Re, freq: null,
+      message: `Violação de passividade (FIS-07): impedância mínima |Z| (${Number.isFinite(m.minZMag) ? m.minZMag.toFixed(2) : 'NaN'} Ω) abaixo de Re(T) (${Number.isFinite(m.Re) ? m.Re.toFixed(2) : '—'} Ω).`
     });
   }
 
@@ -2745,7 +2768,9 @@ const FILTER_ALIGNMENTS = {
 };
 
 function evalFilterComplex(f, fc, kind, alignCode = 'LR24') {
-  if (!(f > 0) || !(fc > 0)) return { mag: 1.0, db: 0.0, phaseRad: 0.0 };
+  if (!Number.isFinite(f) || !(f > 0) || !Number.isFinite(fc) || !(fc > 0) || fc >= 20000) {
+    return { mag: 1.0, db: 0.0, phaseRad: 0.0, invalid: true };
+  }
   const def = FILTER_ALIGNMENTS[alignCode] || FILTER_ALIGNMENTS.LR24;
   const isHp = (kind === 'hpf');
   const om = f / fc;
@@ -2978,11 +3003,30 @@ function dbDriverId(drv) {
   return 'db_' + (base || String(drv.id || Date.now()));
 }
 
+function validateImportedDriver(raw) {
+  if (!raw || typeof raw !== 'object') return false;
+  const posFin = v => { const n = Number(v); return Number.isFinite(n) && n > 0; };
+  if (!posFin(raw.fs ?? raw.Fs)) return false;
+  if (!posFin(raw.vas ?? raw.Vas)) return false;
+  if (!posFin(raw.qes ?? raw.Qes)) return false;
+  if (!posFin(raw.qms ?? raw.Qms)) return false;
+  if (!posFin(raw.re ?? raw.Re)) return false;
+  if (!posFin(raw.sd ?? raw.Sd)) return false;
+  if (!posFin(raw.pe ?? raw.Pe)) return false;
+  if (!posFin(raw.xmax ?? raw.Xmax)) return false;
+  const dia = raw.diameter_in ?? raw.dia;
+  if (dia !== undefined && dia !== '' && !posFin(dia)) return false;
+  if (raw.znom !== undefined && raw.znom !== '' && !posFin(raw.znom)) return false;
+  if (raw.le !== undefined && raw.le !== '' && (!Number.isFinite(Number(raw.le)) || Number(raw.le) < 0)) return false;
+  return true;
+}
+
 function upsertDbDrivers(arr) {
   if (!Array.isArray(arr)) return [];
   const addedKeys = [];
   arr.forEach(raw => {
-    if (!raw || !raw.fs || !raw.vas || !raw.qes) return;
+    // FIS-15: Validação física completa antes de inserir driver de JSON / localStorage / URL
+    if (!validateImportedDriver(raw)) return;
     const key = dbDriverId(raw);
     DB_DRIVERS_MAP[key] = raw;
     addedKeys.push(key);
@@ -3058,18 +3102,20 @@ function syncSimZnomToElec() {
 }
 
 function applyDbDriver(drv) {
-  const Fs = parseFloat(drv.fs || drv.Fs) || 40;
-  const Qes = parseFloat(drv.qes || drv.Qes) || 0.45;
-  const Qms = parseFloat(drv.qms || drv.Qms) || 6.0;
-  const Vas = parseFloat(drv.vas || drv.Vas) || 50;
-  const Re = parseFloat(drv.re || drv.Re) || 3.5;
-  const Pe = parseFloat(drv.pe || drv.Pe) || 500;
-  const Sd = parseFloat(drv.sd || drv.Sd) || 500;
-  const Xmax = parseFloat(drv.xmax || drv.Xmax) || 8;
-  const dia = parseFloat(drv.diameter_in || drv.dia) || 12;
+  const posNum = (v, fb) => { const n = parseFloat(v); return (Number.isFinite(n) && n > 0) ? n : fb; };
+  const nonNegNum = (v, fb) => { const n = parseFloat(v); return (Number.isFinite(n) && n >= 0) ? n : fb; };
+  const Fs = posNum(drv.fs ?? drv.Fs, 40);
+  const Qes = posNum(drv.qes ?? drv.Qes, 0.45);
+  const Qms = posNum(drv.qms ?? drv.Qms, 6.0);
+  const Vas = posNum(drv.vas ?? drv.Vas, 50);
+  const Re = posNum(drv.re ?? drv.Re, 3.5);
+  const Pe = posNum(drv.pe ?? drv.Pe, 500);
+  const Sd = posNum(drv.sd ?? drv.Sd, 500);
+  const Xmax = posNum(drv.xmax ?? drv.Xmax, 8);
+  const dia = posNum(drv.diameter_in ?? drv.dia, 12);
   const Vsub = (parseFloat(drv.vsub) > 0) ? parseFloat(drv.vsub) : estimateVsubByDia(dia);
-  const Le = parseFloat(drv.le) || 1.5;
-  const Znom = parseFloat(drv.znom) || 4;
+  const Le = nonNegNum(drv.le, 1.5);
+  const Znom = posNum(drv.znom, 4);
   const EBP = Fs / Qes;
   const Qts = (Qms * Qes) / (Qms + Qes);
   const bestTopo = (typeof chooseBestTopologyForDriver === 'function')
@@ -3108,7 +3154,7 @@ function applyDbDriver(drv) {
     if (drv.mms_cat > 0) extras.push(`Mms Cat: ${drv.mms_cat}g`);
     if (drv.bl_cat > 0) extras.push(`Bl Cat: ${drv.bl_cat}T·m`);
     if (drv.hvc && drv.hgap) extras.push(`Hvc/Hgap: ${drv.hvc}/${drv.hgap}mm`);
-    badge.innerHTML = `<b>✅ Banco Oficial:</b> ${nome} (${dia}″ · ${Znom}Ω · Le ${Le}mH)${extras.length ? '<br>' + extras.join(' · ') : ''}`;
+    badge.innerHTML = `<b>✅ Banco Oficial:</b> ${escapeHtmlStr(nome)} (${dia}″ · ${Znom}Ω · Le ${Le}mH)${extras.length ? '<br>' + escapeHtmlStr(extras.join(' · ')) : ''}`;
   }
 
   document.getElementById('boxType').value = bestTopo;
@@ -3143,11 +3189,22 @@ function importDriversJsonFile(input) {
         return;
       }
       try {
-        localStorage.setItem(DB_STORAGE_KEY, JSON.stringify({
+        let prevFactoryCount = null;
+        try {
+          const prevRaw = localStorage.getItem(DB_STORAGE_KEY);
+          if (prevRaw) {
+            const prevObj = JSON.parse(prevRaw);
+            if (Number.isFinite(prevObj?.factoryCount)) prevFactoryCount = prevObj.factoryCount;
+          }
+        } catch (e2) { /* ignore */ }
+        const factoryCount = Number.isFinite(parsed?.factoryCount) ? parsed.factoryCount : prevFactoryCount;
+        const payload = {
           schema: 'bassforge-driver-db/v1',
           updatedAt: new Date().toISOString(),
           drivers: Object.values(DB_DRIVERS_MAP)
-        }));
+        };
+        if (factoryCount !== null) payload.factoryCount = factoryCount;
+        localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(payload));
       } catch (err) { /* ignore */ }
       const sel = document.getElementById('driverPreset');
       if (sel) sel.value = keys[0];
@@ -3990,6 +4047,7 @@ function autoSizeBandPassPorts(topo, resetCount = false, allowUpgrade = false) {
       const candidates = (diaBpP <= 8)
         ? [[1, 3], [1, 2.5], [1, 2], [1, 4], [1, 5], [2, 3], [2, 4]]
         : [[1, 6], [1, 8], [1, 5], [1, 4], [1, 10], [1, 3], [2, 6], [2, 8], [2, 10], [3, 6], [3, 8], [2, 5], [2, 4], [2, 3], [1, 2.5], [1, 2]];
+      const minLvCm = Math.max(2.0, ((parseFloat(document.getElementById('wlThickness')?.value) || 18) / 10.0) + 0.2);
       let tier1 = null, tier2 = null, tier3 = null;
       for (const [tryN, tryD] of candidates) {
         const pg = computePortGeometry({ portType: modeType, numDucts: tryN, ductDia: tryD, ductThick: chamberThick, Fb: chamberFb, Vb: chamberVb, c: cVal });
@@ -4002,7 +4060,7 @@ function autoSizeBandPassPorts(topo, resetCount = false, allowUpgrade = false) {
           if (!tier2 || (tryN === 1 && tier2[0] > 1 && vel <= tier2[2] * 1.25) || (tryN === tier2[0] && vel < tier2[2]) || (tier2[0] === 1 && tryN > 1 && vel < tier2[2] * 0.72)) {
             tier2 = [tryN, tryD, vel, false];
           }
-        } else if (pg.LvCm >= 1.5 && pg.LvCm <= maxSafeLv) {
+        } else if (pg.LvCm >= minLvCm && pg.LvCm <= maxSafeLv) {
           if (!tier3 || vel < tier3[2]) tier3 = [tryN, tryD, vel, false];
         }
       }
@@ -4060,8 +4118,15 @@ function autoSizeBandPassPorts(topo, resetCount = false, allowUpgrade = false) {
       const pgR = (topo === 'bp6') ? computePortGeometry({ portType: pType, slotW: swCur, slotH: shCur, Fb: FbVr, Vb: Vr, c: cVal }) : null;
       const velF = maxUpf / Math.max(1e-6, pgF.Sp);
       const velR = (topo === 'bp6' && pgR) ? (maxUpr / Math.max(1e-6, pgR.Sp)) : 0;
-      if (resetCount || pgF.LvCm < 2.0 || pgF.LvCm > maxSafeLv || (pgR && (pgR.LvCm < 2.0 || pgR.LvCm > maxSafeLv)) || velF > 19.5 || velR > 19.5) {
+      const minLvSlotCm = Math.max(2.0, ((parseFloat(document.getElementById('wlThickness')?.value) || 18) / 10.0) + 0.2);
+      if (resetCount || pgF.LvCm < minLvSlotCm || pgF.LvCm > maxSafeLv || (pgR && (pgR.LvCm < minLvSlotCm || pgR.LvCm > maxSafeLv)) || velF > 19.5 || velR > 19.5) {
         const sl = solveBpSlot(pType);
+        if (!sl.lvOk && topo === 'bp6' && pEl) {
+          // Régua única em BP6 não satisfaz Lv > t simultaneamente em VF e VR: promove para dutos independentes flared
+          pEl.value = 'flared';
+          autoSizeBandPassPorts(topo, true, false);
+          return;
+        }
         swEl.value = sl.swNew.toFixed(1);
         shEl.value = sl.shNew.toFixed(1);
         recalculate();
@@ -5058,6 +5123,8 @@ function analyzeTransferAlignment(p) {
   return { f3Exact: 0, peakDb: 0, fPeak: p.Fs || 40 };
 }
 
+let lastInputValidationError = null;
+
 function recalculate() {
   const boxType = document.getElementById('boxType').value;
   const isVented = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6' || boxType === 'planar');
@@ -5137,19 +5204,69 @@ function recalculate() {
   const Vsub = Vsub_single * nDrivers;
 
   const Vb = parseFloat(document.getElementById('vbInput').value);
-  if (!Number.isFinite(Vb) || Vb <= 0) return;
-  const Vr = Math.max(0.5, parseFloat(document.getElementById('vrInput')?.value) || (Vb * 0.75));
-  const bp6Mode = document.getElementById('bp6Mode')?.value || 'parallel';
-  let FbVr = Math.max(15.0, parseFloat(document.getElementById('fbVrInput')?.value) || 35.0);
+  const VrRaw = parseFloat(document.getElementById('vrInput')?.value);
+  const fbRawGate = parseFloat(document.getElementById('fbInput')?.value);
+  const fbVrRawGate = parseFloat(document.getElementById('fbVrInput')?.value);
   const QL = parseFloat(document.getElementById('qlInput').value);
   const tempC = parseFloat(document.getElementById('tempInput').value);
   const cabinM = parseFloat(document.getElementById('cabinLen').value);
+  const rawLe = parseFloat(document.getElementById('tsLe')?.value);
+  const isPosFin = v => Number.isFinite(v) && v > 0;
+  if (
+    !isPosFin(Vb) ||
+    !isPosFin(Fs) ||
+    !isPosFin(Qes_nom) ||
+    !isPosFin(Qms) ||
+    !isPosFin(Re_nom) ||
+    !isPosFin(Vas_single) ||
+    !isPosFin(Pe_single) ||
+    !isPosFin(Sd_single_m2) ||
+    !isPosFin(Xmax_mm) ||
+    !isPosFin(QL) ||
+    !isPosFin(cabinM) ||
+    !Number.isFinite(tempC) || tempC <= -273.15 ||
+    (Number.isFinite(rawLe) && rawLe < 0) ||
+    (isBP && Number.isFinite(VrRaw) && VrRaw <= 0) ||
+    (isVented && !isAutoTune && Number.isFinite(fbRawGate) && fbRawGate <= 0) ||
+    (boxType === 'bp6' && !isAutoTune && Number.isFinite(fbVrRawGate) && fbVrRawGate <= 0)
+  ) {
+    lastInputValidationError = 'Parâmetros físicos inválidos (valores ≤ 0, NaN, Le < 0, Fb/Vr ≤ 0 ou T ≤ -273.15 °C).';
+    return;
+  }
+  lastInputValidationError = null;
+  const Vr = Math.max(0.5, Number.isFinite(VrRaw) && VrRaw > 0 ? VrRaw : (Vb * 0.75));
+  const bp6Mode = document.getElementById('bp6Mode')?.value || 'parallel';
+  const fbVrRaw = parseFloat(document.getElementById('fbVrInput')?.value);
+  let FbVr = Math.max(15.0, (Number.isFinite(fbVrRaw) && fbVrRaw > 0) ? fbVrRaw : 35.0);
   const hpfRaw = parseFloat(document.getElementById('hpfCutoff').value);
-  const hpfHz = isHpfEnabled ? (Number.isFinite(hpfRaw) ? hpfRaw : 0) : 0;
+  const hpfHz = isHpfEnabled ? (Number.isFinite(hpfRaw) && hpfRaw > 0 && hpfRaw < 20000 ? hpfRaw : 0) : 0;
   const hpfType = document.getElementById('hpfType')?.value || 'LR24';
   const lpfRaw = parseFloat(document.getElementById('lpfCutoff')?.value);
-  const lpfHz = isLpfEnabled ? (Number.isFinite(lpfRaw) ? lpfRaw : 0) : 0;
+  const lpfHz = isLpfEnabled ? (Number.isFinite(lpfRaw) && lpfRaw > 0 && lpfRaw < 20000 ? lpfRaw : 0) : 0;
   const lpfType = document.getElementById('lpfType')?.value || 'LR24';
+
+  const dspIssues = [];
+  if (isHpfEnabled && (!Number.isFinite(hpfRaw) || hpfRaw <= 0 || hpfRaw >= 20000)) {
+    dspIssues.push({
+      id: 'G4', code: 'DSP_HPF_INVALID', severity: 'critical',
+      badge: 'HPF inválido', value: hpfRaw, limit: 20000, freq: null,
+      message: `Frequência HPF inválida (${Number.isFinite(hpfRaw) ? hpfRaw : 'NaN'} Hz): exige 0 < fc < 20000 Hz.`
+    });
+  }
+  if (isLpfEnabled && (!Number.isFinite(lpfRaw) || lpfRaw <= 0 || lpfRaw >= 20000)) {
+    dspIssues.push({
+      id: 'G4', code: 'DSP_LPF_INVALID', severity: 'critical',
+      badge: 'LPF inválido', value: lpfRaw, limit: 20000, freq: null,
+      message: `Frequência LPF inválida (${Number.isFinite(lpfRaw) ? lpfRaw : 'NaN'} Hz): exige 0 < fc < 20000 Hz.`
+    });
+  }
+  if (isHpfEnabled && isLpfEnabled && hpfHz > 0 && lpfHz > 0 && hpfHz >= lpfHz) {
+    dspIssues.push({
+      id: 'G4', code: 'DSP_HPF_GE_LPF', severity: 'critical',
+      badge: `HPF ≥ LPF`, value: hpfHz, limit: lpfHz, freq: hpfHz,
+      message: `Sobreposição proibida de crossover: HPF (${hpfHz.toFixed(0)} Hz) ≥ LPF (${lpfHz.toFixed(0)} Hz) — cancelamento total da banda útil.`
+    });
+  }
 
   const numD = parseInt(document.getElementById('numDucts').value) || 1;
   const dDia = parseFloat(document.getElementById('ductDia').value) || 4.0;
@@ -5238,7 +5355,8 @@ function recalculate() {
       } else {
         autoDesignExactFb = null;
         autoDesignVbRef = null;
-        Fb = parseFloat(document.getElementById('fbInput').value) || optimalFb;
+        const fbRawManual = parseFloat(document.getElementById('fbInput').value);
+        Fb = (Number.isFinite(fbRawManual) && fbRawManual > 0) ? fbRawManual : optimalFb;
       }
       const h_ratio = Fb / Fs;
       const brEval = analyzeTransferAlignment({
@@ -5296,7 +5414,8 @@ function recalculate() {
       qtc = Qts * Math.sqrt(1.0 + alphaR);
       // Sintonia simétrica exata BP4 (Geddes / Dickason): Fb = Fc = Fs * sqrt(1 + Vas/Vr)
       const fbOptBp4 = fc;
-      Fb = isAutoTune ? fbOptBp4 : (parseFloat(document.getElementById('fbInput').value) || fbOptBp4);
+      const fbRawBp4 = parseFloat(document.getElementById('fbInput').value);
+      Fb = isAutoTune ? fbOptBp4 : ((Number.isFinite(fbRawBp4) && fbRawBp4 > 0) ? fbRawBp4 : fbOptBp4);
       if (isAutoTune) {
         document.getElementById('fbInput').value = Fb.toFixed(2);
         syncSliderRange('fbRange', parseFloat(Fb.toFixed(2)), 15);
@@ -5344,7 +5463,8 @@ function recalculate() {
         document.getElementById('fbInput').value = Fb.toFixed(2);
         syncSliderRange('fbRange', parseFloat(Fb.toFixed(2)), 15);
       } else {
-        Fb = parseFloat(document.getElementById('fbInput').value) || fbOptBp6;
+        const fbRawBp6 = parseFloat(document.getElementById('fbInput').value);
+        Fb = (Number.isFinite(fbRawBp6) && fbRawBp6 > 0) ? fbRawBp6 : fbOptBp6;
         syncSliderRange('fbVrRange', parseFloat(FbVr.toFixed(1)), 15);
       }
       if (isBP) syncSliderRange('vrRange', Vr, 5);
@@ -5585,7 +5705,7 @@ function recalculate() {
   // Síntese dos 13 Gráficos (suporta Selada, Dutada, BP4, BP6 e Planar TMM)
   generateSimulationData({
     boxType, Fs, Qes, Qms, Re, Le_mH, Sd_m2, Vas, Xmax_mm, Pe, Qts,
-    Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, hpfType, lpfHz, lpfType, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
+    Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, hpfType, lpfHz, lpfType, dspIssues, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
     fPipe1, velLimit, nDrivers, deltaT, powerCompDb, fQuarterWave, fHalfWave, planarTunnelMm, planarStyle,
     planarSt_m2: planarTunnelGeom.St_m2,
     planarRh_m: planarTunnelGeom.rh_m,
@@ -5682,9 +5802,12 @@ function generateSimulationData(p) {
 
   // EPDR exato segundo AES (Eric Benjamin, JAES 1994 / Keith Howard 2007)
   const computeEpdrAes = (zMag, phaseRad) => {
-    const absPhi = Math.min(Math.PI / 2 - 1e-4, Math.abs(phaseRad || 0));
+    if (!Number.isFinite(zMag) || zMag <= 0) return NaN;
+    const phi = Number.isFinite(phaseRad) ? phaseRad : 0;
+    const absPhi = Math.min(Math.PI / 2 - 1e-4, Math.abs(phi));
     const den = (1.0 - Math.sin((5.0 * Math.PI) / 6.0 + (2.0 * absPhi) / 3.0)) * Math.sin((5.0 * Math.PI) / 6.0 - absPhi / 3.0);
-    return (den > 1e-9) ? (0.25 * zMag) / den : zMag;
+    const epdr = (den > 1e-9) ? (0.25 * zMag) / den : zMag;
+    return Math.min(zMag, Math.max(0, epdr));
   };
 
   // Modelo físico acoplado Band-Pass (pré-computado uma vez por varredura)
@@ -5959,11 +6082,23 @@ function generateSimulationData(p) {
     G13.push(gdMs);
   }
 
+  // FIS-07: Asserção pós-varredura de passividade elétrica (|Z(f)| >= Re(T))
+  let minZMag = Infinity;
+  let passivityOk = true;
+  const reMinPass = (Number.isFinite(p.Re) && p.Re > 0) ? p.Re * 0.999 : 0;
+  for (let i = 0; i < G11.length; i++) {
+    const zv = G11[i];
+    if (!Number.isFinite(zv) || zv < reMinPass) passivityOk = false;
+    if (Number.isFinite(zv) && zv < minZMag) minZMag = zv;
+  }
+
+  const epdrValid = Number.isFinite(minEpdrVal) && minEpdrVal > 0 && minEpdrVal < 1e8;
+  const safeMinEpdr = epdrValid ? minEpdrVal : (Number.isFinite(p.Re) && p.Re > 0 ? p.Re : 0);
   const epdrEl = document.getElementById('kpiEpdrVal');
   const epdrSub = document.getElementById('kpiEpdrSub');
   if (epdrEl && epdrSub) {
-    epdrEl.textContent = minEpdrVal.toFixed(2) + ' Ω';
-    epdrSub.textContent = '@ ' + minEpdrFreq.toFixed(1) + ' Hz (Re=' + p.Re.toFixed(1) + 'Ω)';
+    epdrEl.textContent = safeMinEpdr > 0 ? (safeMinEpdr.toFixed(2) + ' Ω') : '—';
+    epdrSub.textContent = safeMinEpdr > 0 ? ('@ ' + minEpdrFreq.toFixed(1) + ' Hz (Re=' + p.Re.toFixed(1) + 'Ω)') : '—';
   }
 
   // G6_SPLMaxReal: SPL máximo acústico real limitado por min(Pe térmico, Xmax mecânico)
@@ -6082,8 +6217,11 @@ function generateSimulationData(p) {
       nDrivers: p.nDrivers,
       deltaT: p.deltaT,
       powerCompDb: p.powerCompDb,
-      minEpdrVal: minEpdrVal,
+      minEpdrVal: safeMinEpdr,
       minEpdrFreq: minEpdrFreq,
+      passivityOk: passivityOk,
+      minZMag: Number.isFinite(minZMag) ? minZMag : 0,
+      dspIssues: Array.isArray(p.dspIssues) ? p.dspIssues : [],
       Vb: p.Vb,
       bpMetrics: p.bpMetrics || null,
       planarMetrics: p.planarMetrics || null
@@ -7553,6 +7691,11 @@ function escapeHtmlStr(str) {
     .replace(/'/g, '&#39;');
 }
 
+function fmtNumSafe(val, dec = 1, fallback = '—') {
+  const n = Number(val);
+  return Number.isFinite(n) ? n.toFixed(dec) : fallback;
+}
+
 function estimateDriverCutoutAndFlange(diaIn) {
   const d = Math.max(4, parseFloat(diaIn) || 12);
   const table = [
@@ -7581,7 +7724,8 @@ function validateBuildGeometry(opts) {
   const issues = [];
   const A = Math.max(50, opts.A || 800);
   const B = Math.max(50, opts.B || 450);
-  const t = Math.max(6, opts.t || 18);
+  const tRaw = parseFloat(opts.t);
+  const t = Math.max(6, Number.isFinite(tRaw) ? tRaw : 18);
   const C_min = Math.min(opts.C_top || 300, opts.D_bot || 300);
   const nDrivers = Math.max(1, opts.nDrivers || 1);
   const tsDia = parseFloat(opts.tsDia) || 12;
@@ -7589,6 +7733,24 @@ function validateBuildGeometry(opts) {
   const driverName = String(opts.driverName || '');
   const boxType = opts.boxType || 'bass-reflex';
   const isVented = (boxType === 'bass-reflex' || boxType === 'bp4' || boxType === 'bp6');
+
+  // CAD-10: Espessura estrutural mínima MDF >= 15 mm
+  if (Number.isFinite(tRaw) && tRaw < 15) {
+    issues.push({
+      level: 'critical',
+      code: 'MDF_THICKNESS_TOO_THIN',
+      msg: `Espessura de MDF (${tRaw.toFixed(0)} mm) abaixo do mínimo estrutural de 15 mm (risco de ressonância e ruptura de painel).`
+    });
+  }
+  const slotWallThickRaw = parseFloat(opts.slotWallThick);
+  const portTypePre = opts.portType || 'round';
+  if (isVented && (portTypePre === 'slot' || portTypePre === 'slot_wall') && Number.isFinite(slotWallThickRaw) && slotWallThickRaw < 15) {
+    issues.push({
+      level: 'critical',
+      code: 'PORT_WALL_TOO_THIN',
+      msg: `Espessura da parede do duto régua (${slotWallThickRaw.toFixed(0)} mm) abaixo do mínimo estrutural de 15 mm.`
+    });
+  }
 
   const pistonDiaCm = 2.0 * Math.sqrt(Math.max(1, Sd_cm2) / Math.PI);
   const diaRatio = pistonDiaCm / (tsDia * 2.54);
@@ -7960,15 +8122,46 @@ function validateBuildGeometry(opts) {
     }
   }
 
-  // 5. Verificação matemática de bordas e colisões par-a-par (no mesmo painel)
+  // 5. Verificação matemática de bordas e colisões par-a-par (no mesmo painel) — CAD-08 & CAD-09
   let hasBorderError = false;
   let hasBpDepthError = false;
   let hasCollisionError = false;
+  const minEdgeMdf = 15; // CAD-09: margem estrutural mínima de borda (15 mm)
+
+  const getHoleBbox = h => {
+    if (h.shape === 'slot') {
+      return { x0: h.xInt - h.w / 2, x1: h.xInt + h.w / 2, y0: h.yInt - h.h / 2, y1: h.yInt + h.h / 2 };
+    }
+    if (h.shape === 'triangle') {
+      const aT = h.triA || 100, bT = h.triB || 100;
+      const cIdx = h.cornerIdx || 0;
+      const x0 = (cIdx === 0 || cIdx === 2) ? 0 : (A - aT);
+      const y0 = (cIdx === 0 || cIdx === 1) ? 0 : (B - bT);
+      return { x0, x1: x0 + aT, y0, y1: y0 + bT };
+    }
+    const r = (h.kind === 'driver') ? (h.flangeDia / 2) : (h.dia / 2);
+    return { x0: h.xInt - r, x1: h.xInt + r, y0: h.yInt - r, y1: h.yInt + r };
+  };
 
   holes.forEach(h => {
-    if (h.panel === 'topo') return;
+    if (h.panel === 'topo') {
+      // CAD-09: Verifica limites no tampo superior [0..A] x [0..C_min] (a aba externa do tampo já possui margem MDF >= t)
+      if (h.shape === 'round') {
+        const rCheck = h.dia / 2;
+        if (h.xInt - rCheck < -0.5 || h.xInt + rCheck > A + 0.5 || h.yInt - rCheck < -0.5 || h.yInt + rCheck > C_min + 0.5) {
+          h.collision = true;
+          hasBorderError = true;
+        }
+      } else if (h.shape === 'slot') {
+        if (h.xInt - h.w / 2 < -0.5 || h.xInt + h.w / 2 > A + 0.5 || h.h > C_min + 0.5) {
+          h.collision = true;
+          hasBorderError = true;
+        }
+      }
+      return;
+    }
     if (h.panel && h.panel.startsWith('divisoria')) {
-      const rCheck = (h.kind === 'driver') ? (h.flangeDia / 2) : (h.dia / 2 + 8);
+      const rCheck = (h.kind === 'driver') ? (h.flangeDia / 2) : (h.dia / 2 + minEdgeMdf);
       if (h.xInt - rCheck < 0 || h.xInt + rCheck > C_min) {
         h.collision = true;
         hasBpDepthError = true;
@@ -7980,14 +8173,21 @@ function validateBuildGeometry(opts) {
       return;
     }
     if (h.shape === 'round') {
-      const rCheck = (h.kind === 'driver') ? (h.flangeDia / 2) : (h.dia / 2 + 8);
+      // CAD-09: duto redondo exige margem de borda >= 15 mm (driver usa flangeOD)
+      const rCheck = (h.kind === 'driver') ? (h.flangeDia / 2) : (h.dia / 2 + minEdgeMdf);
       const minYBound = (h.kind === 'driver' && boxType === 'planar' && planarGeomOpt && planarGeomOpt.style === 'square' && planarGeomOpt.C4) ? Math.max(0, B - planarGeomOpt.C4) : 0;
-      if (h.xInt - rCheck < 0 || h.xInt + rCheck > A || h.yInt - rCheck < minYBound || h.yInt + rCheck > B) {
+      if (h.xInt - rCheck < -0.5 || h.xInt + rCheck > A + 0.5 || h.yInt - rCheck < minYBound - 0.5 || h.yInt + rCheck > B + 0.5) {
         h.collision = true;
         hasBorderError = true;
       }
     } else if (h.shape === 'slot') {
       if (h.xInt - h.w / 2 < -0.5 || h.xInt + h.w / 2 > A + 0.5 || h.yInt - h.h / 2 < -0.5 || h.yInt + h.h / 2 > B + 0.5) {
+        h.collision = true;
+        hasBorderError = true;
+      }
+    } else if (h.shape === 'triangle') {
+      const bb = getHoleBbox(h);
+      if (bb.x0 < -0.5 || bb.x1 > A + 0.5 || bb.y0 < -0.5 || bb.y1 > B + 0.5) {
         h.collision = true;
         hasBorderError = true;
       }
@@ -8017,6 +8217,51 @@ function validateBuildGeometry(opts) {
           h1.collision = true;
           h2.collision = true;
           hasCollisionError = true;
+        }
+      } else if (h1.shape === 'slot' && h2.shape === 'slot') {
+        // CAD-08: Sobreposição slot x slot (incl. BP6 topo e réguas verticais)
+        const b1 = getHoleBbox(h1), b2 = getHoleBbox(h2);
+        const gap = 4; // folga mínima entre aberturas slot
+        if (b1.x0 < b2.x1 + gap && b1.x1 + gap > b2.x0 && b1.y0 < b2.y1 + gap && b1.y1 + gap > b2.y0) {
+          h1.collision = true;
+          h2.collision = true;
+          hasCollisionError = true;
+        }
+      } else if (h1.shape === 'triangle' || h2.shape === 'triangle') {
+        // CAD-08: Sobreposição envolvendo duto triângulo (triangle x round, triangle x triangle, triangle x slot)
+        if (h1.shape === 'triangle' && h2.shape === 'triangle') {
+          const b1 = getHoleBbox(h1), b2 = getHoleBbox(h2);
+          if (b1.x0 < b2.x1 + 4 && b1.x1 + 4 > b2.x0 && b1.y0 < b2.y1 + 4 && b1.y1 + 4 > b2.y0) {
+            h1.collision = true;
+            h2.collision = true;
+            hasCollisionError = true;
+          }
+        } else {
+          const tri = h1.shape === 'triangle' ? h1 : h2;
+          const oth = h1.shape === 'triangle' ? h2 : h1;
+          const bt = getHoleBbox(tri);
+          if (oth.shape === 'round') {
+            const r = (oth.kind === 'driver') ? (oth.flangeDia / 2) : (oth.dia / 2);
+            // Verifica distância do centro do círculo à hipotenusa do triângulo de canto
+            const aT = tri.triA || 100, bT = tri.triB || 100;
+            const cIdx = tri.cornerIdx || 0;
+            const dxCorner = (cIdx === 0 || cIdx === 2) ? oth.xInt : (A - oth.xInt);
+            const dyCorner = (cIdx === 0 || cIdx === 1) ? oth.yInt : (B - oth.yInt);
+            // Ponto interno ao triângulo se dx/aT + dy/bT <= 1; distância à hipotenusa = (dx/aT + dy/bT - 1) / hypot(1/aT, 1/bT)
+            const distHyp = (dxCorner / aT + dyCorner / bT - 1.0) / Math.hypot(1.0 / aT, 1.0 / bT);
+            if (distHyp < r + minGap * 0.5) {
+              h1.collision = true;
+              h2.collision = true;
+              hasCollisionError = true;
+            }
+          } else {
+            const bo = getHoleBbox(oth);
+            if (bt.x0 < bo.x1 + 4 && bt.x1 + 4 > bo.x0 && bt.y0 < bo.y1 + 4 && bt.y1 + 4 > bo.y0) {
+              h1.collision = true;
+              h2.collision = true;
+              hasCollisionError = true;
+            }
+          }
         }
       }
     }
@@ -8053,21 +8298,36 @@ function validateBuildGeometry(opts) {
     ? Math.max(lvMm, bpChambers.lvRearMm)
     : lvMm;
   const lvInternalCheck = Math.max(0, lvMaxCheck - portOffsetVal);
+  // CAD-01: Folga mínima física na boca interna do duto: max(40, 0.50*D_int) cil./tri. e max(40, 0.75*H) slot
+  const ductInnerDiaMm = (parseFloat(opts.ductDia) || 4.0) * 25.4;
+  const triEqDiaMm = Math.sqrt(Math.max(1, 2.0 * triAmm * triBmm / Math.PI));
+  const mouthDimMm = isSlot ? slotHmm : (isTri ? triEqDiaMm : ductInnerDiaMm);
+  const minPortClearanceMm = isSlot
+    ? Math.max(40, 0.75 * slotHmm)
+    : Math.max(40, 0.50 * mouthDimMm);
+  const warnPortClearanceMm = Math.max(minPortClearanceMm + 5, 1.0 * mouthDimMm);
+
   const routePlan = computePortRoutingPlan({
     portRouting, portType, slotOrient, A, B, C_min, t,
     lvMm: lvInternalCheck, slotHmm, slotWallThick: slotWallThick || t,
-    odMm: ductHoleDia, numDucts
+    odMm: ductHoleDia, numDucts, hasCenterDiv, minClearanceMm: minPortClearanceMm
   });
   const clearanceMm = isVented
     ? (isBp ? (B - lvInternalCheck) : routePlan.clearanceMm)
     : C_min;
   if (isVented) {
-    const deqMm = ((opts.portGeom && opts.portGeom.DeqM) ? opts.portGeom.DeqM * 1000.0 : ductHoleDia);
     if (lvMm <= 0) {
       issues.push({
         level: 'critical',
         code: 'PORT_LV_NEGATIVE',
         msg: `Comprimento cortado do duto VF Lv = ${(lvMm / 10).toFixed(1)} cm é nulo/negativo. Aumente a área do duto ou baixe Fb.`
+      });
+    } else if (lvMm <= t) {
+      // CAD-02: 0 < Lv <= espessura do painel t
+      issues.push({
+        level: 'critical',
+        code: 'PORT_LV_SHORTER_THAN_WALL',
+        msg: `Comprimento do duto Lv = ${lvMm.toFixed(1)} mm é menor ou igual à espessura do MDF (${t.toFixed(0)} mm) — duto não atravessa o baffle. Aumente a área do duto ou baixe Fb.`
       });
     } else if (boxType === 'bp6' && bpChambers && bpChambers.lvRearMm <= 0) {
       issues.push({
@@ -8075,12 +8335,18 @@ function validateBuildGeometry(opts) {
         code: 'PORT_LV_NEGATIVE',
         msg: `Comprimento cortado do duto VR Lv_VR é nulo/negativo. Ajuste Diâm. VR / Qtde. VR ou Sintonia VR.`
       });
+    } else if (boxType === 'bp6' && bpChambers && bpChambers.lvRearMm <= t) {
+      issues.push({
+        level: 'critical',
+        code: 'PORT_LV_SHORTER_THAN_WALL',
+        msg: `Comprimento do duto VR Lv_VR = ${bpChambers.lvRearMm.toFixed(1)} mm ≤ espessura do MDF (${t.toFixed(0)} mm).`
+      });
     } else if (!isBp && portRouting === 'l_bend') {
       if (!routePlan.fits) {
         issues.push({
           level: 'critical',
           code: 'PORT_DEPTH_COLLISION',
-          msg: `Duto em L (Lv = ${lvMaxCheck.toFixed(0)} mm) excede o espaço interno mesmo dobrado em 90° (Trecho 1 = ${routePlan.l1Mm.toFixed(0)} mm, Trecho 2 = ${routePlan.l2Mm.toFixed(0)} mm > limite ${routePlan.maxL2Mm.toFixed(0)} mm).`
+          msg: `Duto em L (Lv = ${lvMaxCheck.toFixed(0)} mm) excede o espaço interno mesmo dobrado em 90° (Trecho 1 = ${routePlan.l1Mm.toFixed(0)} mm, Trecho 2 = ${routePlan.l2Mm.toFixed(0)} mm > limite ${routePlan.maxL2Mm.toFixed(0)} mm${hasCenterDiv ? ' c/ divisória central' : ''}).`
         });
       } else {
         issues.push({
@@ -8090,11 +8356,11 @@ function validateBuildGeometry(opts) {
         });
       }
     } else if (!isBp && portRouting === 'side_firing') {
-      if (clearanceMm < 40) {
+      if (clearanceMm < minPortClearanceMm) {
         issues.push({
           level: 'critical',
           code: 'PORT_DEPTH_COLLISION',
-          msg: `Duto Lateral Side-Firing (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na largura interna A = ${A.toFixed(0)} mm (folga ${clearanceMm.toFixed(0)} mm < 40 mm).`
+          msg: `Duto Lateral Side-Firing (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na largura interna A = ${A.toFixed(0)} mm (folga ${clearanceMm.toFixed(0)} mm < mínimo ${Math.round(minPortClearanceMm)} mm).`
         });
       } else {
         issues.push({
@@ -8103,19 +8369,19 @@ function validateBuildGeometry(opts) {
           msg: `Duto Lateral (Side-Firing) montado na face direita ao longo de A = ${A.toFixed(0)} mm (Lv = ${lvMaxCheck.toFixed(0)} mm, folga oposta ${clearanceMm.toFixed(0)} mm).`
         });
       }
-    } else if (clearanceMm < 40) {
+    } else if (clearanceMm < minPortClearanceMm) {
       issues.push({
         level: 'critical',
         code: 'PORT_DEPTH_COLLISION',
         msg: isBp
-          ? `Duto de topo (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na altura interna B = ${B.toFixed(0)} mm (folga inferior ${clearanceMm.toFixed(0)} mm < 40 mm).`
-          : `Duto (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na profundidade interna mínima C = ${C_min.toFixed(0)} mm (folga traseira ${clearanceMm.toFixed(0)} mm < 40 mm).`
+          ? `Duto de topo (Lv = ${lvMaxCheck.toFixed(0)} mm) não cabe na altura interna B = ${B.toFixed(0)} mm (folga inferior ${clearanceMm.toFixed(0)} mm < mínimo ${Math.round(minPortClearanceMm)} mm).`
+          : `Duto (Lv = ${lvMaxCheck.toFixed(0)} mm) viola folga mínima na boca interna (folga ${clearanceMm.toFixed(0)} mm < ${Math.round(minPortClearanceMm)} mm = ${isSlot ? 'max(40, 0.75×H)' : 'max(40, 0.50×D)'}).`
       });
-    } else if (clearanceMm < Math.max(50, deqMm * 0.75)) {
+    } else if (clearanceMm < warnPortClearanceMm) {
       issues.push({
         level: 'warn',
         code: 'PORT_CLEARANCE_TIGHT',
-        msg: `Folga traseira atrás do duto (${clearanceMm.toFixed(0)} mm) abaixo do ideal (≥ ${Math.round(Math.max(50, deqMm * 0.75))} mm).`
+        msg: `Folga atrás da boca do duto (${clearanceMm.toFixed(0)} mm) abaixo do ideal 1.0×${isSlot ? 'H' : 'D'} (≥ ${Math.round(warnPortClearanceMm)} mm).`
       });
     }
   }
@@ -8189,44 +8455,55 @@ function computePortRoutingPlan(opts) {
   const slotHmm = Math.max(15, Number(opts.slotHmm) || 60);
   const slotWallThick = Math.max(6, Number(opts.slotWallThick) || t);
   const odMm = Math.max(25, Number(opts.odMm) || 104.6);
+  const numDucts = Math.max(1, parseInt(opts.numDucts) || 1);
+  const hasCenterDiv = Boolean(opts.hasCenterDiv);
+  // CAD-01: folga mínima respeita regra física max(40, 0.75*H) ou max(40, 0.50*D)
+  const minClearanceMm = Number.isFinite(opts.minClearanceMm)
+    ? opts.minClearanceMm
+    : (isSlot ? Math.max(40, 0.75 * slotHmm) : Math.max(40, 0.50 * odMm));
+  // CAD-05: largura útil real por câmara quando existe divisória central
+  const availA = hasCenterDiv ? Math.max(60, (A - t) / 2) : A;
 
   if (routing === 'side_firing') {
-    const clearanceMm = A - lvMm;
+    const clearanceMm = availA - lvMm;
     return {
-      routing, fits: clearanceMm >= 40, clearanceMm,
+      routing, fits: clearanceMm >= minClearanceMm, clearanceMm,
       l1Mm: lvMm, l2Mm: 0, bendArcMm: 0, clearBackMm: clearanceMm, maxL2Mm: 0
     };
   }
   if (routing === 'l_bend') {
     if (isSlot) {
-      const clearBackMm = Math.max(45, slotHmm);
+      const clearBackMm = Math.max(minClearanceMm, slotHmm);
       const l1Max = C_min - clearBackMm;
       const l1Mm = Math.max(40, Math.min(lvMm, l1Max));
       // Comprimento efetivo de linha de centro no trecho 1 + curva 90° (Small / Dickason)
       const bendArcMm = slotWallThick + slotHmm * 0.5;
       const l2Mm = Math.max(0, lvMm - l1Mm - bendArcMm);
-      const transSpan = (slotOrient === 'horizontal') ? B : A;
-      const maxL2Mm = Math.max(0, transSpan - slotHmm - slotWallThick - 50);
+      const transSpan = (slotOrient === 'horizontal') ? B : availA;
+      const maxL2Mm = Math.max(0, transSpan - slotHmm - slotWallThick - Math.max(50, minClearanceMm));
       const fits = (l1Max >= 40) && (l2Mm <= maxL2Mm);
-      const clearanceMm = Math.min(clearBackMm, maxL2Mm - l2Mm + 50);
+      const clearanceMm = Math.min(clearBackMm, maxL2Mm - l2Mm + Math.max(50, minClearanceMm));
       return { routing, fits, clearanceMm, l1Mm, l2Mm, bendArcMm, clearBackMm, maxL2Mm };
     } else {
       // Duto cilíndrico / aeroport com joelho 90° (raio médio ~0.85 * OD, arco = pi/2 * R)
       const rElbow = Math.max(45, odMm * 0.85);
       const bendArcMm = (Math.PI / 2) * rElbow;
-      const clearBackMm = Math.max(45, odMm * 0.55);
+      const clearBackMm = Math.max(minClearanceMm, odMm * 0.55);
       const l1Max = C_min - clearBackMm - rElbow;
       const l1Mm = Math.max(40, Math.min(lvMm, l1Max));
       const l2Mm = Math.max(0, lvMm - l1Mm - bendArcMm);
-      const maxL2Mm = Math.max(0, A - odMm - 60);
+      // CAD-05: se múltiplos dutos na mesma câmara (sem divisória), reserva espaço lateral por duto
+      const ductsPerChamber = hasCenterDiv ? Math.ceil(numDucts / 2) : numDucts;
+      const perDuctSpan = ductsPerChamber > 1 ? (availA / ductsPerChamber) : availA;
+      const maxL2Mm = Math.max(0, perDuctSpan - odMm - Math.max(60, minClearanceMm));
       const fits = (l1Max >= 40) && (l2Mm <= maxL2Mm);
-      const clearanceMm = Math.min(clearBackMm, maxL2Mm - l2Mm + 60);
+      const clearanceMm = Math.min(clearBackMm, maxL2Mm - l2Mm + Math.max(60, minClearanceMm));
       return { routing, fits, clearanceMm, l1Mm, l2Mm, bendArcMm, clearBackMm, maxL2Mm, rElbow };
     }
   }
   const clearanceMm = C_min - lvMm;
   return {
-    routing: 'straight', fits: clearanceMm >= 40, clearanceMm,
+    routing: 'straight', fits: clearanceMm >= minClearanceMm, clearanceMm,
     l1Mm: lvMm, l2Mm: 0, bendArcMm: 0, clearBackMm: clearanceMm, maxL2Mm: 0
   };
 }
@@ -9023,6 +9300,46 @@ function updateWoodlock() {
   };
   lastBuildPack.geometry = buildPgsGeometryModel(lastBuildPack);
 
+  // CAD-11 & CAD-12: Propaga falhas de chapa MDF (2750x1830) e PGS G04/G08 para o bloqueio P0
+  const pgsModel = lastBuildPack.geometry;
+  const nestingRes = pgsModel && pgsModel.manufacturing ? pgsModel.manufacturing.nesting : null;
+  if (nestingRes && Array.isArray(nestingRes.oversizedParts) && nestingRes.oversizedParts.length > 0) {
+    const names = nestingRes.oversizedParts.map(p => `${p.name} (${p.w}×${p.h} mm)`).join(', ');
+    validation.issues.push({
+      level: 'critical',
+      code: 'SHEET_OVERFLOW_P0',
+      msg: `Peça(s) excedem a chapa MDF padrão (${nestingRes.sheetW}×${nestingRes.sheetH} mm): ${names}.`
+    });
+  }
+  if (nestingRes && Array.isArray(nestingRes.invalidParts) && nestingRes.invalidParts.length > 0) {
+    const names = nestingRes.invalidParts.map(p => `${p.name} (${p.w}×${p.h} mm)`).join(', ');
+    validation.issues.push({
+      level: 'critical',
+      code: 'PART_DIM_INVALID_P0',
+      msg: `Peça(s) com cota nula ou negativa (≤ 0 mm): ${names}.`
+    });
+  }
+  const pgsChecks = (pgsModel && Array.isArray(pgsModel.validation)) ? pgsModel.validation : [];
+  const g04Check = pgsChecks.find(c => c.code === 'G04');
+  if (g04Check && !g04Check.pass) {
+    validation.issues.push({
+      level: 'critical',
+      code: 'PGS_G04_VOLUME_DRIFT',
+      msg: `Falha PGS G04 (desvio volumétrico > 0.35 L): ${g04Check.detail}.`
+    });
+  }
+  const g08Check = pgsChecks.find(c => c.code === 'G08');
+  if (g08Check && !g08Check.pass && !validation.issues.some(i => i.code === 'PORT_DEPTH_COLLISION' || i.code === 'BAFFLE_HOLE_COLLISION')) {
+    validation.issues.push({
+      level: 'critical',
+      code: 'PGS_G08_3D_COLLISION',
+      msg: `Falha PGS G08 (colisão 3D): ${g08Check.detail}.`
+    });
+  }
+  validation.criticalCount = validation.issues.filter(i => i.level === 'critical').length;
+  validation.warnCount = validation.issues.filter(i => i.level === 'warn').length;
+  validation.valid = (validation.criticalCount === 0);
+
   const summaryBox = document.getElementById('wlSummaryBox');
   if (summaryBox) {
     summaryBox.innerHTML = `
@@ -9120,6 +9437,24 @@ function updateWoodlock() {
     btnExpFc.style.opacity = validation.valid ? '1' : '0.45';
     btnExpFc.title = validation.valid ? 'Exportar macro autocontida (.FCMacro) para construção 3D B-Rep no FreeCAD 1.1' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
   }
+  const btnPrintA4 = document.getElementById('btnPrintDossierA4');
+  if (btnPrintA4) {
+    btnPrintA4.disabled = !validation.valid;
+    btnPrintA4.style.opacity = validation.valid ? '1' : '0.45';
+    btnPrintA4.title = validation.valid ? 'Imprimir / Salvar Dossiê Técnico A4 em PDF' : 'Bloqueado: corrija os erros críticos de geometria antes de imprimir';
+  }
+  const menuExpHtml = document.getElementById('menuExportBuildPackHtml');
+  if (menuExpHtml) {
+    menuExpHtml.disabled = !validation.valid;
+    menuExpHtml.style.opacity = validation.valid ? '1' : '0.45';
+    menuExpHtml.title = validation.valid ? 'Exportar Pacote de Obra (HTML)' : 'Bloqueado: corrija os erros críticos de geometria antes de exportar';
+  }
+  const menuPrintA4 = document.getElementById('menuPrintBuildPackA4');
+  if (menuPrintA4) {
+    menuPrintA4.disabled = !validation.valid;
+    menuPrintA4.style.opacity = validation.valid ? '1' : '0.45';
+    menuPrintA4.title = validation.valid ? 'Imprimir / Salvar Dossiê A4 (PDF)' : 'Bloqueado: corrija os erros críticos de geometria antes de imprimir';
+  }
 
   // Verificador de Alojamento no Veículo
   const trunkEl = document.getElementById('wlTrunkResult');
@@ -9197,11 +9532,16 @@ let wlExplodeRatio = 0.0;
 // ============================================================================
 function computeSheetNesting2D(parts, sheetW = 2750, sheetH = 1830, kerf = 3) {
   const flatItems = [];
+  const oversizedParts = [];
+  const invalidParts = [];
   (parts || []).forEach(p => {
     if (p.kind === 'port' && p.area <= 0) return; // tubos PVC não entram na chapa MDF
     const w = p.cutSize ? p.cutSize.w : p.w;
     const h = p.cutSize ? p.cutSize.h : p.h;
-    if (!(w > 0 && h > 0)) return;
+    if (!(Number.isFinite(w) && Number.isFinite(h) && w > 0 && h > 0)) {
+      invalidParts.push({ partId: p.id || p.name, name: p.name || 'Peça', w: Number.isFinite(w) ? +w.toFixed(1) : 0, h: Number.isFinite(h) ? +h.toFixed(1) : 0 });
+      return;
+    }
     const count = Math.max(1, parseInt(p.qty) || 1);
     for (let i = 0; i < count; i++) {
       flatItems.push({ partId: p.id || p.name, name: p.name, kind: p.kind, w: +w.toFixed(1), h: +h.toFixed(1) });
@@ -9225,7 +9565,10 @@ function computeSheetNesting2D(parts, sheetW = 2750, sheetH = 1830, kerf = 3) {
       { w: item.w, h: item.h, rotated: false },
       { w: item.h, h: item.w, rotated: true }
     ].filter(o => o.w <= sheetW && o.h <= sheetH);
-    if (tryOrientations.length === 0) return;
+    if (tryOrientations.length === 0) {
+      oversizedParts.push({ partId: item.partId, name: item.name, w: item.w, h: item.h });
+      return;
+    }
 
     for (let sIdx = 0; sIdx < sheets.length && !placed; sIdx++) {
       const sh = sheets[sIdx];
@@ -9266,7 +9609,9 @@ function computeSheetNesting2D(parts, sheetW = 2750, sheetH = 1830, kerf = 3) {
     sheetW, sheetH, kerfMm: kerf,
     sheetsCount: sheets.length,
     utilizationPct: +((usedAreaMm2 / totalSheetAreaMm2) * 100).toFixed(1),
-    placements
+    placements,
+    oversizedParts,
+    invalidParts
   };
 }
 
@@ -9335,8 +9680,8 @@ function validatePgsGeometry(model, p0Validation) {
   const g08Pass = p0Crit.length === 0 && !ductColl3d;
   checks.push({ code: 'G08', label: 'Interferências e colisões (2D + 3D)', pass: g08Pass, detail: g08Pass ? 'Zero colisões de furos e sólidos' : `${p0Crit.map(i => i.code).join(', ')}${ductColl3d ? ' + DUCT_3D_COLLISION' : ''}` });
 
-  // G09: Comprimento físico dos dutos
-  const g09Pass = (model.ducts || []).every(du => du.lvMm >= 0);
+  // G09: Comprimento físico dos dutos (CAD-02: exige Lv > espessura do painel t)
+  const g09Pass = (model.ducts || []).every(du => Number.isFinite(du.lvMm) && du.lvMm > t);
   checks.push({ code: 'G09', label: 'Comprimento físico dos dutos (Lv)', pass: g09Pass, detail: model.ducts.length ? model.ducts.map(d => `${d.id}=${d.lvMm}mm`).join(', ') : 'Sem duto (selada/planar)' });
 
   // G10: Recortes e furos vinculados a partId válido
@@ -10790,28 +11135,29 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl, explodedDataUr
   const hpfTypeNow = (currentCurves && currentCurves.meta && currentCurves.meta.hpfType) || document.getElementById('hpfType')?.value || 'LR24';
   const lpfHzNow = (currentCurves && currentCurves.meta && currentCurves.meta.lpfHz) || 0;
   const lpfTypeNow = (currentCurves && currentCurves.meta && currentCurves.meta.lpfType) || document.getElementById('lpfType')?.value || 'LR24';
-  const hpfNote = ac.hpfEnabled ? `HPF ${hpfTypeNow} @ ${ac.hpfHz.toFixed(0)} Hz` : 'HPF desligado';
-  const lpfNote = lpfHzNow > 0 ? `LPF ${lpfTypeNow} @ ${lpfHzNow.toFixed(0)} Hz` : 'LPF desligado';
-  const dtNote = (ac.deltaT && ac.deltaT > 0) ? `Bobina ΔT +${ac.deltaT} °C` : 'Bobina ΔT 0 °C (nominal)';
+  const hpfNote = ac.hpfEnabled ? `HPF ${hpfTypeNow} @ ${fmtNumSafe(ac.hpfHz, 0)} Hz` : 'HPF desligado';
+  const lpfNote = lpfHzNow > 0 ? `LPF ${lpfTypeNow} @ ${fmtNumSafe(lpfHzNow, 0)} Hz` : 'LPF desligado';
+  const dtNote = (ac.deltaT && ac.deltaT > 0) ? `Bobina ΔT +${fmtNumSafe(ac.deltaT, 0)} °C` : 'Bobina ΔT 0 °C (nominal)';
   const roomMeta = (currentCurves && currentCurves.meta && currentCurves.meta.room) || null;
   const envNote = (profile.id === 'architectural' && roomMeta)
-    ? `Sala ${roomMeta.L.toFixed(1)}×${roomMeta.W.toFixed(1)}×${roomMeta.H.toFixed(1)} m (${roomMeta.placement}, RT60 ${roomMeta.rt60.toFixed(2)} s, f_S ${roomMeta.fSchroeder.toFixed(0)} Hz)`
-    : `Cabine automotiva (F100 = ${(ac.F100 || 101).toFixed(1)} Hz)`;
+    ? `Sala ${fmtNumSafe(roomMeta.L, 1)}×${fmtNumSafe(roomMeta.W, 1)}×${fmtNumSafe(roomMeta.H, 1)} m (${roomMeta.placement}, RT60 ${fmtNumSafe(roomMeta.rt60, 2)} s, f_S ${fmtNumSafe(roomMeta.fSchroeder, 0)} Hz)`
+    : `Cabine automotiva (F100 = ${fmtNumSafe(ac.F100 || 101, 1)} Hz)`;
   const mountLabel = (ac.mountMode === 'inverted') ? 'Invertida (Ímã p/ fora · Vsub=0)' : 'Normal (Ímã p/ dentro)';
   const bpChambersNote = (ac.bpChambers && ac.bpChambers.isBp)
-    ? ` &nbsp;|&nbsp; <b>Câmaras BP:</b> Traseira A = ${ac.bpChambers.A_rear.toFixed(0)} mm (VR) · Frontal G = ${ac.bpChambers.A_front.toFixed(0)} mm (VF)`
+    ? ` &nbsp;|&nbsp; <b>Câmaras BP:</b> Traseira A = ${fmtNumSafe(ac.bpChambers.A_rear, 0)} mm (VR) · Frontal G = ${fmtNumSafe(ac.bpChambers.A_front, 0)} mm (VF)`
     : '';
   const bandArr = Array.isArray(ac.band) ? ac.band : [10, 1000];
   const isSealedLike = (ac.boxType === 'sealed' || ac.boxType === 'free-air');
   const tuneLabel = isSealedLike ? 'Ressonância Fc / Corte F3' : 'Sintonia Fb / Corte F3';
   const tuneValue = isSealedLike
-    ? `${(ac.fc || 0).toFixed(2)} Hz / ${ac.F3.toFixed(2)} Hz`
-    : `${ac.Fb.toFixed(2)} Hz / ${ac.F3.toFixed(2)} Hz`;
+    ? `${fmtNumSafe(ac.fc || 0, 2)} Hz / ${fmtNumSafe(ac.F3, 2)} Hz`
+    : `${fmtNumSafe(ac.Fb, 2)} Hz / ${fmtNumSafe(ac.F3, 2)} Hz`;
   const lvMmVal = Number.isFinite(ac.lvMm) ? ac.lvMm : Math.round((ac.LvCm || 0) * 10.0);
-  const lvCmVal = (lvMmVal / 10.0).toFixed(1);
-  const vSubVal = Number.isFinite(ac.Vsub) ? ac.Vsub : (d.Vsub * d.nDrivers);
-  const vBracingVal = Number.isFinite(ac.Vbracing) ? ac.Vbracing : Math.max(0, +(ac.Vbruto - ac.Vb - (ac.Vr || 0) - vSubVal - (ac.Vduto || 0)).toFixed(2));
-  const volBalanceTxt = `Vb ${ac.Vb.toFixed(1)} L${ac.Vr > 0 ? ` + VR ${ac.Vr.toFixed(1)} L` : ''} + Vsub ${vSubVal.toFixed(1)} L + Vduto ${(ac.Vduto || 0).toFixed(2)} L + Vtravas ${vBracingVal.toFixed(2)} L = ${ac.Vbruto.toFixed(2)} L brutos`;
+  const lvCmVal = fmtNumSafe(lvMmVal / 10.0, 1);
+  const vSubVal = Number.isFinite(ac.Vsub) ? ac.Vsub : ((Number(d.Vsub) || 0) * (Number(d.nDrivers) || 1));
+  const vBracingRaw = (Number(ac.Vbruto) || 0) - (Number(ac.Vb) || 0) - (Number(ac.Vr) || 0) - vSubVal - (Number(ac.Vduto) || 0);
+  const vBracingVal = Number.isFinite(ac.Vbracing) ? ac.Vbracing : Math.max(0, Number.isFinite(vBracingRaw) ? +vBracingRaw.toFixed(2) : 0);
+  const volBalanceTxt = `Vb ${fmtNumSafe(ac.Vb, 1)} L${ac.Vr > 0 ? ` + VR ${fmtNumSafe(ac.Vr, 1)} L` : ''} + Vsub ${fmtNumSafe(vSubVal, 1)} L + Vduto ${fmtNumSafe(ac.Vduto || 0, 2)} L + Vtravas ${fmtNumSafe(vBracingVal, 2)} L = ${fmtNumSafe(ac.Vbruto, 2)} L brutos`;
   const docCode = 'BF-' + pack.generatedAt.slice(0, 10).replace(/-/g, '') + '-' + ac.boxType.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
   const dateBr = pack.generatedAt.slice(0, 16).replace('T', ' ');
 
@@ -10819,21 +11165,21 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl, explodedDataUr
     <tr>
       <td><b>${escapeHtmlStr(p.name)}</b></td>
       <td class="num">${p.qty}x</td>
-      <td class="num">${p.w.toFixed(1)} mm</td>
-      <td class="num">${p.h.toFixed(1)} mm</td>
-      <td class="num">${p.t} mm</td>
-      <td class="num">${p.bev.toFixed(1)}°</td>
+      <td class="num">${fmtNumSafe(p.w, 1)} mm</td>
+      <td class="num">${fmtNumSafe(p.h, 1)} mm</td>
+      <td class="num">${fmtNumSafe(p.t, 0)} mm</td>
+      <td class="num">${fmtNumSafe(p.bev, 1)}°</td>
       <td>${escapeHtmlStr(p.note)}</td>
     </tr>`).join('');
 
   const holesRows = pack.baffleHoles.map(h => {
-    const dimTxt = h.shape === 'round' ? `Ø ${h.dia.toFixed(1)} mm` : (h.shape === 'slot' ? `${h.w.toFixed(0)} × ${h.h.toFixed(0)} mm` : `Triângulo ${h.triA.toFixed(0)} × ${h.triB.toFixed(0)} mm`);
-    const flTxt = h.kind === 'driver' ? `Flange Ø ${h.flangeDia} mm (est.)` : (h.lvMm ? `Lv = ${h.lvMm.toFixed(0)} mm` : '—');
+    const dimTxt = h.shape === 'round' ? `Ø ${fmtNumSafe(h.dia, 1)} mm` : (h.shape === 'slot' ? `${fmtNumSafe(h.w, 0)} × ${fmtNumSafe(h.h, 0)} mm` : `Triângulo ${fmtNumSafe(h.triA, 0)} × ${fmtNumSafe(h.triB, 0)} mm`);
+    const flTxt = h.kind === 'driver' ? `Flange Ø ${fmtNumSafe(h.flangeDia, 0)} mm (est.)` : (h.lvMm ? `Lv = ${fmtNumSafe(h.lvMm, 0)} mm` : '—');
     return `
       <tr>
         <td><b>${escapeHtmlStr(h.label)}</b></td>
-        <td class="num">${h.xExt.toFixed(1)} mm</td>
-        <td class="num">${h.yExt.toFixed(1)} mm</td>
+        <td class="num">${fmtNumSafe(h.xExt, 1)} mm</td>
+        <td class="num">${fmtNumSafe(h.yExt, 1)} mm</td>
         <td class="num"><b>${dimTxt}</b></td>
         <td>${flTxt}</td>
       </tr>`;
@@ -10988,15 +11334,15 @@ function buildPackHtmlString(pack, chartImages, blueprintDataUrl, explodedDataUr
 
   <h2>1. Identificação do Driver e Parâmetros Thiele-Small</h2>
   <div class="grid">
-    <div class="card"><small>Fs / EBP</small><b>${d.Fs} Hz / ${ebp.toFixed(0)} Hz</b></div>
-    <div class="card"><small>Qts (Qes / Qms)</small><b>${qts.toFixed(3)} (${d.Qes} / ${d.Qms})</b></div>
-    <div class="card"><small>Vas / Sd</small><b>${d.Vas} L / ${d.Sd} cm²</b></div>
-    <div class="card"><small>Xmax / Pe / Re</small><b>${d.Xmax} mm · ${d.Pe} W · ${d.Re} Ω</b></div>
+    <div class="card"><small>Fs / EBP</small><b>${fmtNumSafe(d.Fs, 1)} Hz / ${fmtNumSafe(ebp, 0)} Hz</b></div>
+    <div class="card"><small>Qts (Qes / Qms)</small><b>${fmtNumSafe(qts, 3)} (${fmtNumSafe(d.Qes, 3)} / ${fmtNumSafe(d.Qms, 2)})</b></div>
+    <div class="card"><small>Vas / Sd</small><b>${fmtNumSafe(d.Vas, 1)} L / ${fmtNumSafe(d.Sd, 0)} cm²</b></div>
+    <div class="card"><small>Xmax / Pe / Re</small><b>${fmtNumSafe(d.Xmax, 1)} mm · ${fmtNumSafe(d.Pe, 0)} W · ${fmtNumSafe(d.Re, 2)} Ω</b></div>
   </div>
 
-  <h2>2. Resumo Acústico, Filtros e Cotas do Gabinete (MDF ${dm.t} mm · Laterais Embutidas)</h2>
+  <h2>2. Resumo Acústico, Filtros e Cotas do Gabinete (MDF ${fmtNumSafe(dm.t, 0)} mm · Laterais Embutidas)</h2>
   <div class="grid">
-    <div class="card"><small>Volume Útil / Bruto</small><b>${ac.Vb.toFixed(1)} L / ${ac.Vbruto.toFixed(1)} L</b></div>
+    <div class="card"><small>Volume Útil / Bruto</small><b>${fmtNumSafe(ac.Vb, 1)} L / ${fmtNumSafe(ac.Vbruto, 1)} L</b></div>
     <div class="card"><small>${tuneLabel}</small><b>${tuneValue}</b></div>
     <div class="card"><small>Interno [A × B × C/D]</small><b>${dm.A} × ${dm.B} × ${dm.C_top}/${dm.D_bot} mm</b></div>
     <div class="card"><small>Externo [F × E × Prof]</small><b>${dm.F_ext} × ${dm.E_ext} × ${dm.C_ext_top}/${dm.D_ext_bot} mm</b></div>
@@ -11094,12 +11440,12 @@ function generateBuildPackHtml() {
     });
   }
   const tuneSubtitle = isSealedLike
-    ? `Fc=${(ac.fc || 0).toFixed(1)}Hz`
-    : `Fb=${ac.Fb.toFixed(1)}Hz`;
-  const hpfSubtitle = ac.hpfEnabled ? ` | HPF=${ac.hpfHz.toFixed(0)}Hz` : '';
+    ? `Fc=${fmtNumSafe(ac.fc || 0, 1)}Hz`
+    : `Fb=${fmtNumSafe(ac.Fb, 1)}Hz`;
+  const hpfSubtitle = ac.hpfEnabled ? ` | HPF=${fmtNumSafe(ac.hpfHz, 0)}Hz` : '';
   const lpfHzMeta = (currentCurves && currentCurves.meta && currentCurves.meta.lpfHz) || 0;
-  const lpfSubtitle = lpfHzMeta > 0 ? ` | LPF=${lpfHzMeta.toFixed(0)}Hz` : '';
-  const exportSubtitle = `${lastBuildPack.driver.name} | Vb=${ac.Vb.toFixed(1)}L | ${tuneSubtitle}${hpfSubtitle}${lpfSubtitle} | ${profile.label}`;
+  const lpfSubtitle = lpfHzMeta > 0 ? ` | LPF=${fmtNumSafe(lpfHzMeta, 0)}Hz` : '';
+  const exportSubtitle = `${lastBuildPack.driver.name} | Vb=${fmtNumSafe(ac.Vb, 1)}L | ${tuneSubtitle}${hpfSubtitle}${lpfSubtitle} | ${profile.label}`;
   const chartImages = [];
   if (currentCurves && typeof document !== 'undefined') {
     selectedSlots.forEach(({ id, posIndex, entry }) => {
@@ -11689,11 +12035,21 @@ function exportBuildPackObj() {
 function buildFreeCadMacroString(pack, explodeRatio = 0.0) {
   if (!pack || !pack.geometry) return '';
   const safeDoc = (pack.driver && pack.driver.name ? pack.driver.name : 'BassForge').replace(/[^a-zA-Z0-9_]+/g, '_').slice(0, 32);
-  const jsonPayload = JSON.stringify(pack).replace(/'''/g, "\\u0027\\u0027\\u0027");
+  // PRO-05: Sanitiza docstring Python contra quebra de """ e injeção de código
+  const safeTitle = String(pack.driver && pack.driver.name ? pack.driver.name : 'Projeto')
+    .replace(/"""/g, "''")
+    .replace(/[\r\n]+/g, ' ')
+    .slice(0, 120);
+  const safeTopo = String(pack.acoustics ? pack.acoustics.boxType : 'custom')
+    .replace(/"""/g, "''")
+    .replace(/[\r\n]+/g, ' ');
+  // PRO-12: Sanitiza NaN/Infinity no payload JSON antes de emitir a macro
+  const jsonPayload = JSON.stringify(pack, (k, v) => (typeof v === 'number' && !Number.isFinite(v)) ? 0 : v)
+    .replace(/'''/g, "\\u0027\\u0027\\u0027");
   const expVal = Math.max(0, Math.min(1, Number(explodeRatio) || 0)).toFixed(2);
   return `"""
 BassForge SUITE — Macro Autocontida FreeCAD 1.1+ (PGS bassforge-pgs/v1)
-Projeto: ${pack.driver && pack.driver.name ? pack.driver.name : 'Projeto'} | Topologia: ${pack.acoustics ? pack.acoustics.boxType : 'custom'}
+Projeto: ${safeTitle} | Topologia: ${safeTopo}
 """
 import json
 import math
@@ -12246,6 +12602,8 @@ function exportBuildPackFreeCadMacro() {
 // ============================================================================
 // MOTOR ELÉTRICO, CABEAMENTO, ESTRUTURA DE GANHO RMS & LIMITER DSP
 // ============================================================================
+let lastElectricalAudit = { valid: true, issues: [], zTotal: 0, reTotal: 0, iMax: 0, maxAmp: 0, vDropPct: 0, vAmp: 0, peTotal: 0, estCoilC: null };
+
 function updateElectrical(fromUser) {
   const numSpkEl = document.getElementById('elNumSpk');
   if (!numSpkEl) return;
@@ -12259,10 +12617,12 @@ function updateElectrical(fromUser) {
       return;
     }
   }
+  const elIssues = [];
   const coils = parseInt(document.getElementById('elCoils').value) || 1;
-  const zCoil = parseFloat(document.getElementById('elZCoil').value) || 8.0;
-  const reDriver = parseFloat(document.getElementById('tsRe').value) || 5.1;
-  const reCoil = (coils === 2) ? (reDriver / 2.0) : reDriver;
+  const zCoil = Math.max(0.25, parseFloat(document.getElementById('elZCoil').value) || 8.0);
+  const reDriver = Math.max(0.1, parseFloat(document.getElementById('tsRe').value) || 5.1);
+  // ELE-10: reCoil representa a resistência por bobina (sem dupla divisão em DVC paralelo)
+  const reCoil = reDriver;
   const coilMode = document.getElementById('elCoilMode').value;
   const spkMode = document.getElementById('elSpkMode').value;
 
@@ -12271,37 +12631,75 @@ function updateElectrical(fromUser) {
 
   let zTotal = zPerSpk / nSpk;
   let reTotal = rePerSpk / nSpk;
+  const invalidSerPar = (spkMode === 'series-parallel') && (nSpk < 2 || (nSpk % 2 !== 0));
   if (spkMode === 'series') {
     zTotal = zPerSpk * nSpk;
     reTotal = rePerSpk * nSpk;
-  } else if (spkMode === 'series-parallel' && nSpk >= 2 && (nSpk % 2 === 0)) {
+  } else if (spkMode === 'series-parallel' && !invalidSerPar) {
     zTotal = (nSpk / 4.0) * zPerSpk;
     reTotal = (nSpk / 4.0) * rePerSpk;
+  }
+  if (invalidSerPar) {
+    elIssues.push({
+      code: 'ELE_INVALID_SERIES_PARALLEL',
+      severity: 'critical',
+      msg: `Associação Série-Paralelo inválida para ${nSpk} alto-falante(s) (exige número par ≥ 2).`
+    });
+  }
+  if (zTotal < 0.5) {
+    elIssues.push({
+      code: 'ELE_IMPEDANCE_TOO_LOW',
+      severity: 'critical',
+      msg: `Impedância resultante Z_final = ${zTotal.toFixed(2)} Ω < 0.50 Ω — risco crítico de curto/queima do amplificador.`
+    });
   }
 
   const wiringBox = document.getElementById('elWiringResult');
   if (wiringBox) {
+    const wiringAlerts = elIssues
+      .filter(i => i.code === 'ELE_INVALID_SERIES_PARALLEL' || i.code === 'ELE_IMPEDANCE_TOO_LOW')
+      .map(i => `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`)
+      .join('');
     wiringBox.innerHTML = `
       <div><b>Por Alto-Falante:</b> Z_spk = ${zPerSpk.toFixed(2)} Ω | Re_spk = ${rePerSpk.toFixed(2)} Ω</div>
-      <div><b>Carga Final no Amplificador:</b> <span style="color:var(--accent); font-weight:800; font-size:14px;">Z_final = ${zTotal.toFixed(2)} Ω</span> (Re_total = ${reTotal.toFixed(2)} Ω)</div>
+      <div><b>Carga Final no Amplificador:</b> <span style="color:${zTotal < 0.5 ? '#f87171' : 'var(--accent)'}; font-weight:800; font-size:14px;">Z_final = ${zTotal.toFixed(2)} Ω</span> (Re_total = ${reTotal.toFixed(2)} Ω)</div>
       <div style="color:#9ca3af; font-size:11px;">Verifica compatibilidade com a impedância mínima de ponte (Bridge) do amplificador.</div>
+      ${wiringAlerts}
     `;
   }
 
-  // Cabos de Força 12V e Áudio
-  const pwrW = parseFloat(document.getElementById('elAmpPower').value) || 1600.0;
-  const vBat = parseFloat(document.getElementById('elVbat').value) || 12.6;
-  const pwrLen = parseFloat(document.getElementById('elPwrLen').value) || 4.5;
-  const pwrGauge = parseFloat(document.getElementById('elPwrGauge').value) || 21.0;
-  const spkLen = parseFloat(document.getElementById('elSpkLen').value) || 3.0;
-  const spkGauge = parseFloat(document.getElementById('elSpkGauge').value) || 4.0;
+  // Cabos de Força 12V (ida + volta) e Áudio
+  const pwrW = Math.max(1, parseFloat(document.getElementById('elAmpPower').value) || 1600.0);
+  const vBat = Math.max(1, parseFloat(document.getElementById('elVbat').value) || 12.6);
+  const pwrLen = Math.max(0.1, parseFloat(document.getElementById('elPwrLen').value) || 4.5);
+  const pwrGauge = Math.max(0.5, parseFloat(document.getElementById('elPwrGauge').value) || 21.0);
+  const spkLen = Math.max(0.1, parseFloat(document.getElementById('elSpkLen').value) || 3.0);
+  const spkGauge = Math.max(0.5, parseFloat(document.getElementById('elSpkGauge').value) || 4.0);
 
   const rho25 = 0.017241 * (1.0 + 0.00393 * 5.0);
   const iMax = pwrW / (vBat * 0.82);
-  const rPwr = (rho25 * pwrLen) / pwrGauge;
+  // ELE-08: Circuito DC completo (ida positivo + retorno negativo/chassi = 2 × L) + ampacidade térmica do cobre
+  const rPwr = (rho25 * 2.0 * pwrLen) / pwrGauge;
   const vDrop = iMax * rPwr;
+  const vAmp = vBat - vDrop;
   const vDropPct = (vDrop / vBat) * 100.0;
-  const sMin3Pct = (rho25 * pwrLen * iMax) / (0.03 * vBat);
+  const sMin3Pct = (rho25 * 2.0 * pwrLen * iMax) / (0.03 * vBat);
+  const maxAmp = 14.5 * Math.pow(pwrGauge, 0.62);
+
+  if (iMax > maxAmp) {
+    elIssues.push({
+      code: 'ELE_CABLE_AMPACITY',
+      severity: 'critical',
+      msg: `Ampacidade excedida (risco de incêndio): ${iMax.toFixed(0)} A > limite seguro (~${maxAmp.toFixed(0)} A) para cabo ${pwrGauge} mm².`
+    });
+  }
+  if (vDropPct > 5.0 || vAmp < 10.5) {
+    elIssues.push({
+      code: 'ELE_VOLTAGE_DROP_CRITICAL',
+      severity: 'critical',
+      msg: `Queda de tensão DC crítica: ${vDropPct.toFixed(1)}% (V_amp = ${vAmp.toFixed(2)} V < 10.5 V). Aumente a bitola do cabo.`
+    });
+  }
 
   const rLoopSpk = (0.017241 * 2.0 * spkLen) / spkGauge;
   const lossDb = 20.0 * Math.log10(reTotal / (reTotal + rLoopSpk));
@@ -12310,24 +12708,40 @@ function updateElectrical(fromUser) {
 
   const cableBox = document.getElementById('elCableResult');
   if (cableBox) {
-    const dropColor = vDropPct <= 3.0 ? '#10b981' : '#f59e0b';
+    const dropColor = vDropPct <= 3.0 ? '#10b981' : (vDropPct <= 5.0 ? '#f59e0b' : '#f87171');
+    const cableAlerts = elIssues
+      .filter(i => i.code === 'ELE_CABLE_AMPACITY' || i.code === 'ELE_VOLTAGE_DROP_CRITICAL')
+      .map(i => `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`)
+      .join('');
     cableBox.innerHTML = `
-      <div><b>Corrente Máxima DC:</b> ${iMax.toFixed(1)} A | <b>Fusível ANL:</b> ${Math.ceil((iMax*0.85)/10)*10} A</div>
-      <div><b>Queda de Tensão DC:</b> <span style="color:${dropColor};font-weight:700;">${vDrop.toFixed(2)} V (${vDropPct.toFixed(2)}%)</span> | Mín. p/ ≤3%: <b>${Math.ceil(sMin3Pct)} mm²</b></div>
+      <div><b>Corrente Máxima DC:</b> ${iMax.toFixed(1)} A (Máx. cabo ${pwrGauge}mm²: ~${maxAmp.toFixed(0)} A) | <b>Fusível ANL:</b> ${Math.ceil((iMax*0.85)/10)*10} A</div>
+      <div><b>Queda de Tensão DC (Loop 2×L):</b> <span style="color:${dropColor};font-weight:700;">${vDrop.toFixed(2)} V (${vDropPct.toFixed(2)}% · V_amp=${vAmp.toFixed(2)}V)</span> | Mín. p/ ≤3%: <b>${Math.ceil(sMin3Pct)} mm²</b></div>
       <div><b>Cabo de Áudio (Loop):</b> R=${rLoopSpk.toFixed(4)} Ω | Perda=${lossDb.toFixed(2)} dB (${lossPct.toFixed(1)}%)</div>
       <div><b>Fator de Amortecimento Real (DF_eff):</b> <span style="color:#38bdf8;font-weight:700;">${dfEff.toFixed(1)}</span></div>
+      ${cableAlerts}
     `;
   }
 
   // Estrutura de Ganho, Limiter e Crossover Passivo + Zobel
-  const preoutV = parseFloat(document.getElementById('elPreoutV').value) || 2.0;
+  const peSingle = Math.max(1, parseFloat(document.getElementById('tsPe')?.value) || 500);
+  const peTotal = peSingle * nSpk;
+  if (pwrW > 2.0 * peTotal) {
+    elIssues.push({
+      code: 'ELE_AMP_OVERPOWER',
+      severity: 'critical',
+      msg: `Sobrecarga destrutiva (ELE-06): Amplificador (${pwrW.toFixed(0)} W) excede 2× a potência RMS total (${peTotal.toFixed(0)} W).`
+    });
+  }
+
+  const preoutV = Math.max(0.05, parseFloat(document.getElementById('elPreoutV').value) || 2.0);
   const limProfile = document.getElementById('elLimProfile').value;
-  const xoverHz = parseFloat(document.getElementById('elXoverHz').value) || 80.0;
-  const leMh = parseFloat(document.getElementById('elLeMh').value) || 1.5;
-  const hpfHz = parseFloat(document.getElementById('hpfCutoff').value) || 36.0;
+  const xoverHz = Math.max(10, parseFloat(document.getElementById('elXoverHz').value) || 80.0);
+  const leMh = Math.max(0, parseFloat(document.getElementById('elLeMh').value) || 0);
+  const hpfHzRaw = parseFloat(document.getElementById('hpfCutoff').value) || 36.0;
+  const hpfHz = isHpfEnabled ? Math.max(10.0, hpfHzRaw) : 20.0;
 
   const derate70 = Boolean(document.getElementById('elDerate70')?.checked);
-  const measV = parseFloat(document.getElementById('elMeasV')?.value) || 0;
+  const measV = Math.max(0, parseFloat(document.getElementById('elMeasV')?.value) || 0);
   const effPwrW = derate70 ? pwrW * 0.70 : pwrW;
 
   const vRmsTarget = Math.sqrt(effPwrW * zTotal);
@@ -12335,14 +12749,22 @@ function updateElectrical(fromUser) {
   const iRmsTarget = Math.sqrt(effPwrW / Math.max(0.1, zTotal));
   const gainDb = 20.0 * Math.log10(vRmsTarget / Math.max(0.05, preoutV));
 
-  // Estimativa térmica da bobina quando tensão medida no multímetro é informada
+  // ELE-07: Estimativa térmica da bobina baseada na potência nominal total dos drivers (Pe_total), com alarme > 250 °C
   let coilTempHtml = '';
+  let estCoilC = null;
   if (measV > 0) {
     const pwrApplied = (measV * measV) / Math.max(0.2, zTotal);
-    const loadRatio = pwrApplied / Math.max(10, pwrW);
-    const estCoilC = 25 + loadRatio * 135;
+    const loadRatio = pwrApplied / Math.max(10, peTotal);
+    estCoilC = 25 + loadRatio * 135;
+    if (estCoilC > 250) {
+      elIssues.push({
+        code: 'ELE_COIL_OVERTEMP',
+        severity: 'critical',
+        msg: `Alarme térmico crítico (ELE-07): Temperatura estimada da bobina (${estCoilC.toFixed(0)} °C) excede 250 °C (risco de fusão do verniz).`
+      });
+    }
     const tColor = estCoilC <= 120 ? '#4ade80' : (estCoilC <= 165 ? '#facc15' : '#f87171');
-    coilTempHtml = `<div><b>Multímetro (${measV.toFixed(1)}V ➔ ${pwrApplied.toFixed(0)}W):</b> Temp. Provável Bobina ≈ <span style="color:${tColor};font-weight:700;">${estCoilC.toFixed(0)} °C</span></div>`;
+    coilTempHtml = `<div><b>Multímetro (${measV.toFixed(1)}V ➔ ${pwrApplied.toFixed(0)}W / Pe=${peTotal.toFixed(0)}W):</b> Temp. Provável Bobina ≈ <span style="color:${tColor};font-weight:700;">${estCoilC.toFixed(0)} °C</span></div>`;
   }
 
   const tPeriodMs = 1000.0 / Math.max(10.0, hpfHz);
@@ -12351,22 +12773,34 @@ function updateElectrical(fromUser) {
   const attMs = attFactor * tPeriodMs;
   const relMs = relFactor * tPeriodMs;
 
-  // Crossover Butterworth 2ª Ordem (12 dB/8ª) + Zobel
+  // Crossover Butterworth 2ª Ordem (12 dB/8ª) + Zobel (FIS-06: Le >= 0)
   const l_mh = ((Math.SQRT2 * zTotal) / (2.0 * Math.PI * xoverHz)) * 1000.0;
   const c_uf = (1.0 / (Math.SQRT2 * 2.0 * Math.PI * xoverHz * zTotal)) * 1e6;
   const rZobel = 1.25 * reTotal;
-  const leTotalMh = leMh * (reTotal / Math.max(0.1, rePerSpk));
-  const cZobelUf = ((leTotalMh / 1000.0) / (rZobel * rZobel)) * 1e6;
+  const leTotalMh = Math.max(0, leMh * (reTotal / Math.max(0.1, rePerSpk)));
+  const cZobelUf = ((leTotalMh / 1000.0) / Math.max(1e-6, rZobel * rZobel)) * 1e6;
+
+  lastElectricalAudit = {
+    valid: elIssues.length === 0,
+    issues: elIssues,
+    zTotal, reTotal, iMax, maxAmp, vDropPct, vAmp, peTotal, estCoilC
+  };
 
   const dspBox = document.getElementById('elDspResult');
   if (dspBox) {
+    const dspAlerts = elIssues
+      .filter(i => i.code === 'ELE_AMP_OVERPOWER' || i.code === 'ELE_COIL_OVERTEMP')
+      .map(i => `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`)
+      .join('');
+    const hpfTag = isHpfEnabled ? `HPF ${hpfHz.toFixed(0)} Hz` : 'HPF OFF (ref. 20 Hz)';
     dspBox.innerHTML = `
       <div><b>Alvo de Ganho${derate70 ? ' (Derating 70%)' : ''}:</b> <span style="color:#10b981;font-weight:800;font-size:14px;">${vRmsTarget.toFixed(1)} V_rms</span> (${vPeakTarget.toFixed(1)} V_pico | ${iRmsTarget.toFixed(1)} A_rms)</div>
       ${coilTempHtml}
-      <div><b>Ganho de Tensão Exigido:</b> +${gainDb.toFixed(1)} dB (Entrada ${preoutV.toFixed(1)} V)</div>
-      <div><b>Limiter DSP (HPF ${hpfHz.toFixed(0)} Hz):</b> Attack = <b>${attMs.toFixed(2)} ms</b> | Release = <b>${relMs.toFixed(0)} ms</b></div>
+      <div><b>Ganho de Tensão Exigido:</b> ${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)} dB (Entrada ${preoutV.toFixed(1)} V)</div>
+      <div><b>Limiter DSP (${hpfTag}):</b> Attack = <b>${attMs.toFixed(2)} ms</b> | Release = <b>${relMs.toFixed(0)} ms</b></div>
       <div><b>Crossover 12dB/8ª (${xoverHz.toFixed(0)} Hz):</b> L = ${l_mh.toFixed(2)} mH | C = ${c_uf.toFixed(1)} µF</div>
       <div><b>Rede Zobel (Estabilização Le):</b> R_z = <b>${rZobel.toFixed(2)} Ω</b> | C_z = <b>${cZobelUf.toFixed(1)} µF</b></div>
+      ${dspAlerts}
     `;
   }
 }

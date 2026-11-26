@@ -2016,17 +2016,39 @@
       },
       validate(driver) {
         const errors = [];
-        if (!driver.brand) errors.push('Marca é obrigatória');
-        if (!driver.model) errors.push('Modelo é obrigatório');
-        if (driver.fs <= 0) errors.push('Fs deve ser > 0');
-        if (driver.qes <= 0) errors.push('Qes deve ser > 0');
-        if (driver.qms <= 0) errors.push('Qms deve ser > 0');
-        if (driver.vas <= 0) errors.push('Vas deve ser > 0');
-        if (driver.sd <= 0) errors.push('Sd deve ser > 0');
-        if (driver.re <= 0) errors.push('Re deve ser > 0');
+        const isPosFin = v => Number.isFinite(Number(v)) && Number(v) > 0;
+        if (!driver || !String(driver.brand || '').trim()) errors.push('Marca é obrigatória');
+        if (!driver || !String(driver.model || '').trim()) errors.push('Modelo é obrigatório');
+        if (!isPosFin(driver?.diameter_in)) errors.push('Diâmetro deve ser > 0');
+        if (!isPosFin(driver?.znom)) errors.push('Znom deve ser > 0');
+        if (!isPosFin(driver?.pe)) errors.push('Pe deve ser > 0');
+        if (!isPosFin(driver?.xmax)) errors.push('Xmax deve ser > 0');
+        if (!isPosFin(driver?.fs)) errors.push('Fs deve ser > 0');
+        if (!isPosFin(driver?.qes)) errors.push('Qes deve ser > 0');
+        if (!isPosFin(driver?.qms)) errors.push('Qms deve ser > 0');
+        if (!isPosFin(driver?.vas)) errors.push('Vas deve ser > 0');
+        if (!isPosFin(driver?.sd)) errors.push('Sd deve ser > 0');
+        if (!isPosFin(driver?.re)) errors.push('Re deve ser > 0');
+        if (driver?.le !== undefined && driver?.le !== '' && (!Number.isFinite(Number(driver.le)) || Number(driver.le) < 0)) {
+          errors.push('Le deve ser ≥ 0');
+        }
         return { valid: errors.length === 0, errors };
       }
     };
+
+    function escapeHtmlStr(str) {
+      return String(str == null ? '' : str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+    }
+
+    function fmtNumSafe(val, dec = 1, fallback = '—') {
+      const n = Number(val);
+      return Number.isFinite(n) ? n.toFixed(dec) : fallback;
+    }
 
     function updateCatalogCounters() {
       const n = DRIVER_CATALOG.length;
@@ -2401,25 +2423,25 @@
           <tr data-id="${d.id}" class="${isSel ? 'selected' : ''}" onclick="selectRow(${d.id})" ondblclick="selectRow(${d.id}); carregarLinhaSelecionada();" title="Duplo clique para carregar no formulário">
             <td>${d.id}</td>
             <td><span style="background:${origBg};color:${origFg};padding:1px 5px;border-radius:2px;font-size:10px;font-weight:600;">${origCode}</span></td>
-            <td><b>${d.brand}</b></td><td>${d.model}</td><td>${d.series || '—'}</td><td>${d.year || 2024}</td><td>${d.diameter_in}″</td>
-            <td>${d.znom || 4}</td><td>${d.pe}</td><td>${d.sd}</td><td>${d.fs}</td><td>${d.vas}</td><td>${d.qes}</td><td>${d.qms}</td>
-            <td>${d.xmax}</td><td>${d.re}</td><td>${d.le}</td><td>${d.hvc || 0}</td><td>${d.hgap || 0}</td>
-            <td>${d.mms_cat > 0 ? d.mms_cat.toFixed(1) : '—'}</td><td>${d.bl_cat > 0 ? d.bl_cat.toFixed(2) : '—'}</td><td>${(d.vsub || CLAudioDatabaseAgent.estimateVsub(d.diameter_in)).toFixed(1)}</td>
-            <td class="calc">${aud.Qts.toFixed(3)}</td>
-            <td class="calc">${aud.Cms_mm_N.toFixed(3)}</td>
-            <td class="calc">${aud.Kms_N_mm.toFixed(1)}</td>
-            <td class="calc">${aud.Mms_g.toFixed(1)}</td>
-            <td class="calc">${aud.Bl.toFixed(2)}</td>
-            <td class="calc">${aud.Rms.toFixed(2)}</td>
-            <td class="calc">${aud.bl2_re.toFixed(1)}</td>
-            <td class="calc">${aud.accel_factor.toFixed(0)}</td>
-            <td class="calc">${aud.eta0_pct.toFixed(2)}%</td>
-            <td class="calc">${aud.SPL1W.toFixed(1)}</td>
-            <td class="calc">${aud.SPL2_83.toFixed(1)}</td>
-            <td class="calc" style="color:var(--acc)">${aud.SPL_max_term.toFixed(1)}</td>
-            <td class="calc">${aud.Vd.toFixed(3)}</td>
-            <td class="calc">${aud.EBP.toFixed(0)}</td>
-            <td style="color:${aud.vereditoClass === 'good' ? 'var(--status-ok)' : (aud.vereditoClass === 'warn' ? 'var(--status-warn)' : 'var(--status-err)')}">${aud.vereditoLabel}</td>
+            <td><b>${escapeHtmlStr(d.brand)}</b></td><td>${escapeHtmlStr(d.model)}</td><td>${escapeHtmlStr(d.series || '—')}</td><td>${escapeHtmlStr(d.year || 2024)}</td><td>${fmtNumSafe(d.diameter_in, 1)}″</td>
+            <td>${fmtNumSafe(d.znom || 4, 1)}</td><td>${fmtNumSafe(d.pe, 0)}</td><td>${fmtNumSafe(d.sd, 0)}</td><td>${fmtNumSafe(d.fs, 1)}</td><td>${fmtNumSafe(d.vas, 1)}</td><td>${fmtNumSafe(d.qes, 3)}</td><td>${fmtNumSafe(d.qms, 2)}</td>
+            <td>${fmtNumSafe(d.xmax, 1)}</td><td>${fmtNumSafe(d.re, 2)}</td><td>${fmtNumSafe(d.le, 2)}</td><td>${fmtNumSafe(d.hvc || 0, 1)}</td><td>${fmtNumSafe(d.hgap || 0, 1)}</td>
+            <td>${d.mms_cat > 0 ? fmtNumSafe(d.mms_cat, 1) : '—'}</td><td>${d.bl_cat > 0 ? fmtNumSafe(d.bl_cat, 2) : '—'}</td><td>${fmtNumSafe(d.vsub || CLAudioDatabaseAgent.estimateVsub(d.diameter_in), 1)}</td>
+            <td class="calc">${fmtNumSafe(aud.Qts, 3)}</td>
+            <td class="calc">${fmtNumSafe(aud.Cms_mm_N, 3)}</td>
+            <td class="calc">${fmtNumSafe(aud.Kms_N_mm, 1)}</td>
+            <td class="calc">${fmtNumSafe(aud.Mms_g, 1)}</td>
+            <td class="calc">${fmtNumSafe(aud.Bl, 2)}</td>
+            <td class="calc">${fmtNumSafe(aud.Rms, 2)}</td>
+            <td class="calc">${fmtNumSafe(aud.bl2_re, 1)}</td>
+            <td class="calc">${fmtNumSafe(aud.accel_factor, 0)}</td>
+            <td class="calc">${fmtNumSafe(aud.eta0_pct, 2)}%</td>
+            <td class="calc">${fmtNumSafe(aud.SPL1W, 1)}</td>
+            <td class="calc">${fmtNumSafe(aud.SPL2_83, 1)}</td>
+            <td class="calc" style="color:var(--acc)">${fmtNumSafe(aud.SPL_max_term, 1)}</td>
+            <td class="calc">${fmtNumSafe(aud.Vd, 3)}</td>
+            <td class="calc">${fmtNumSafe(aud.EBP, 0)}</td>
+            <td style="color:${aud.vereditoClass === 'good' ? 'var(--status-ok)' : (aud.vereditoClass === 'warn' ? 'var(--status-warn)' : 'var(--status-err)')}">${escapeHtmlStr(aud.vereditoLabel)}</td>
           </tr>
         `;
       }).join('');
@@ -2663,7 +2685,15 @@
 
     function confirmTSVImport() {
       if (parsedTsvData.length > 0) {
+        let importedCount = 0;
+        let rejectedCount = 0;
         parsedTsvData.forEach(item => {
+          // FIS-15: Validação física completa antes de inserir no catálogo
+          const val = CLAudioDatabaseAgent.validate(item);
+          if (!val.valid) {
+            rejectedCount++;
+            return;
+          }
           const idx = DRIVER_CATALOG.findIndex(x => CLAudioDatabaseAgent.driverKey(x.brand, x.model) === CLAudioDatabaseAgent.driverKey(item.brand, item.model));
           if (idx >= 0) {
             item.id = DRIVER_CATALOG[idx].id || CLAudioDatabaseAgent.nextId(DRIVER_CATALOG);
@@ -2672,11 +2702,12 @@
             item.id = CLAudioDatabaseAgent.nextId(DRIVER_CATALOG);
             DRIVER_CATALOG.unshift(item);
           }
+          importedCount++;
         });
         saveCatalogStorage();
         renderTable();
         closeModal('modal-import');
-        alert(`${parsedTsvData.length} drivers importados com sucesso!`);
+        alert(`${importedCount} driver(s) importado(s) com sucesso!${rejectedCount > 0 ? ` (${rejectedCount} rejeitado(s) por parâmetros físicos inválidos).` : ''}`);
       }
     }
 
@@ -2730,12 +2761,14 @@
 
     function downloadFile(name, content, type) {
       const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
+      a.href = url;
       a.download = name;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
     function openCatalogModal() { document.getElementById('modal-catalog').classList.add('open'); renderCatalogList(); }
@@ -2766,11 +2799,11 @@
       cont.innerHTML = filtered.map(d => `
         <div style="background:var(--bg2); border:1px solid var(--bdr); border-radius:4px; padding:9px 10px; display:flex; justify-content:space-between; align-items:center; cursor:pointer;" onclick="selectCatalogDriverById(${d.id})">
           <div>
-            <div style="font-weight:600; color:var(--txt); font-family:var(--mono); font-size:11.5px;">${d.brand} ${d.model}</div>
-            <div style="font-size:11px; color:var(--txt3); font-family:var(--mono); font-variant-numeric:tabular-nums;">${d.diameter_in}″ · ${d.znom || 4}Ω · ${d.pe}W RMS</div>
+            <div style="font-weight:600; color:var(--txt); font-family:var(--mono); font-size:11.5px;">${escapeHtmlStr(d.brand)} ${escapeHtmlStr(d.model)}</div>
+            <div style="font-size:11px; color:var(--txt3); font-family:var(--mono); font-variant-numeric:tabular-nums;">${fmtNumSafe(d.diameter_in, 1)}″ · ${fmtNumSafe(d.znom || 4, 1)}Ω · ${fmtNumSafe(d.pe, 0)}W RMS</div>
           </div>
           <div style="text-align:right; font-family:var(--mono); font-size:11px; color:var(--acc); font-variant-numeric:tabular-nums;">
-            Fs ${d.fs} Hz<br>Qts ${(d.qes > 0 && d.qms > 0 ? (d.qes * d.qms) / (d.qes + d.qms) : 0).toFixed(3)}
+            Fs ${fmtNumSafe(d.fs, 1)} Hz<br>Qts ${fmtNumSafe(d.qes > 0 && d.qms > 0 ? (d.qes * d.qms) / (d.qes + d.qms) : 0, 3)}
           </div>
         </div>
       `).join('');
@@ -2792,68 +2825,76 @@
               </div>
               <div style="text-align:right; font-size:10px; font-family:monospace;">
                 <div><b>${new Date().toLocaleDateString('pt-BR')}</b></div>
-                <div style="color:#94a3b8;">${a.vereditoLabel}</div>
+                <div style="color:#94a3b8;">${escapeHtmlStr(a.vereditoLabel)}</div>
               </div>
             </div>
             <div style="display:grid; grid-template-columns:2fr 1fr 1fr; background:#f8fafc; border-top:1px solid #cbd5e1; font-family:monospace; font-size:10px;">
-              <div style="padding:6px 10px; border-right:1px solid #cbd5e1;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">Transdutor</span><b>${d.brand} ${d.model} (${d.diameter_in}″)</b></div>
-              <div style="padding:6px 10px; border-right:1px solid #cbd5e1;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">Impedância / Potência</span><b>${d.znom} Ω · ${d.pe} W RMS</b></div>
-              <div style="padding:6px 10px;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">EBP / Qts</span><b>${a.EBP.toFixed(1)} Hz · Qts ${a.Qts.toFixed(3)}</b></div>
+              <div style="padding:6px 10px; border-right:1px solid #cbd5e1;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">Transdutor</span><b>${escapeHtmlStr(d.brand)} ${escapeHtmlStr(d.model)} (${fmtNumSafe(d.diameter_in, 1)}″)</b></div>
+              <div style="padding:6px 10px; border-right:1px solid #cbd5e1;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">Impedância / Potência</span><b>${fmtNumSafe(d.znom, 1)} Ω · ${fmtNumSafe(d.pe, 0)} W RMS</b></div>
+              <div style="padding:6px 10px;"><span style="display:block;color:#64748b;font-size:8.5px;text-transform:uppercase;">EBP / Qts</span><b>${fmtNumSafe(a.EBP, 1)} Hz · Qts ${fmtNumSafe(a.Qts, 3)}</b></div>
             </div>
           </div>
 
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:11px;">
             <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px 12px; background:#f8fafc;">
               <h4 style="margin:0 0 6px 0; border-left:3px solid #0284c7; padding-left:6px; font-size:11px; text-transform:uppercase;">1. Parâmetros Thiele-Small</h4>
-              <div><b>Fs:</b> ${d.fs} Hz · <b>Qts:</b> ${a.Qts.toFixed(3)} · <b>Vas:</b> ${d.vas} L</div>
-              <div><b>Qes:</b> ${d.qes} · <b>Qms:</b> ${d.qms} · <b>Re:</b> ${d.re} Ω · <b>Le:</b> ${d.le} mH</div>
-              <div><b>Xmax:</b> ${d.xmax} mm (Geom: ${a.x_geom.toFixed(2)} mm · Hvc/Hgap: ${d.hvc || 0}/${d.hgap || 0} mm)</div>
-              <div><b>Sd:</b> ${d.sd} cm² · <b>Raio Pistão (a):</b> ${a.radius_cm.toFixed(2)} cm · <b>Vsub:</b> ${(d.vsub || 0).toFixed(1)} L</div>
+              <div><b>Fs:</b> ${fmtNumSafe(d.fs, 1)} Hz · <b>Qts:</b> ${fmtNumSafe(a.Qts, 3)} · <b>Vas:</b> ${fmtNumSafe(d.vas, 1)} L</div>
+              <div><b>Qes:</b> ${fmtNumSafe(d.qes, 3)} · <b>Qms:</b> ${fmtNumSafe(d.qms, 2)} · <b>Re:</b> ${fmtNumSafe(d.re, 2)} Ω · <b>Le:</b> ${fmtNumSafe(d.le, 2)} mH</div>
+              <div><b>Xmax:</b> ${fmtNumSafe(d.xmax, 1)} mm (Geom: ${fmtNumSafe(a.x_geom, 2)} mm · Hvc/Hgap: ${fmtNumSafe(d.hvc || 0, 1)}/${fmtNumSafe(d.hgap || 0, 1)} mm)</div>
+              <div><b>Sd:</b> ${fmtNumSafe(d.sd, 0)} cm² · <b>Raio Pistão (a):</b> ${fmtNumSafe(a.radius_cm, 2)} cm · <b>Vsub:</b> ${fmtNumSafe(d.vsub || 0, 1)} L</div>
             </div>
             <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px 12px; background:#f8fafc;">
               <h4 style="margin:0 0 6px 0; border-left:3px solid #0284c7; padding-left:6px; font-size:11px; text-transform:uppercase;">2. Motor, Massa e Transientes</h4>
-              <div><b>Mms / Mmd:</b> ${a.Mms_g.toFixed(1)} g / ${a.Mmd_g.toFixed(1)} g${d.mms_cat > 0 ? ` (Cat: ${d.mms_cat} g | Δ ${a.dev_mms_pct.toFixed(2)}%)` : ''}</div>
-              <div><b>Cms / Rms:</b> ${a.Cms_mm_N.toFixed(3)} mm/N / ${a.Rms.toFixed(2)} kg/s</div>
-              <div><b>Bl:</b> ${a.Bl.toFixed(2)} T·m${d.bl_cat > 0 ? ` (Cat: ${d.bl_cat} T·m | Δ ${a.dev_bl_pct.toFixed(2)}%)` : ''} · <b>Bl²/Re:</b> ${a.bl2_re.toFixed(1)} N²/W</div>
-              <div><b>Γ (Acel.):</b> ${a.accel_factor.toFixed(0)} m/s²/A · <b>Breakup:</b> ${Math.round(a.f_breakup)} Hz · <b>τe/τm:</b> ${a.tau_e_ms.toFixed(2)}/${a.tau_m_ms.toFixed(2)} ms</div>
+              <div><b>Mms / Mmd:</b> ${fmtNumSafe(a.Mms_g, 1)} g / ${fmtNumSafe(a.Mmd_g, 1)} g${d.mms_cat > 0 ? ` (Cat: ${fmtNumSafe(d.mms_cat, 1)} g | Δ ${fmtNumSafe(a.dev_mms_pct, 2)}%)` : ''}</div>
+              <div><b>Cms / Rms:</b> ${fmtNumSafe(a.Cms_mm_N, 3)} mm/N / ${fmtNumSafe(a.Rms, 2)} kg/s</div>
+              <div><b>Bl:</b> ${fmtNumSafe(a.Bl, 2)} T·m${d.bl_cat > 0 ? ` (Cat: ${fmtNumSafe(d.bl_cat, 2)} T·m | Δ ${fmtNumSafe(a.dev_bl_pct, 2)}%)` : ''} · <b>Bl²/Re:</b> ${fmtNumSafe(a.bl2_re, 1)} N²/W</div>
+              <div><b>Γ (Acel.):</b> ${fmtNumSafe(a.accel_factor, 0)} m/s²/A · <b>Breakup:</b> ${fmtNumSafe(a.f_breakup, 0)} Hz · <b>τe/τm:</b> ${fmtNumSafe(a.tau_e_ms, 2)}/${fmtNumSafe(a.tau_m_ms, 2)} ms</div>
             </div>
           </div>
 
           <div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; font-size:11px; margin-top:12px;">
             <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px 12px; background:#f8fafc;">
               <h4 style="margin:0 0 6px 0; border-left:3px solid #0284c7; padding-left:6px; font-size:11px; text-transform:uppercase;">3. Eficiência e Pressão Sonora</h4>
-              <div><b>Eficiência (η₀):</b> ${a.eta0_pct.toFixed(2)} % · <b>Vd:</b> ${a.Vd.toFixed(3)} L</div>
-              <div><b>Sensibilidade (1W @ 1m):</b> ${a.SPL1W.toFixed(1)} dB SPL</div>
-              <div><b>Sensibilidade (2.83V @ 1m):</b> ${a.SPL2_83.toFixed(1)} dB SPL</div>
-              <div><b>SPL Máx. Térmico:</b> ${a.SPL_max_term.toFixed(1)} dB SPL · <b>Pac:</b> ${a.Pac_max.toFixed(1)} W ac</div>
+              <div><b>Eficiência (η₀):</b> ${fmtNumSafe(a.eta0_pct, 2)} % · <b>Vd:</b> ${fmtNumSafe(a.Vd, 3)} L</div>
+              <div><b>Sensibilidade (1W @ 1m):</b> ${fmtNumSafe(a.SPL1W, 1)} dB SPL</div>
+              <div><b>Sensibilidade (2.83V @ 1m):</b> ${fmtNumSafe(a.SPL2_83, 1)} dB SPL</div>
+              <div><b>SPL Máx. Térmico:</b> ${fmtNumSafe(a.SPL_max_term, 1)} dB SPL · <b>Pac:</b> ${fmtNumSafe(a.Pac_max, 1)} W ac</div>
             </div>
             <div style="border:1px solid #cbd5e1; border-radius:4px; padding:10px 12px; background:#f8fafc;">
               <h4 style="margin:0 0 6px 0; border-left:3px solid #0284c7; padding-left:6px; font-size:11px; text-transform:uppercase;">4. Auditoria Cruzada de Fs (ISO 9613-1)</h4>
-              <div><b>FS-01 (Mecânica Mms·Cms):</b> ${a.fs_1.toFixed(2)} Hz (Δ ${a.dev_1.toFixed(2)}%)</div>
-              <div><b>FS-02 (Acústica Vas·Sd):</b> ${a.fs_2.toFixed(2)} Hz (Δ ${a.dev_2.toFixed(2)}%)</div>
-              <div><b>FS-03 (Elétrica Bl·Re·Qes):</b> ${a.fs_3.toFixed(2)} Hz (Δ ${a.dev_3.toFixed(2)}%)</div>
-              <div><b>Impedância R0:</b> ${a.R0.toFixed(1)} Ω · <b>Δf:</b> ${a.delta_f.toFixed(1)} Hz · <b>Veredito:</b> ${a.vereditoLabel}</div>
+              <div><b>FS-01 (Mecânica Mms·Cms):</b> ${fmtNumSafe(a.fs_1, 2)} Hz (Δ ${fmtNumSafe(a.dev_1, 2)}%)</div>
+              <div><b>FS-02 (Acústica Vas·Sd):</b> ${fmtNumSafe(a.fs_2, 2)} Hz (Δ ${fmtNumSafe(a.dev_2, 2)}%)</div>
+              <div><b>FS-03 (Elétrica Bl·Re·Qes):</b> ${fmtNumSafe(a.fs_3, 2)} Hz (Δ ${fmtNumSafe(a.dev_3, 2)}%)</div>
+              <div><b>Impedância R0:</b> ${fmtNumSafe(a.R0, 1)} Ω · <b>Δf:</b> ${fmtNumSafe(a.delta_f, 1)} Hz · <b>Veredito:</b> ${escapeHtmlStr(a.vereditoLabel)}</div>
             </div>
           </div>
 
           <div style="margin-top:14px; padding-top:6px; border-top:1px solid #cbd5e1; display:flex; justify-content:space-between; font-family:monospace; font-size:9.5px; color:#64748b;">
             <span>BassForge · Engenharia Eletroacústica</span>
-            <span>c = ${a.atmo.c.toFixed(2)} m/s · ρ = ${a.atmo.rho.toFixed(4)} kg/m³ · P₀ = ${(a.atmo.p_atm / 100).toFixed(2)} hPa</span>
+            <span>c = ${fmtNumSafe(a.atmo && a.atmo.c, 2)} m/s · ρ = ${fmtNumSafe(a.atmo && a.atmo.rho, 4)} kg/m³ · P₀ = ${fmtNumSafe(a.atmo && (a.atmo.p_atm / 100), 2)} hPa</span>
           </div>
         </div>
       `;
     }
 
     function downloadReportPDF() {
+      // PRO-02: Bloqueia exportação de laudo PDF quando o driver tem campos obrigatórios inválidos
+      const d = getFormValues();
+      const val = CLAudioDatabaseAgent.validate(d);
+      if (!val.valid) {
+        alert('Exportação PDF bloqueada — corrija os parâmetros obrigatórios:\n- ' + val.errors.join('\n- '));
+        return false;
+      }
       const el = document.getElementById('report-printable');
       const opt = {
         margin: 10,
-        filename: `BassForge_Laudo_${document.getElementById('inp-brand').value}_${document.getElementById('inp-model').value}.pdf`,
+        filename: `BassForge_Laudo_${String(d.brand).replace(/[^a-zA-Z0-9_-]+/g, '_')}_${String(d.model).replace(/[^a-zA-Z0-9_-]+/g, '_')}.pdf`,
         image: { type: 'jpeg', quality: 0.98 },
         html2canvas: { scale: 2 },
         jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
       };
       html2pdf().set(opt).from(el).save();
+      return true;
     }
   </script>
 </body>
