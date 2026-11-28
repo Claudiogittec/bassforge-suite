@@ -2194,16 +2194,34 @@ runSuite('32. Modular Architecture & Build Integrity (src/ -> index.html & drive
     }
   };
   walk(path.join(ROOT, 'src'));
-  assert(srcFiles.length >= 14, `Esperados >= 14 arquivos em src/, obtidos ${srcFiles.length}`);
+  assert(srcFiles.length >= 20, `Esperados >= 20 arquivos em src/, obtidos ${srcFiles.length}`);
   for (const fp of srcFiles) {
     const st = fs.statSync(fp);
-    assert(st.size < 350 * 1024, `Arquivo modular excede 350 KB (${st.size} B): ${path.relative(ROOT, fp)}`);
+    const rel = path.relative(ROOT, fp);
+    const cap = rel.endsWith('drivers-catalog.json') ? 350 * 1024 : 105 * 1024;
+    assert(st.size < cap, `Arquivo modular excede ${Math.round(cap / 1024)} KB (${st.size} B): ${rel}`);
     const content = fs.readFileSync(fp, 'utf8');
     const hits = content.match(forbiddenAll) || [];
-    assert.strictEqual(hits.length, 0, `IP Hygiene: ${path.relative(ROOT, fp)} contém termo proibido: ${[...new Set(hits)].join(', ')}`);
+    assert.strictEqual(hits.length, 0, `IP Hygiene: ${rel} contém termo proibido: ${[...new Set(hits)].join(', ')}`);
   }
   const buildHits = fs.readFileSync(path.join(ROOT, 'scripts', 'build.js'), 'utf8').match(forbiddenAll) || [];
   assert.strictEqual(buildHits.length, 0, `IP Hygiene: scripts/build.js contém termo proibido`);
+
+  for (const docDir of ['docs', 'engineering']) {
+    const fullDir = path.join(ROOT, docDir);
+    if (!fs.existsSync(fullDir)) continue;
+    const walkDocs = dir => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) walkDocs(p);
+        else if (entry.name.endsWith('.md')) {
+          const hits = fs.readFileSync(p, 'utf8').match(forbiddenAll) || [];
+          assert.strictEqual(hits.length, 0, `IP Hygiene: ${path.relative(ROOT, p)} contém termo proibido: ${[...new Set(hits)].join(', ')}`);
+        }
+      }
+    };
+    walkDocs(fullDir);
+  }
 });
 
 console.log('\n---------------------------------------------------------------');

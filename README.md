@@ -1,27 +1,36 @@
-# BassForge SUITE — Simulador Eletroacústico & Banco Oficial de Drivers
+# BassForge SUITE — Simulador Eletroacústico, WoodLock CAD & Banco Oficial de Drivers
 
-Suíte web autônoma (zero instalação / HTML5 + ES6 puro) para engenharia de gabinetes acústicos, extração e auditoria Thiele-Small, marcenaria CAD e análise elétrica carga-amplificador.
+Suíte web autônoma (zero instalação / HTML5 + ES6 puro) para engenharia de gabinetes acústicos, extração e auditoria Thiele-Small, marcenaria CAD 3D (PGS v1), análise elétrica carga-amplificador e geração de manufatura.
 
-## Módulos Incluídos
+## Arquitetura Modular + Distribuição Offline
 
-* **[`index.html`](./index.html) — Simulador Eletroacústico (Workstation Desktop)**
-  * **5 Topologias com Matriz de Aptidão por Driver (`Selada · Dutada · BP4 · BP6 Paralela/Série · Planar Horn`)**: classifica automaticamente cada caixa como *Ideal*, *Compatível* ou *Não Recomendada* via `EBP`, `Qts` e diâmetro, com miniaturas SVG e suporte a **múltiplos alto-falantes (`1x` a `8x`)** e **compressão térmica (`ΔT = 0 / +60 / +100 / +130 °C`)**.
-  * **Assistente de Projeto (Wizard `F6`) com 6 Perfis de Sintonia**: *Optimum*, *Low Bass*, *Attack*, *Trio / Ataque*, *Sub-Extremo* e *SPL Máximo*, dimensionando automaticamente volume, sintonia, HPF e duto laminar.
-  * **Dimensionamento avançado de dutos**: cilíndrico padrão (`k=0.732`), Aeroport/flared (`k=0.850`), **duto régua livre** (`k=0.732`), **duto régua em parede** (`k=1.343`) e **duto triângulo de canto** (`k=1.343`), com razão de aspecto, diâmetro hidráulico e **ressonância de tubo de órgão (`f_pipe`)**.
-  * Grade de **13 gráficos logarítmicos** (`10 Hz – 2 kHz`), incluindo **Group Delay (ms)**, zoom por banda, Auto-Scale Y, marcadores (`Fs`, `Fb`/`Fc`, `F3`, `HPF`, `f_pipe`), limites (`Xmax`, `Mach`, `Pe`, `Re`, `-3 dB`, `20 ms`), menu de contexto (botão direito), **Comparador A/B** (`Δ = B − A`), exportação PNG (`1280×720`) e **Salvar / Abrir Projeto (`.json`)**.
-  * **Analysis Engine com Perfis de Ambiente (`🏛️ Architectural` / `🚗 Automotive`)**: reordena os 13 slots por prioridade de análise, mantém **badges de restrição física** (`⛔ Xmax`, `⚠️ velocidade do duto`, `⚠️ compressão térmica`, `⚠️ group delay`) nos cabeçalhos dos cards e trata `SPL in Room` / `Room Gain` como **slots explicitamente não implementados** (`N/D`, sem curva fictícia) — a alternância de perfil **nunca** recalcula física nem altera parâmetros do projeto (`analysisEnv` persistido no `.json`).
-  * **Marcenaria CAD (WoodLock) & Pacote de Construção**: projeto sempre parte fisicamente válido via **autofix geométrico** (mantendo `Vb`/`Fb` intactos) e **pisos mínimos dinâmicos** que impedem reduzir cotas abaixo do aplicável para driver/dutos; inclui validador P0, blueprint real (`Lv` vs `C` e furação), plano de corte completo (MDF + sarrafos + duto `Lv`), gabarito de furação `(X, Y)` e **Exportar Pacote de Construção (HTML imprimível offline / BuildPack JSON)**.
-  * **Engenharia Elétrica & DSP**: associação de bobinas sincronizada, EPDR, bitola de cabos, rede Zobel, limiter DSP, **Derating 70% (IEC/NBR)** e **estimativa de temperatura da bobina (°C)** por leitura de multímetro.
+O código-fonte vive em módulos focados (`< 105 KB` cada) sob [`src/`](./src) e é compilado pelo montador zero-dependência [`scripts/build.js`](./scripts/build.js) nos dois artefatos portáteis 100% offline (`file://`):
 
-* **[`drivers-db.html`](./drivers-db.html) — Banco Oficial de Drivers**
-  * Catálogo técnico embutido (77 transdutores) com persistência local automática (`localStorage`), busca textual e **filtros paramétricos combinados** (aptidão de caixa `Selada/Dutada/BP4/BP6/Planar`, diâmetro, `Pe`, `Fs`, `Qts`).
-  * Motor de auditoria cruzada Thiele-Small Class-I (ISO 9613-1 @ 20 °C), com validação não-tautológica de `Fs` por rotas mecânica, acústica e elétrica e suporte opcional a `Mms` e `Bl` de catálogo.
-  * Exportação e importação completas em esquema de 22 colunas (`TSV`, `CSV`, `JSON` v1 e relatório PDF).
-  * Ponte direta de carregamento com 1 clique (`🚀 ABRIR NO SIMULADOR`) propagando todos os parâmetros completos para o simulador (compatível tanto via servidor local quanto via `file://`).
+* **[`index.html`](./index.html) — BassForge Workstation** (`src/sim/*`)
+  * **6 Modos / Topologias (`Selada · Dutada · BP4 · BP6 Paralela/Série · Planar Horn · Free-Air`)**: matriz de aptidão por driver via `EBP`, `Qts` e diâmetro, suporte a múltiplos alto-falantes (`1x` a `16x`), **Auto-Design PhD** (`Musical`, `Subgrave`, `SPL`) e compressão térmica (`ΔT`).
+  * **Assistente Inteligente (`F6`)** e **Filtros Complexos HPF/LPF** (Butterworth, Linkwitz-Riley, Bessel de 6 a 48 dB/oitava com fase e Group Delay exatos).
+  * **Aerodinâmica avançada de dutos**: cilíndrico padrão (`k=0.732`), Flared/Aeroport (`k=0.850`), **régua livre**, **régua em parede** (`k=1.343`) e **triângulo de canto** (`1–4` cantos), com ressonância de tubo de órgão (`f₁`), `j·ω·Le` na impedância complexa e roteamento **Reto / Duto em L (90°) / Side-Firing**.
+  * **15 Séries Logarítmicas (`5 Hz – 20 kHz` em 900 pontos)**: perfis **Sala / Estúdio** (incl. Room Gain Waterhouse e SPL in Room) e **Automotivo** (Cabin Gain acoplado), **Comparador A/B** (`Δ = B − A`), sobreposições e exportação PNG (`1280×720`).
+  * **Marcenaria CAD (`WoodLock`) + PGS 3D (`G01–G12`)**: retangular e trapezoidal, travamentos 6-eixos + Window Brace + Matriz DIV, Nesting 2D em chapa `2750×1830 mm`, Blueprint 2D, Vista 3D Explodida (0%–100% + Raio-X), detector de colisões 3D (`CAD-03`), gate aerodinâmico (`CAD-06`) e **7 exportadores** (Pacote de Obra HTML, Dossiê A4 PDF, JSON, DXF 2D R12, DXF 3D, OBJ e macro FreeCAD `.FCMacro`).
+  * **Engenharia Elétrica & DSP**: associação de bobinas/subs sincronizada (`1–16`), EPDR (AES), estresse SOA, bitola de cabos DC (loop `2×L`, ampacidade, fusível ANL), cabo de áudio (`DF_eff`), ganho RMS / Limiter / Crossover 12 dB / Zobel e temperatura estimada da bobina por multímetro.
+
+* **[`drivers-db.html`](./drivers-db.html) — Driver Database PRO** (`src/db/*` + `src/data/drivers-catalog.json`)
+  * Catálogo oficial embutido com **1.063 transdutores**, auditoria cruzada ISO 9613-1 @ 20 °C, filtros paramétricos combinados, importação/exportação `TSV / CSV / JSON`, relatório PDF A4 e ponte direta para o simulador (`localStorage` + `#driver=`).
+
+## Comandos Principais
+
+```bash
+# Compilar index.html e drivers-db.html + espelhar em ../bassforge-pro-x/
+node scripts/build.js --mirror
+
+# Verificar integridade byte-a-byte entre src/ e os HTMLs compilados
+node scripts/build.js --check
+
+# Rodar todas as 32 suítes do BassForge Engineering Guardian
+node tests/guardian.test.js
+```
 
 ## Como Usar
 
-1. Clone ou baixe o repositório.
-2. Abra [`index.html`](./index.html) ou [`drivers-db.html`](./drivers-db.html) diretamente no navegador (ou sirva a pasta localmente com qualquer servidor HTTP estático, ex.: `python -m http.server`).
-3. No **Banco de Drivers**, cadastre ou selecione um transdutor e clique em **Abrir no Simulador** — ou importe um arquivo `.json` diretamente pela barra lateral do simulador.
-
+1. Abra [`index.html`](./index.html) ou [`drivers-db.html`](./drivers-db.html) diretamente no navegador (`file://` funciona 100% offline).
+2. Para editar código, altere apenas os módulos em [`src/`](./src) e execute `node scripts/build.js --mirror` + `node tests/guardian.test.js` antes de commitar. Consulte [`AGENTS.md`](./AGENTS.md) e [`engineering/ARCHITECTURE.md`](./engineering/ARCHITECTURE.md).

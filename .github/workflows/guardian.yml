@@ -18,5 +18,8 @@ jobs:
         with:
           node-version: '20'
 
+      - name: Verify Modular Build Parity
+        run: node scripts/build.js --check
+
       - name: Run BassForge Engineering Guardian Gate
         run: node tests/guardian.test.js

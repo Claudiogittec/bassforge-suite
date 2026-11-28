@@ -20,11 +20,17 @@ const DEFAULT_ROOT = path.resolve(__dirname, '..');
 const SIM_MODULES = [
   '01-presets-analysis.js',
   '02-drivers-bridge.js',
-  '03-physics-core.js',
+  '03a-auto-design-ports.js',
+  '03b-physics-bp-planar.js',
+  '03c-physics-solver.js',
   '04-charts-canvas.js',
-  '05-cad-woodlock.js',
+  '05a-cad-floors-autofix.js',
+  '05b-cad-validator.js',
+  '05c-cad-routing-bom.js',
   '06-cad-pgs-3d.js',
-  '07-cad-exporters.js',
+  '07a-export-dossier-json.js',
+  '07b-export-dxf-obj.js',
+  '07c-export-freecad.js',
   '08-electrical-dsp.js',
   '09-shell-wizard.js'
 ];

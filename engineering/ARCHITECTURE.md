@@ -1,102 +1,72 @@
-# BassForge SUITE — Mapa Arquitetural, Contratos e Inventário de Riscos
+# BassForge SUITE — Mapa Arquitetural, Contratos e Módulos
 
-> **Status**: Baseline congelada (`commit 8c95504`, 22/11/2026) + Analysis Engine de perfis ambientais (`22/11/2026`)  
-> **Escopo**: Auditoria estrutural completa de `index.html` (6.648 linhas · 313,9 KB) e `drivers-db.html` (3.349 linhas · 107,0 KB)  
-> **Premissa Arquitetural Crítica**: Ambos os arquivos são **HTML5 standalone zero-build** — executam offline via `file://` (`F5`) e no GitHub Pages sem servidor nem bundler. Qualquer modularização futura em arquivos separados **não pode** usar ES Modules (`import/export`) diretamente sob `file://` sem um passo de build/empacotamento, pois navegadores bloqueiam `file://` via CORS.
-
----
-
-## 1. Mapa Real de Módulos Implícitos
-
-### 1.1 `index.html` — BassForge Workstation (74 funções declaradas)
-
-| Domínio / Módulo Implícito | Faixa de Linhas | Funções | Acoplamento com DOM |
-| :--- | :---: | :--- | :---: |
-| **Comparador A/B & Snapshots** | L1812–L1859 | `captureSnapshotA`, `clearSnapshotA` | Médio (lê `currentCurves`, atualiza badges) |
-| **Persistência de Projeto (`.json`)** | L1880–L1950 | `exportProjectJson`, `applyProjectData`, `importProjectJsonFile` | Alto (lê/escreve IDs de inputs) |
-| **Controles de Banda, Sliders & Sintonia** | L1860–L2084 | `onSimNumDriversChange`, `setFreqRange`, `toggleChartOpt`, `syncSliderRange`, `updateFbLockButtonUI`, `setTuningMode`, `resetToOptimalFb`, `onVbRangeChange`, `onVbInputChange`, `onFbRangeChange`, `onFbInputChange`, `onFbVrInputChange` | Alto (manipula `vbRange`, `fbRange`, `isAutoTune`) |
-| **Ponte com Banco de Drivers** | L2085–L2394 | `estimateVsubByDia`, `dbDriverId`, `upsertDbDrivers`, `refreshCustomDriversDropdown`, `loadDriversFromStorage`, `decodeBase64UrlJson`, `syncSimLeToElec`, `syncSimZnomToElec`, `applyDbDriver`, `importDriversJsonFile`, `updateSimAdvancedTelemetry`, `checkIncomingDriverLink` | Alto (`localStorage`, `location.hash`, inputs T/S) |
-| **Inicialização & Navegação** | L2395–L2515 | `openExpandedChart`, `initUI`, `loadPreset`, `switchTab` | Alto (renderiza grid de 13 gráficos e abas) |
-| **Physics Core — Topologias, Dutos & Transferência** | L2516–L3568 | `computeTopologySuitability`, `selectTopology`, `computePortGeometry`, `analyzeTransferAlignment`, `recalculate`, `generateSimulationData` | **Misto**: `computeTopologySuitability`, `computePortGeometry`, `analyzeTransferAlignment` e `generateSimulationData` são **quase puras** (recebem objeto `opts`/`p`); `recalculate` e `selectTopology` fazem leitura/escrita direta no DOM |
-| **Motor de Gráficos Canvas (13 curvas)** | L3569–L4295 | `getLogFreqTicks`, `formatFreqTick`, `formatYTickLabel`, `pickNiceStep`, `computeYAxisScale`, `interpolateSeriesAtFreq`, `computeVisiblePeak`, `drawLogChart`, `bindInteractiveChart`, `getExpandedOverlayConfig`, `onExpandedOverlayChange`, `drawAllCharts`, `renderExpanded`, `exportExpandedPNG` | Alto (Canvas 2D + hover/cursor + modal expandido) |
-| **Analysis Engine — Perfis de Ambiente** | L1917–L2230 | `CHART_REGISTRY`, `ENV_PROFILES`, `formatChartDisplayTitle`, `scanSeriesInBand`, `evaluatePhysicalConstraints`, `updateChartConstraintBadges`, `buildChartGridForEnv`, `syncExpandedSelectForEnv`, `setAnalysisEnvironment` | Baixo (lê `currentCurves` + escreve apenas a grade/seletor/badges; numeração visual `#1..#13` por perfil mantendo `#1..#13` original em `CHARTS_INFO` como controle interno) |
-| **Auditoria & Engenharia Auxiliar** | L4830–L6500 | `populateAuditTable`, `computeWoodlockFloors`, `autofixWoodlockGeometry`, `validateBuildGeometry`, `updateWoodlock`, `drawWoodlockBlueprint`, `drawWoodlockExploded3D`, `drawWoodlockCutPlan2D`, `buildPackHtmlString`, `generateBuildPackHtml`, `updateElectrical`, `updateReverseVolume` | Alto (WoodLock CAD multi-topologia: Normal/Invertida, Régua H/V A×C4, BP4/BP6 2 câmaras + divisória, Explodida 3D, Planificação 2D, Pacote de Construção HTML/JSON) |
-| **Workstation UI (Menus, Modais, Status)** | L4717–L4873, L5097–L5165 | `closeAllMenus`, `toggleMenu`, `openConfigModal`, `closeConfigModals`, `switchModalTab`, `toggleQuickSidebar`, `resetCurrentProject`, `updateDesktopStatusBar`, `openChartContextMenu`, `closeChartContextMenu`, `ctxAction` | Alto (menus desktop, barra de status, menu de contexto) |
-| **Wizard de Alinhamento (6 Perfis)** | L4874–L5096 | `openWizardModal`, `selectWizardGoal`, `computeWizardPlan`, `updateWizardPreview`, `applyWizardRecommendation` | Médio/Alto (lê T/S do DOM, gera plano e aplica) |
-
-### 1.2 `drivers-db.html` — Driver Database PRO (37 funções declaradas)
-
-| Domínio / Módulo Implícito | Faixa de Linhas | Funções | Acoplamento |
-| :--- | :---: | :--- | :---: |
-| **Persistência & Contadores** | L2520–L2640 | `updateCatalogCounters`, `saveCatalogStorage`, `loadCatalogStorage` | `localStorage` (`BASSFORGE_DRIVER_DB_V1`) |
-| **Formulário T/S & Auditoria Física** | L2755–L2866 | `getFormValues`, `onParamInput`, `adicionarTabela`, `resetForm` | DOM + motor de validação cruzada interno |
-| **Filtros Combinados & Tabela** | L2867–L3023 | `resetDbFilters`, `driverMatchesTopo`, `renderTable`, `selectRow`, `carregarLinhaSelecionada`, `carregarNoFormulario`, `excluirSelecionado`, `excluirTodos`, `restaurarCatalogoFabrica` | DOM + estado `catalog` |
-| **Ponte para Simulador** | L3043–L3098 | `buildSimulatorPayload`, `encodePayloadBase64Url`, `enviarParaSimulador`, `enviarFormularioParaSimulador`, `enviarLinhaParaSimulador` | `localStorage` (`BASSFORGE_ACTIVE_DRIVER_V1`) + URL Hash `#driver=` |
-| **Importação / Exportação** | L3099–L3252 | `parseTsvRows`, `parseJsonImport`, `previewTSV`, `handleTSVFileSelect`, `confirmTSVImport`, `exportTSV`, `exportCSV`, `exportJSON`, `downloadFile` | FileReader / Blob download |
-| **Modais & Relatório PDF** | L3253–L3349 | `openCatalogModal`, `openImportTSVModal`, `openReportModal`, `closeModal`, `renderCatalogList`, `renderPrintableReport`, `downloadReportPDF` | DOM + CDN `html2pdf.js@0.10.1` |
+> **Arquitetura**: Fontes modulares SRP em [`src/`](../src) compiladas pelo montador zero-dependência [`scripts/build.js`](../scripts/build.js) nos artefatos standalone 100% offline [`index.html`](../index.html) (`file://`) e [`drivers-db.html`](../drivers-db.html).  
+> **Gate de Qualidade**: 32 suítes automatizadas no [`tests/guardian.test.js`](../tests/guardian.test.js) executadas localmente e em CI ([`.github/workflows/guardian.yml`](../.github/workflows/guardian.yml)).
 
 ---
 
-## 2. Contratos de Dados e Integração
+## 1. Estrutura Modular do Repositório
 
-### 2.1 Chaves de Persistência (`localStorage`)
-- **`BASSFORGE_DRIVER_DB_V1`**: Objeto JSON contendo o catálogo persistido de drivers (`{ version, updatedAt, drivers: [...] }` ou array de drivers). Lido por `index.html` (`loadDriversFromStorage`) e lido/gravado por `drivers-db.html` (`loadCatalogStorage` / `saveCatalogStorage`).
-- **`BASSFORGE_ACTIVE_DRIVER_V1`**: Payload JSON do último driver enviado pelo Banco de Drivers ao Simulador.
-- **URL Hash (`#driver=<base64url>`)**: Transporte fallback para cenários `file://` onde `localStorage` pode estar isolado por origem no navegador. Decodificado por `decodeBase64UrlJson()` em `index.html` (`checkIncomingDriverLink()`).
-
-### 2.2 Contrato de Projeto Salvo (`.json`)
-- Schema: `bassforge-project/v1` (`exportProjectJson` / `applyProjectData`).
-- Preserva: topologia, `nDrivers`, `deltaT`, todos os parâmetros T/S, `Vb`, `Vr`, `Fb`, `FbVr`, `bp6Mode`, `QL`, `tempC`, `cabinLen`, `hpfCutoff`, tipo e dimensões do duto, e estado `isAutoTune`.
-
-### 2.3 Contrato Matemático do Physics Core (Congelado)
-- **Golden Master**: `Oversound 18 SUB 800 XT` (`Fs=40 Hz`, `Qes=0.446`, `Qms=7.20`, `Qts=0.420`, `Vas=185 L`, `Re=5.10 Ω`, `Sd=1186 cm²`, `Xmax=9.8 mm`, `Pe=800 W`, `Vsub=9 L`, `Vb=130 L`, `QL=15`, `2×6" round`):
-  - `Fb = Fs · α^0.31 = 44.62 Hz` (`h = 1.1155`)
-  - `Vtot = 148.73 L`
-  - Polinômio Small (1973, Eq. 19): `F3 real (-3 dB em G4) = 42.90 Hz`, pico `+1.46 dB @ ~69.8 Hz`
-- **Conservação de Energia em `G2_VentSPL`**: $|H_{\text{vent}}(s_n)|^2 = h^2 \omega_n^4 / |D(s_n)|^2$ (em `f = Fb`, `G2 ≈ G6`).
-- **Coerência HPF em `G10_ConeSPL`**: atenuação LR4 (`+ hpf_db`) aplicada consistentemente em `G2`, `G4`, `G6` e `G10`.
-- **Imunidade `NaN`**: `hpfCutoff <= 0` opera em bypass limpo (`hpf_lin = 1.0`, `hpf_db = 0.0`); entradas zero/vazias (`Vb`, `Fb`, `QL`, `Fs`, `Qts`) nunca produzem `NaN` nas 13 curvas.
-
----
-
-## 3. Auditoria Real de `innerHTML` (R5 — 28 ocorrências mapeadas)
-
-| Arquivo | Linha | Origem dos Dados | Classificação XSS |
-| :--- | :---: | :--- | :--- |
-| `index.html` | L2243 | `nome` (`drv.brand`, `drv.model`, `drv.name` de JSON/localStorage) | **ATENÇÃO** — interpolar com escape HTML em futura correção |
-| `index.html` | L5029 | `dName` (`option.text` derivado de driver importado) | **ATENÇÃO** — interpolar com escape HTML em futura correção |
-| `drivers-db.html` | L2911 | `d.brand`, `d.model`, `d.series` na tabela principal | **ATENÇÃO** — dados podem vir de TSV/JSON importado |
-| `drivers-db.html` | L3162 | Preview de linhas TSV/JSON importadas | **ATENÇÃO** — entrada externa direta |
-| `drivers-db.html` | L3267 | Lista do modal de catálogo (`d.brand`, `d.model`) | **ATENÇÃO** — dados importáveis |
-| `drivers-db.html` | L3286 | Relatório imprimível (`d.brand`, `d.model`, `d.notes`) | **ATENÇÃO** — dados importáveis |
-| `index.html` | L2125, L2350, L2405, L2409, L2899, L3045, L4203, L4217, L4219, L4315, L4420, L4441, L4451, L4602, L4632, L4680, L4705, L4836, L4870, L5035, L5045 | Números formatados (`.toFixed()`), strings literais internas ou SVG estático | **Baixo risco** (sem texto arbitrário externo) |
-| `drivers-db.html` | L3158 | String literal estática | **Seguro** |
-
----
-
-## 4. Registro de Módulos Congelados (*Frozen Modules*)
-
-Nenhuma alteração nos itens abaixo é permitida sem atualização explícita e aprovação da suíte `node tests/guardian.test.js`:
-
-1. `computePortGeometry()` (`index.html` L2573–L2657) — Geometrias `round`, `flared`, `slot`, `slot_wall`, `triangle` e ressonância tubo de órgão `f1`.
-2. `analyzeTransferAlignment()` (`index.html` L2658–L2803) — Polinômio Small 1973 e extração de `F3`, `FL`, `FH` e pico real nas 5 topologias.
-3. `generateSimulationData()` (`index.html` L3182–L3568) — Síntese das 13 curvas (`G1`–`G13`), EPDR e conservação de energia `G2`/`G10`.
-4. Contratos de ponte (`BASSFORGE_DRIVER_DB_V1`, `BASSFORGE_ACTIVE_DRIVER_V1`, `#driver=`).
-
-> **Análise/Visualização (NÃO congelada, mas subordinada)**: `CHART_REGISTRY`, `ENV_PROFILES`, `evaluatePhysicalConstraints()`, `setAnalysisEnvironment()` e a montagem da grade podem evoluir, mas **não podem** recalcular física, alterar `currentCurves` nem escrever em inputs do projeto. Contrato garantido pela Suite 12 (`tests/guardian.test.js`): alternar `automotive ↔ architectural` mantém o **mesmo objeto** `currentCurves` e valores bit-a-bit idênticos.
+```text
+BassForge_Kit_Oficial/
+├── scripts/build.js                   # Montador determinístico (--mirror / --check)
+├── src/
+│   ├── data/drivers-catalog.json      # 1.063 transdutores comerciais em JSON estrito
+│   ├── sim/                           # BassForge Workstation -> index.html
+│   │   ├── template.html              # Shell DOM + {{INLINE_CSS}} + {{INLINE_JS}}
+│   │   ├── styles.css                 # Folha de estilo dark-lab
+│   │   ├── 01-presets-analysis.js     # Presets, CHART_REGISTRY, ENV_PROFILES, restrições, DSP
+│   │   ├── 02-drivers-bridge.js       # Ponte localStorage/#driver=, UI init, tabs
+│   │   ├── 03a-auto-design-ports.js   # Auto-Design PhD, aptidão, dimensionamento & computePortGeometry
+│   │   ├── 03b-physics-bp-planar.js   # Modelos acoplados BP4/BP6 e Planar TMM/ABCD 1D
+│   │   ├── 03c-physics-solver.js      # analyzeTransferAlignment, recalculate, 900 pts (5–20k Hz)
+│   │   ├── 04-charts-canvas.js        # Engine Canvas 2D, décadas prioritárias 5–20k, A/B, PNG, Auditoria
+│   │   ├── 05a-cad-floors-autofix.js  # Pisos mínimos dinâmicos e autofix geométrico P0
+│   │   ├── 05b-cad-validator.js       # Validador P0/P1, escapeHtmlStr, fmtNumSafe, bordas e colisões 2D
+│   │   ├── 05c-cad-routing-bom.js     # Roteamento Reto/L-Port/Side-Firing, quick-fix, BOM & updateWoodlock
+│   │   ├── 06-cad-pgs-3d.js           # PGS G01–G12, Nesting 2D, colisões 3D (CAD-03), 3D/2D Renderers
+│   │   ├── 07a-export-dossier-json.js # Gate CAD-06, Pacote HTML, Dossiê A4 PDF & BuildPack JSON
+│   │   ├── 07b-export-dxf-obj.js      # Exportadores DXF 2D R12, DXF 3D & OBJ 3D (CAD-04/14)
+│   │   ├── 07c-export-freecad.js      # Gerador paramétrico B-Rep FreeCAD (.FCMacro)
+│   │   ├── 08-electrical-dsp.js       # Associações, EPDR SOA, cabos DC/Áudio, Ganho/Zobel & Vol. Reverso
+│   │   └── 09-shell-wizard.js         # Menus desktop, modais, barra de status, Wizard F6 & menu contexto
+│   └── db/                            # Driver Database PRO -> drivers-db.html
+│       ├── template.html              # Shell + {{INLINE_CSS}} + {{CATALOG_JSON}} + {{INLINE_JS}}
+│       ├── styles.css                 # Folha de estilo Driver Database
+│       └── app.js                     # CLAudioDatabaseAgent, ISO 9613-1, CRUD, TSV/CSV/JSON, PDF A4
+├── docs/historico/                    # Documentos de especificação e auditoria histórica
+├── engineering/ARCHITECTURE.md        # Este documento
+├── tools/                             # Macros FreeCAD ao vivo (.FCMacro / .py) e geradores CLI
+├── tests/guardian.test.js             # 32 Suítes de contrato, física, CAD PGS e Blacklist P0/P1
+├── index.html                         # Build offline compilado
+└── drivers-db.html                    # Build offline compilado
+```
 
 ---
 
-## 5. Dependências Externas
+## 2. Contratos Físicos e de Dados (Inegociáveis)
 
-- **Google Fonts** (`Inter` e `JetBrains Mono`): degradação graciosa offline para fontes do sistema.
-- **`html2pdf.js@0.10.1` via `cdnjs`** (`drivers-db.html` L10): usado exclusivamente no botão de exportação PDF; o restante da aplicação funciona 100% offline.
+1. **Golden Master (`Oversound 18 SUB 800 XT`, `Vb = 130 L`, `QL = 15`, `2×6" round`)**:
+   - `Fb = Fs · α^0.31 = 44.62 Hz` (`± 0.02 Hz`), `Vtot = 148.73 L` (`± 0.05 L`), `F3 real = 42.90 Hz` (`± 0.20 Hz`).
+2. **Passividade e Conservação de Energia**:
+   - `G2_VentSPL` inclui $h^2$; `G10_ConeSPL` aplica atenuação HPF; impedância inclui $+ j\omega L_e$ e é verificada pós-varredura quanto à passividade ($|Z(f)| \ge R_e(T)$).
+3. **6 Modos Acústicos & Varredura `5 Hz – 20 kHz` (900 pts)**:
+   - `sealed`, `bass-reflex`, `bp4`, `bp6` (Paralela/Série), `planar` (Quadrada/Triângulo TMM) e `free-air`, com `0 NaN` e `0 Infinity`.
+4. **PGS `G01–G12`, Gate Aerodinâmico `CAD-06` & Lista Negra P0/P1**:
+   - Colisões 3D (`CAD-03`), roteamento lateral real (`CAD-04`), bloqueio com confirmação explícita em sopro crítico (`CAD-06`), paridade 3D nos 7 exportadores (`CAD-14`), anti-XSS (`escapeHtmlStr`) e zero blocos `catch` vazios.
+5. **Chaves de Ponte (`localStorage` + Hash URL)**:
+   - `BASSFORGE_DRIVER_DB_V1`, `BASSFORGE_ACTIVE_DRIVER_V1`, `#driver=<base64url>`.
 
 ---
 
-## 6. Pendências Técnicas Conhecidas (Backlog Controlado)
+## 3. Fluxo Obrigatório de Edição e Build
 
-1. **Escape HTML nos 6 pontos de `innerHTML` com strings externas** (Seção 3).
-2. **Impedância em Caixa Selada/Planar (`G11_InBoxZ`)**: refinar amortecimento mecânico para usar $Q_{mc} = Q_{ms}\sqrt{1+\alpha}$ em vez de $Q_{tc}$ (para precisão do pico de impedância em $F_c$).
-3. **Migração de Schema `localStorage`**: adicionar campo explícito `schemaVersion` e rotina de migração defensiva antes de evoluir campos do banco.
-4. **`G7_CabinGain`**: a série entregue é `G4 + T_cabin` (resposta acoplada à cabine), não o ganho isolado — o título foi corrigido para *"Cabin Gain Acoplado"* na camada de visualização. Expor `T_cabin` puro exigiria aprovação de contrato de `currentCurves`.
+- Nunca editar `index.html` ou `drivers-db.html` diretamente — a Suíte 32 e `node scripts/build.js --check` validam igualdade byte-a-byte (`SHA-256`) contra `src/`.
+- Todo código em `src/sim/` e `src/db/` permanece abaixo de `105 KB` por arquivo para edição segura sem truncamento em IDEs.
+- Sempre executar antes de finalizar qualquer tarefa:
+
+```bash
+node scripts/build.js --mirror
+node scripts/build.js --check
+node tests/guardian.test.js
+```

@@ -6,8 +6,8 @@ Este arquivo define os **contratos obrigatórios** para qualquer humano ou agent
 
 ## 1. Arquitetura Modular + Build Offline
 
-- **Fonte da verdade (`src/`)**: os módulos ficam organizados em `src/` para edição segura (todos os arquivos `< 350 KB`), compilados sem dependências externas pelo script `scripts/build.js`:
-  - `src/sim/` (`template.html`, `styles.css`, `01-presets-analysis.js` .. `09-shell-wizard.js`) ➔ gera `index.html` (**BassForge Workstation**)
+- **Fonte da verdade (`src/`)**: os módulos ficam organizados em `src/` por responsabilidade única (todos `< 105 KB` em código), compilados sem dependências externas pelo script `scripts/build.js`:
+  - `src/sim/` (`template.html`, `styles.css`, `01-presets-analysis.js` .. `09-shell-wizard.js`, total 15 módulos JS) ➔ gera `index.html` (**BassForge Workstation**)
   - `src/db/` (`template.html`, `styles.css`, `app.js`) + `src/data/drivers-catalog.json` (1.063 drivers) ➔ gera `drivers-db.html` (**Driver Database PRO**)
 - **Nunca editar os HTMLs gerados diretamente**: altere sempre os arquivos em `src/` e execute `node scripts/build.js --mirror` para regerar `index.html`, `drivers-db.html` e sincronizar o espelho `../bassforge-pro-x/`.
 - **Compatibilidade `file://` obrigatória**: ambos os HTMLs compilados continuam 100% standalone zero-dependência e devem abrir diretamente no navegador sem servidor HTTP.
