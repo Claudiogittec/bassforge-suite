@@ -2030,6 +2030,80 @@ runSuite('29. Lote P0-B CAD 3D (CAD-03 Collisions, CAD-04 Side-Firing, CAD-06 Ae
   vm.runInContext('delete globalThis.__lbPack; loadPreset();', ctx);
 });
 
+runSuite('30. Lote P1 Engenharia & Regra 5.6 (Zero Silent Catches, ELE-05/09/11/12, FIS-14, CAD-07, PRO-11)', () => {
+  // --- 30.1 Regra 5.6: zero blocos catch vazios em index.html e drivers-db.html ---
+  for (const [label, src] of [['index.html', indexHtml], ['drivers-db.html', dbHtml]]) {
+    const catches = [...src.matchAll(/catch\s*(?:\([^)]*\))?\s*\{([\s\S]*?)\}/g)];
+    const empty = catches.filter(m => m[1].replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, '').trim() === '');
+    assert.strictEqual(empty.length, 0, `Regra 5.6: ${label} ainda possui ${empty.length} bloco(s) catch silencioso(s)`);
+  }
+
+  // --- 30.2 ELE-05 (EPDR SOA) & CAD-07 (Tubo de órgão + Slot AR > 8:1) ---
+  const p1Warns = vm.runInContext(`evaluatePhysicalConstraints({
+    frequencies: [20, 40, 80],
+    meta: { minEpdrVal: 1.5, minEpdrFreq: 60, zNom: 4, fPipe1: 280, slotAR: 10.5, boxType: 'bass-reflex', Pe: 800, velLimit: 17, Xmax: 15 },
+    G1_MaxPower: [800, 800, 800], G8_ConeExcursion: [1, 1, 1], G9_PortAirVel: [5, 5, 5], G13_GroupDelay: [3, 3, 3]
+  }, 15, 200)`, ctx);
+  assert(p1Warns.some(c => c.code === 'ELE_EPDR_SOA_STRESS' && c.severity === 'warn'), 'ELE-05: EPDR 1.5 Ω (< 0.5*Znom=2 Ω) deve emitir ELE_EPDR_SOA_STRESS');
+  assert(p1Warns.some(c => c.code === 'PORT_ORGAN_PIPE_RESONANCE' && c.severity === 'warn'), 'CAD-07: fPipe1=280 Hz (< 400 Hz) deve emitir PORT_ORGAN_PIPE_RESONANCE');
+  assert(p1Warns.some(c => c.code === 'PORT_SLOT_AR_HIGH' && c.severity === 'warn'), 'CAD-07: slotAR=10.5 (> 8:1) deve emitir PORT_SLOT_AR_HIGH');
+
+  // --- 30.3 ELE-09 (Cabo áudio) & ELE-11 (Saturação ganho negativo / >40dB) ---
+  elements.get('elNumSpk').value = '1';
+  elements.get('elCoils').value = '1';
+  elements.get('elZCoil').value = '4';
+  elements.get('elSpkLen').value = '25';
+  elements.get('elSpkGauge').value = '0.5';
+  elements.get('elPreoutV').value = '10';
+  elements.get('elAmpPower').value = '10';
+  vm.runInContext('updateElectrical(false)', ctx);
+  const elCodesLow = vm.runInContext('lastElectricalAudit.issues.map(i => i.code)', ctx);
+  assert(elCodesLow.includes('ELE_AUDIO_CABLE_LOSS'), 'ELE-09: Cabo de áudio 25m / 0.5mm² deve gerar ELE_AUDIO_CABLE_LOSS');
+  assert(elCodesLow.includes('ELE_GAIN_SATURATION'), 'ELE-11: Pre-out 10V > V_alvo deve gerar ELE_GAIN_SATURATION');
+
+  elements.get('elSpkLen').value = '3';
+  elements.get('elSpkGauge').value = '4';
+  elements.get('elPreoutV').value = '0.05';
+  elements.get('elAmpPower').value = '5000';
+  vm.runInContext('updateElectrical(false)', ctx);
+  const elCodesHi = vm.runInContext('lastElectricalAudit.issues.map(i => i.code)', ctx);
+  assert(elCodesHi.includes('ELE_GAIN_EXCESSIVE'), 'ELE-11: Ganho > 40 dB deve gerar ELE_GAIN_EXCESSIVE');
+
+  // --- 30.4 ELE-12: Solver BP4 e Planar respeitam hpfType (não mais BW4 hardcoded) ---
+  const bp4Check = vm.runInContext(`(() => {
+    const a = analyzeTransferAlignment({ boxType: 'bp4', Fs: 40, Qes: 0.4, Qms: 6, Qts: 0.375, Re: 3.5, Vas: 100, Sd_m2: 0.08, Pe: 800, Vr: 60, Vb: 40, Fb: 65, QL: 7, rho: 1.2041, c: 343.21, hpfHz: 45, hpfType: 'BW6' });
+    const b = analyzeTransferAlignment({ boxType: 'bp4', Fs: 40, Qes: 0.4, Qms: 6, Qts: 0.375, Re: 3.5, Vas: 100, Sd_m2: 0.08, Pe: 800, Vr: 60, Vb: 40, Fb: 65, QL: 7, rho: 1.2041, c: 343.21, hpfHz: 45, hpfType: 'LR48' });
+    return { a: a.maxUpf, b: b.maxUpf };
+  })()`, ctx);
+  assert(Math.abs(bp4Check.a - bp4Check.b) > 1e-6, `ELE-12: BP4 deve variar com hpfType (BW6=${bp4Check.a} vs LR48=${bp4Check.b})`);
+
+  const planarCheck = vm.runInContext(`(() => {
+    const a = analyzeTransferAlignment({ boxType: 'planar', Fs: 45, Qes: 0.38, Qms: 6, Qts: 0.357, Re: 3.5, Vas: 90, Sd_m2: 0.085, Pe: 800, Vb: 45, alpha: 2, Fb: 55, QL: 7, rho: 1.2041, c: 343.21, hpfHz: 50, hpfType: 'BW6', planarStyle: 'square', planarTunnelMm: 60, planarSt_m2: 0.05, planarRh_m: 0.05, planarAMouth_m: 0.12 });
+    const b = analyzeTransferAlignment({ boxType: 'planar', Fs: 45, Qes: 0.38, Qms: 6, Qts: 0.357, Re: 3.5, Vas: 90, Sd_m2: 0.085, Pe: 800, Vb: 45, alpha: 2, Fb: 55, QL: 7, rho: 1.2041, c: 343.21, hpfHz: 50, hpfType: 'LR48', planarStyle: 'square', planarTunnelMm: 60, planarSt_m2: 0.05, planarRh_m: 0.05, planarAMouth_m: 0.12 });
+    return { a: a.maxUp, b: b.maxUp };
+  })()`, ctx);
+  assert(Math.abs(planarCheck.a - planarCheck.b) > 1e-6, `ELE-12: Planar deve variar com hpfType (BW6=${planarCheck.a} vs LR48=${planarCheck.b})`);
+
+  // --- 30.5 FIS-14: Sincronia elNumSpk -> simNumDrivers para N=5..16 ---
+  elements.get('elNumSpk').value = '5';
+  vm.runInContext('updateElectrical(true)', ctx);
+  assert.strictEqual(String(elements.get('simNumDrivers').value), '5', 'FIS-14: elNumSpk=5 deve sincronizar simNumDrivers para 5');
+  assert.strictEqual(vm.runInContext('currentCurves.meta.nDrivers', ctx), 5, 'FIS-14: simulação deve recalcular com nDrivers=5');
+
+  // --- 30.6 PRO-11: Tooltips de KPI e insights preenchidos ---
+  elements.get('elNumSpk').value = '1';
+  elements.get('simNumDrivers').value = '1';
+  elements.get('elSpkLen').value = '3';
+  elements.get('elSpkGauge').value = '4';
+  elements.get('elPreoutV').value = '2';
+  elements.get('elAmpPower').value = '1600';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('loadPreset();', ctx);
+  const kpiTitle = elements.get('kpi1Val').title;
+  const kpiTxt = elements.get('kpi1Val').textContent.trim();
+  assert(kpiTitle && kpiTitle === kpiTxt, `PRO-11: kpi1Val.title ("${kpiTitle}") deve espelhar textContent ("${kpiTxt}")`);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

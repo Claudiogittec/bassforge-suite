@@ -2066,7 +2066,7 @@
           updatedAt: new Date().toISOString(),
           drivers: DRIVER_CATALOG
         }));
-      } catch (e) { /* quota or file restriction */ }
+      } catch (e) { console.warn('[BassForge DB] Falha ao salvar catálogo no localStorage:', e); if (typeof showToast === 'function') showToast('Aviso: armazenamento local indisponível.'); }
       updateCatalogCounters();
     }
 
@@ -2102,7 +2102,7 @@
             return;
           }
         }
-      } catch (e) { /* fallback to factory */ }
+      } catch (e) { console.warn('[BassForge DB] Falha ao ler catálogo do localStorage; restaurando catálogo de fábrica:', e); }
       DRIVER_CATALOG = FACTORY_CATALOG.map((d, idx) => {
         const s = CLAudioDatabaseAgent.sanitize(d);
         if (!s.id) s.id = idx + 1;
@@ -2588,7 +2588,7 @@
       try {
         localStorage.setItem(STORAGE_ACTIVE_KEY, JSON.stringify(payload));
         saveCatalogStorage();
-      } catch (e) { /* ignore storage error */ }
+      } catch (e) { console.warn('[BassForge DB] Falha ao gravar driver ativo no localStorage (usando hash URL):', e); }
       const pLower = window.location.pathname.toLowerCase();
       const simRel = (pLower.endsWith('drivers-db.html') || pLower.includes('bassforge-pro-x') || pLower.includes('bassforge_kit'))
         ? './index.html'

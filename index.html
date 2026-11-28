@@ -2383,6 +2383,38 @@ function evaluatePhysicalConstraints(curves, fMin, fMax) {
     });
   }
 
+  // 8. Estresse SOA no amplificador (ELE-05: EPDR < 0.5*Znom ou < 1.0 Ω)
+  if (Number.isFinite(m.minEpdrVal) && m.minEpdrVal > 0 && m.minEpdrVal < 1e8) {
+    const epdrLimit = Math.max(1.0, (Number.isFinite(m.zNom) && m.zNom > 0) ? 0.5 * m.zNom : 1.0);
+    if (m.minEpdrVal < epdrLimit) {
+      out.push({
+        id: 'G11', code: 'ELE_EPDR_SOA_STRESS', severity: 'warn',
+        badge: `EPDR ${m.minEpdrVal.toFixed(2)}Ω`, value: m.minEpdrVal, limit: epdrLimit,
+        freq: Number.isFinite(m.minEpdrFreq) ? m.minEpdrFreq : null,
+        message: `Estresse SOA no amplificador (ELE-05): EPDR mínimo de ${m.minEpdrVal.toFixed(2)} Ω abaixo do limiar seguro (${epdrLimit.toFixed(2)} Ω).`
+      });
+    }
+  }
+
+  // 9. Ressonância longitudinal de tubo de órgão baixa (CAD-07: fPipe1 < 400 Hz)
+  const isVentedPipe = (m.boxType === 'bass-reflex' || m.boxType === 'bp4' || m.boxType === 'bp6');
+  if (isVentedPipe && Number.isFinite(m.fPipe1) && m.fPipe1 > 0 && m.fPipe1 < 400) {
+    out.push({
+      id: 'G9', code: 'PORT_ORGAN_PIPE_RESONANCE', severity: 'warn',
+      badge: `f₁ ${m.fPipe1.toFixed(0)}Hz`, value: m.fPipe1, limit: 400, freq: m.fPipe1,
+      message: `Ressonância longitudinal de tubo de órgão baixa (CAD-07): f₁ = ${m.fPipe1.toFixed(0)} Hz (< 400 Hz) pode colorir a banda útil.`
+    });
+  }
+
+  // 10. Razão de aspecto excessiva no duto régua (CAD-07: slot AR > 8:1)
+  if (Number.isFinite(m.slotAR) && m.slotAR > 8.0) {
+    out.push({
+      id: 'G9', code: 'PORT_SLOT_AR_HIGH', severity: 'warn',
+      badge: `AR ${m.slotAR.toFixed(1)}:1`, value: m.slotAR, limit: 8.0, freq: null,
+      message: `Razão de aspecto excessiva no duto régua (CAD-07): ${m.slotAR.toFixed(1)}:1 (> 8:1) aumenta perdas viscosas e turbulência.`
+    });
+  }
+
   return out;
 }
 
@@ -3068,7 +3100,7 @@ function loadDriversFromStorage() {
       const arr = Array.isArray(parsed) ? parsed : (Array.isArray(parsed?.drivers) ? parsed.drivers : []);
       upsertDbDrivers(arr);
     }
-  } catch (e) { /* ignore storage error */ }
+  } catch (e) { console.warn('[BassForge] Falha ao ler banco de drivers do localStorage:', e); }
   refreshCustomDriversDropdown();
 }
 
@@ -3196,7 +3228,7 @@ function importDriversJsonFile(input) {
             const prevObj = JSON.parse(prevRaw);
             if (Number.isFinite(prevObj?.factoryCount)) prevFactoryCount = prevObj.factoryCount;
           }
-        } catch (e2) { /* ignore */ }
+        } catch (e2) { console.warn('[BassForge] Falha ao ler factoryCount prévio do localStorage:', e2); }
         const factoryCount = Number.isFinite(parsed?.factoryCount) ? parsed.factoryCount : prevFactoryCount;
         const payload = {
           schema: 'bassforge-driver-db/v1',
@@ -3205,7 +3237,7 @@ function importDriversJsonFile(input) {
         };
         if (factoryCount !== null) payload.factoryCount = factoryCount;
         localStorage.setItem(DB_STORAGE_KEY, JSON.stringify(payload));
-      } catch (err) { /* ignore */ }
+      } catch (err) { console.warn('[BassForge] Falha ao persistir banco de drivers no localStorage:', err); }
       const sel = document.getElementById('driverPreset');
       if (sel) sel.value = keys[0];
       loadPreset();
@@ -3288,7 +3320,7 @@ function checkIncomingDriverLink() {
         loadPreset();
         return true;
       }
-    } catch (e) { /* ignore malformed hash */ }
+    } catch (e) { console.warn('[BassForge] Link #driver= inválido ou corrompido:', e); }
   }
   return false;
 }
@@ -3306,7 +3338,7 @@ window.addEventListener('storage', ev => {
           if (sel) sel.value = keys[0];
           loadPreset();
         }
-      } catch (e) { /* ignore */ }
+      } catch (e) { console.warn('[BassForge] Falha ao sincronizar driver ativo via storage event:', e); }
     }
   }
 });
@@ -4991,7 +5023,9 @@ function analyzeTransferAlignment(p) {
       const f = Math.pow(10, logMin + (i / (N - 1)) * (logMax - logMin));
       freqs[i] = f;
       const ev = evalBandPassFrequency(bpModel, f);
-      const hpfLin = hpfOn ? (Math.pow(f / p.hpfHz, 4) / (Math.pow(f / p.hpfHz, 4) + 1.0)) : 1.0;
+      const hpfMag = hpfOn ? evalFilterComplex(f, p.hpfHz, 'hpf', hpfType).mag : 1.0;
+      const lpfMag = lpfOn ? evalFilterComplex(f, p.lpfHz, 'lpf', lpfType).mag : 1.0;
+      const hpfLin = hpfMag * lpfMag;
       const db = 20.0 * Math.log10(Math.max(1e-6, Math.hypot(ev.H_re, ev.H_im)));
       dbs[i] = db;
       if (db > peakDb) { peakDb = db; fPeak = f; peakIdx = i; }
@@ -5082,7 +5116,9 @@ function analyzeTransferAlignment(p) {
         fPeak = f;
         peakIdx = i;
       }
-      const hpfLin = hpfOn ? (Math.pow(f / p.hpfHz, 4) / (Math.pow(f / p.hpfHz, 4) + 1.0)) : 1.0;
+      const hpfMag = hpfOn ? evalFilterComplex(f, p.hpfHz, 'hpf', hpfType).mag : 1.0;
+      const lpfMag = lpfOn ? evalFilterComplex(f, p.lpfHz, 'lpf', lpfType).mag : 1.0;
+      const hpfLin = hpfMag * lpfMag;
       const upVal = ev.Up_mag * hpfLin;
       if (upVal > maxUp) maxUp = upVal;
     }
@@ -5360,7 +5396,7 @@ function recalculate() {
       }
       const h_ratio = Fb / Fs;
       const brEval = analyzeTransferAlignment({
-        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vb, alpha, Fb, QL, rho, c, hpfHz, hpfType,
+        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vb, alpha, Fb, QL, rho, c, hpfHz, hpfType, lpfHz, lpfType,
         planarStyle, planarTunnelMm,
         planarSt_m2: planarTunnelGeom.St_m2,
         planarRh_m: planarTunnelGeom.rh_m,
@@ -5422,7 +5458,7 @@ function recalculate() {
       }
       if (isBP) syncSliderRange('vrRange', Vr, 5);
       bpEval = analyzeTransferAlignment({
-        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vr, Vb, Fb, QL, rho, c, hpfHz
+        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vr, Vb, Fb, QL, rho, c, hpfHz, hpfType, lpfHz, lpfType
       });
       F3 = bpEval.fL;
       FH = bpEval.fH;
@@ -5469,7 +5505,7 @@ function recalculate() {
       }
       if (isBP) syncSliderRange('vrRange', Vr, 5);
       bpEval = analyzeTransferAlignment({
-        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vr, Vb, FbVr, Fb, bp6Mode, QL, rho, c, hpfHz
+        boxType, Fs, Qes, Qms, Qts, Re, Vas, Sd_m2, Pe, Vr, Vb, FbVr, Fb, bp6Mode, QL, rho, c, hpfHz, hpfType, lpfHz, lpfType
       });
       F3 = bpEval.fL;
       FH = bpEval.fH;
@@ -5703,8 +5739,10 @@ function recalculate() {
   document.getElementById('kpiF100Val').textContent = F100.toFixed(2) + ' Hz';
 
   // Síntese dos 13 Gráficos (suporta Selada, Dutada, BP4, BP6 e Planar TMM)
+  const zNomMeta = Math.max(0.5, parseFloat(document.getElementById('tsZnom')?.value) || 4.0);
+  const slotARMeta = (portGeom && portGeom.isSlot && Number.isFinite(portGeom.aspectRatio)) ? portGeom.aspectRatio : 0;
   generateSimulationData({
-    boxType, Fs, Qes, Qms, Re, Le_mH, Sd_m2, Vas, Xmax_mm, Pe, Qts,
+    boxType, Fs, Qes, Qms, Re, Le_mH, Sd_m2, Vas, Xmax_mm, Pe, Qts, zNom: zNomMeta, slotAR: slotARMeta,
     Vb, Vr, bp6Mode, FbVr, QL, tempC, cabinM, hpfHz, hpfType, lpfHz, lpfType, dspIssues, c, rho, F100, spl_rated, alpha, Fb, F3, FH, qtc, fc, airVel,
     fPipe1, velLimit, nDrivers, deltaT, powerCompDb, fQuarterWave, fHalfWave, planarTunnelMm, planarStyle,
     planarSt_m2: planarTunnelGeom.St_m2,
@@ -5722,6 +5760,15 @@ function recalculate() {
   updateElectrical();
   updateSimAdvancedTelemetry({ Fs, Qes: Qes_nom, Qms, Qts: (Qms * Qes_nom) / (Qms + Qes_nom), Vas: Vas_single, Re: Re_nom, Pe: Pe_single, Sd_m2: Sd_single_m2, Xmax_mm, c, rho, spl_1w, spl_rated, Vd, EBP: Fs / Qes_nom, no_frac });
   updateDesktopStatusBar({ boxType, nDrivers, Vb, Vr, Fb, FbVr, bp6Mode, fc, F3, FH, LvCm, LvVrCm: portGeomVr ? portGeomVr.LvCm : 0, airVel, airVelVr: portGeomVr ? airVelVr : 0, fPipe1, fQuarterWave, fHalfWave, planarTunnelMm, planarStyle, deltaT, powerCompDb, EBP, alpha, Vtot, Qts, Xmax_mm, Pe });
+  syncKpiAndInsightTooltips();
+}
+
+function syncKpiAndInsightTooltips() {
+  const ids = ['kpi1Val', 'kpi1Sub', 'kpi2Val', 'kpi2Sub', 'kpiAlignVal', 'kpiAlignSub', 'kpiVelVal', 'kpiVelSub', 'kpiAlfaVal', 'kpiAlfaSub', 'kpiVtotVal', 'kpiF100Val', 'kpiEpdrVal', 'kpiEpdrSub', 'driverInsightsBar'];
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el && el.textContent) el.title = el.textContent.trim();
+  }
 }
 
 function generateSimulationData(p) {
@@ -6222,6 +6269,8 @@ function generateSimulationData(p) {
       passivityOk: passivityOk,
       minZMag: Number.isFinite(minZMag) ? minZMag : 0,
       dspIssues: Array.isArray(p.dspIssues) ? p.dspIssues : [],
+      zNom: Number.isFinite(p.zNom) ? p.zNom : null,
+      slotAR: Number.isFinite(p.slotAR) ? p.slotAR : 0,
       Vb: p.Vb,
       bpMetrics: p.bpMetrics || null,
       planarMetrics: p.planarMetrics || null
@@ -11928,7 +11977,7 @@ function printBuildPackA4() {
     win.document.write(res.html);
     win.document.close();
     win.focus();
-    setTimeout(() => { try { win.print(); } catch (_) {} }, 350);
+    setTimeout(() => { try { win.print(); } catch (err) { console.warn('[BassForge] Falha ao acionar impressão A4:', err); } }, 350);
     return true;
   }
   return exportBuildPackHtml();
@@ -13509,10 +13558,19 @@ function updateElectrical(fromUser) {
   const numSpkEl = document.getElementById('elNumSpk');
   if (!numSpkEl) return;
 
-  const nSpk = Math.max(1, parseInt(numSpkEl.value) || 1);
+  const nSpk = Math.max(1, Math.min(16, parseInt(numSpkEl.value) || 1));
   if (fromUser) {
     const simN = document.getElementById('simNumDrivers');
-    if (simN && ['1','2','3','4','6','8'].includes(String(nSpk)) && parseInt(simN.value) !== nSpk) {
+    if (simN && parseInt(simN.value) !== nSpk) {
+      if (simN.options) {
+        const hasOpt = [...simN.options].some(o => String(o.value) === String(nSpk));
+        if (!hasOpt && typeof document.createElement === 'function') {
+          const opt = document.createElement('option');
+          opt.value = String(nSpk);
+          opt.textContent = `${nSpk}x`;
+          simN.appendChild(opt);
+        }
+      }
       simN.value = String(nSpk);
       recalculate();
       return;
@@ -13554,12 +13612,25 @@ function updateElectrical(fromUser) {
       msg: `Impedância resultante Z_final = ${zTotal.toFixed(2)} Ω < 0.50 Ω — risco crítico de curto/queima do amplificador.`
     });
   }
+  if (typeof currentCurves !== 'undefined' && currentCurves?.meta && Number.isFinite(currentCurves.meta.minEpdrVal) && currentCurves.meta.minEpdrVal > 0 && currentCurves.meta.minEpdrVal < 1e8) {
+    const epdrScaled = currentCurves.meta.minEpdrVal * (reTotal / Math.max(0.1, reDriver));
+    const epdrLim = Math.max(1.0, 0.5 * zTotal);
+    if (epdrScaled < epdrLim) {
+      elIssues.push({
+        code: 'ELE_EPDR_SOA_STRESS',
+        severity: 'warn',
+        msg: `Estresse SOA (ELE-05): EPDR escalado (~${epdrScaled.toFixed(2)} Ω) abaixo de ${epdrLim.toFixed(2)} Ω.`
+      });
+    }
+  }
 
   const wiringBox = document.getElementById('elWiringResult');
   if (wiringBox) {
     const wiringAlerts = elIssues
-      .filter(i => i.code === 'ELE_INVALID_SERIES_PARALLEL' || i.code === 'ELE_IMPEDANCE_TOO_LOW')
-      .map(i => `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`)
+      .filter(i => i.code === 'ELE_INVALID_SERIES_PARALLEL' || i.code === 'ELE_IMPEDANCE_TOO_LOW' || i.code === 'ELE_EPDR_SOA_STRESS')
+      .map(i => i.severity === 'critical'
+        ? `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`
+        : `<div style="color:#facc15; font-weight:700; font-size:11px; margin-top:4px;">⚠️ ${escapeHtmlStr(i.msg)}</div>`)
       .join('');
     wiringBox.innerHTML = `
       <div><b>Por Alto-Falante:</b> Z_spk = ${zPerSpk.toFixed(2)} Ω | Re_spk = ${rePerSpk.toFixed(2)} Ω</div>
@@ -13606,13 +13677,22 @@ function updateElectrical(fromUser) {
   const lossDb = 20.0 * Math.log10(reTotal / (reTotal + rLoopSpk));
   const lossPct = (rLoopSpk / (reTotal + rLoopSpk)) * 100.0;
   const dfEff = reTotal / ((8.0 / 200.0) + rLoopSpk);
+  if (Math.abs(lossDb) >= 0.5 || lossPct > 10.0 || dfEff < 10.0) {
+    elIssues.push({
+      code: 'ELE_AUDIO_CABLE_LOSS',
+      severity: 'warn',
+      msg: `Perda excessiva no cabo de áudio (ELE-09): ${lossDb.toFixed(2)} dB (${lossPct.toFixed(1)}%), DF_eff = ${dfEff.toFixed(1)}. Engrosse ou encurte o cabo.`
+    });
+  }
 
   const cableBox = document.getElementById('elCableResult');
   if (cableBox) {
     const dropColor = vDropPct <= 3.0 ? '#10b981' : (vDropPct <= 5.0 ? '#f59e0b' : '#f87171');
     const cableAlerts = elIssues
-      .filter(i => i.code === 'ELE_CABLE_AMPACITY' || i.code === 'ELE_VOLTAGE_DROP_CRITICAL')
-      .map(i => `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`)
+      .filter(i => i.code === 'ELE_CABLE_AMPACITY' || i.code === 'ELE_VOLTAGE_DROP_CRITICAL' || i.code === 'ELE_AUDIO_CABLE_LOSS')
+      .map(i => i.severity === 'critical'
+        ? `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`
+        : `<div style="color:#facc15; font-weight:700; font-size:11px; margin-top:4px;">⚠️ ${escapeHtmlStr(i.msg)}</div>`)
       .join('');
     cableBox.innerHTML = `
       <div><b>Corrente Máxima DC:</b> ${iMax.toFixed(1)} A (Máx. cabo ${pwrGauge}mm²: ~${maxAmp.toFixed(0)} A) | <b>Fusível ANL:</b> ${Math.ceil((iMax*0.85)/10)*10} A</div>
@@ -13649,6 +13729,19 @@ function updateElectrical(fromUser) {
   const vPeakTarget = vRmsTarget * Math.SQRT2;
   const iRmsTarget = Math.sqrt(effPwrW / Math.max(0.1, zTotal));
   const gainDb = 20.0 * Math.log10(vRmsTarget / Math.max(0.05, preoutV));
+  if (gainDb < 0) {
+    elIssues.push({
+      code: 'ELE_GAIN_SATURATION',
+      severity: 'warn',
+      msg: `Saturação na entrada do amplificador (ELE-11): V_alvo (${vRmsTarget.toFixed(1)} V) < Pre-out (${preoutV.toFixed(1)} V) ➔ ganho ${gainDb.toFixed(1)} dB.`
+    });
+  } else if (gainDb > 40) {
+    elIssues.push({
+      code: 'ELE_GAIN_EXCESSIVE',
+      severity: 'warn',
+      msg: `Ganho muito alto (ELE-11): +${gainDb.toFixed(1)} dB (> 40 dB) aumenta o piso de ruído (Pre-out ${preoutV.toFixed(2)} V).`
+    });
+  }
 
   // ELE-07: Estimativa térmica da bobina baseada na potência nominal total dos drivers (Pe_total), com alarme > 250 °C
   let coilTempHtml = '';
@@ -13682,7 +13775,7 @@ function updateElectrical(fromUser) {
   const cZobelUf = ((leTotalMh / 1000.0) / Math.max(1e-6, rZobel * rZobel)) * 1e6;
 
   lastElectricalAudit = {
-    valid: elIssues.length === 0,
+    valid: !elIssues.some(i => i.severity === 'critical'),
     issues: elIssues,
     zTotal, reTotal, iMax, maxAmp, vDropPct, vAmp, peTotal, estCoilC
   };
@@ -13690,8 +13783,10 @@ function updateElectrical(fromUser) {
   const dspBox = document.getElementById('elDspResult');
   if (dspBox) {
     const dspAlerts = elIssues
-      .filter(i => i.code === 'ELE_AMP_OVERPOWER' || i.code === 'ELE_COIL_OVERTEMP')
-      .map(i => `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`)
+      .filter(i => i.code === 'ELE_AMP_OVERPOWER' || i.code === 'ELE_COIL_OVERTEMP' || i.code === 'ELE_GAIN_SATURATION' || i.code === 'ELE_GAIN_EXCESSIVE')
+      .map(i => i.severity === 'critical'
+        ? `<div style="color:#f87171; font-weight:700; font-size:11px; margin-top:4px;">⛔ ${escapeHtmlStr(i.msg)}</div>`
+        : `<div style="color:#facc15; font-weight:700; font-size:11px; margin-top:4px;">⚠️ ${escapeHtmlStr(i.msg)}</div>`)
       .join('');
     const hpfTag = isHpfEnabled ? `HPF ${hpfHz.toFixed(0)} Hz` : 'HPF OFF (ref. 20 Hz)';
     dspBox.innerHTML = `
