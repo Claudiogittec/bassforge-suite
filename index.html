@@ -1452,9 +1452,9 @@
           </select>
           <select id="expandedOverlay" aria-label="Sobreposição de Curvas" style="padding:6px 12px; background:var(--bg-input); border:1px solid var(--border); color:#cbd5e1; border-radius:6px;" onchange="onExpandedOverlayChange()">
             <option value="none">Sobreposição: Nenhuma</option>
-            <option value="spl_box">Composto SPL: Térmico (#6) + Cone (#10) + Duto (#2)</option>
-            <option value="spl_car">Cabine vs Térmico: In-Car (#5) vs Térmico (#6)</option>
-            <option value="z_dual">Impedância: Na Caixa (#11) vs Ar Livre (#3)</option>
+            <option value="spl_box">Composto SPL: Térmico + Cone + Duto</option>
+            <option value="spl_car">Cabine vs Térmico: In-Car vs Térmico</option>
+            <option value="z_dual">Impedância: Na Caixa vs Ar Livre</option>
           </select>
           <button type="button" class="chart-pill-btn" onclick="exportExpandedPNG()" title="Salvar imagem PNG do gráfico atual">Exportar PNG</button>
         </div>
@@ -6284,6 +6284,26 @@ function generateSimulationData(p) {
 const CHART_FONT_MONO = '"JetBrains Mono", Consolas, monospace';
 const CHART_FONT_SANS = '"Inter", system-ui, sans-serif';
 
+const DECADE_PRIORITY_FREQS = new Set([5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000]);
+
+function selectNonOverlappingFreqLabels(candidates, gapPx = 4) {
+  if (!Array.isArray(candidates) || !candidates.length) return [];
+  const lastIdx = candidates.length - 1;
+  const placed = [];
+  const fits = cand => !placed.some(p => cand.left < p.right + gapPx && cand.right + gapPx > p.left);
+  candidates.forEach(c => {
+    if (c.idx === 0 || c.idx === lastIdx || DECADE_PRIORITY_FREQS.has(c.f)) {
+      if (fits(c)) placed.push(c);
+    }
+  });
+  candidates.forEach(c => {
+    if (c.idx !== 0 && c.idx !== lastIdx && !DECADE_PRIORITY_FREQS.has(c.f)) {
+      if (fits(c)) placed.push(c);
+    }
+  });
+  return placed.sort((a, b) => a.idx - b.idx);
+}
+
 function getLogFreqTicks(fMin, fMax, isExpanded = false) {
   const majorMap = {
     '15-200':  [15, 20, 30, 40, 50, 70, 100, 150, 200],
@@ -6600,14 +6620,9 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
     ctx.fillText(formatYTickLabel(yVal, yScale.step, cfg.unit), padL - 7, y + 3.5);
   });
 
-  // Rótulos do eixo X centralizados + tickzinhos (com anti-colisão em bandas largas)
-  ctx.textAlign = 'center';
-  let lastLabelRight = -Infinity;
+  // Rótulos do eixo X centralizados + tickzinhos (prioriza décadas principais 100/1k/10k em bandas largas)
+  const labelCand = [];
   const lastIdx = majors.length - 1;
-  const lastLabelTxt = lastIdx >= 0 ? formatFreqTick(majors[lastIdx]) : '';
-  const lastLabelW = lastIdx >= 0 ? ctx.measureText(lastLabelTxt).width : 0;
-  const lastLabelX = lastIdx >= 0 ? xMap(majors[lastIdx]) : Infinity;
-  const lastLabelLeft = (lastLabelX > w - 16) ? (lastLabelX - lastLabelW) : (lastLabelX - lastLabelW / 2);
   majors.forEach((f, idx) => {
     const x = xMap(f);
     ctx.strokeStyle = '#475569';
@@ -6619,11 +6634,13 @@ function drawLogChart(canvas, freqs, values, cfg, options = {}) {
     let right = x + tw / 2;
     if (idx === lastIdx && x > w - 16) { align = 'right'; left = x - tw; right = x; }
     else if (idx === 0 && x < padL + 10) { align = 'left'; left = x; right = x + tw; }
-    if (idx > 0 && idx < lastIdx && (left < lastLabelRight + 5 || right > lastLabelLeft - 5)) return;
-    ctx.textAlign = align;
+    labelCand.push({ f, idx, x, txt, tw, align, left, right });
+  });
+  const drawnLabels = selectNonOverlappingFreqLabels(labelCand, 4);
+  drawnLabels.forEach(c => {
+    ctx.textAlign = c.align;
     ctx.fillStyle = '#8fa1b8';
-    ctx.fillText(txt, x, padT + ph + (isExpanded ? 16 : 13));
-    lastLabelRight = right;
+    ctx.fillText(c.txt, c.x, padT + ph + (isExpanded ? 16 : 13));
   });
 
   // Unidades explícitas nos eixos
@@ -9261,12 +9278,12 @@ function updateWoodlock() {
           const l1Cut = Math.round(rpSlot.l1Mm);
           const l2Cut = Math.round(rpSlot.l2Mm);
           const pLine1 = {
-            kind: 'port', orient: 'DUTO', name: `Divisória Duto em L — Trecho 1 [A4×L1] (${slotOrient === 'horizontal' ? 'Horiz.' : 'Vert.'})`,
+            kind: 'port', orient: 'DUTO', name: `Divisória Duto Régua em L — Trecho 1 [A4×L1] (${slotOrient === 'horizontal' ? 'Horiz.' : 'Vert.'})`,
             qty: 1, w: a4Mm, h: l1Cut, t: slotWallThick, bev: 0.0, area: (a4Mm * l1Cut) / 1e6,
             note: `MDF ${slotWallThick}mm — parte do baffle p/ trás: L1 = ${l1Cut} mm (folga fundo ${Math.round(rpSlot.clearBackMm)} mm)`
           };
           const pLine2 = {
-            kind: 'port', orient: 'DUTO_L2', name: `Divisória Duto em L — Trecho 2 (90° Fundo) [A4×L2]`,
+            kind: 'port', orient: 'DUTO_L2', name: `Divisória Duto Régua em L — Trecho 2 (90° Fundo) [A4×L2]`,
             qty: 1, w: a4Mm, h: l2Cut, t: slotWallThick, bev: 0.0, area: (a4Mm * l2Cut) / 1e6,
             note: `MDF ${slotWallThick}mm — dobra 90° paralelo ao fundo: L2 = ${l2Cut} mm (Total linha de centro Lv = ${lvMm} mm)`
           };
@@ -10299,7 +10316,7 @@ function buildPgsGeometryModel(pack) {
       const isBpTopSlotP = (p.orient === 'DUTO_BP_TOP' || p.orient === 'DUTO_BP_TOP_VR');
       const isSharedVertP = (p.orient === 'DUTO_UNICO_V');
       const isDualVertP = (p.orient === 'DUTO_DUAL_V');
-      const isSlotP = /Régua/.test(p.name);
+      const isSlotP = /Régua|Divisória Duto/.test(p.name);
       const isTriP = /Triângulo/.test(p.name);
       const isSeriesP = (p.orient === 'DUTO SERIE' || /Série/.test(p.name));
       const isRearP = !isSeriesP && (p.orient === 'DUTO_BP_TOP_VR' || /Traseira/.test(p.name));
@@ -10356,23 +10373,27 @@ function buildPgsGeometryModel(pack) {
       } else if (p.orient === 'DUTO_L2') {
         const isH = (ac.slotOrient !== 'vertical');
         const rp = ac.portRoutePlan || {};
-        const clearBack = Math.max(45, Number(rp.clearBackMm) || 60);
-        const zL2 = +(t + clearBack).toFixed(1);
+        const l1Eff = Math.max(t, Number(rp.l1Mm) || p.h);
+        const zL2 = +Math.max(t + 40, Math.min(D_ext - t - p.t, D_ext + portOff - l1Eff)).toFixed(1);
         const slotHole = (pack.baffleHoles || []).find(hl => hl.kind === 'port' && hl.shape === 'slot');
         if (isH) {
           const sh = slotHole && slotHole.h ? slotHole.h : 55;
           const sx = slotHole && Number.isFinite(slotHole.xInt)
             ? Math.max(t, Math.min(F - t - p.w, t + slotHole.xInt - p.w / 2))
             : t;
+          const maxL2Y = Math.max(10, B - sh - p.t);
+          const l2Y = Math.min(p.h, maxL2Y);
           origin = [+sx.toFixed(1), +(t + sh + p.t).toFixed(1), zL2];
-          size = [p.w, p.h, p.t];
+          size = [p.w, +l2Y.toFixed(1), p.t];
         } else {
           const sw = slotHole && slotHole.w ? slotHole.w : 60;
           const sy = slotHole && Number.isFinite(slotHole.yInt)
             ? Math.max(t, Math.min(E - t - p.w, t + slotHole.yInt - p.w / 2))
             : t;
+          const maxL2X = Math.max(10, A - sw - p.t);
+          const l2X = Math.min(p.h, maxL2X);
           origin = [+(t + sw + p.t).toFixed(1), +sy.toFixed(1), zL2];
-          size = [p.h, p.w, p.t];
+          size = [+l2X.toFixed(1), p.w, p.t];
         }
         explodeDir = [0, 0, -0.45];
       } else if (isSlotP) {
@@ -13666,10 +13687,13 @@ function updateElectrical(fromUser) {
     });
   }
   if (vDropPct > 5.0 || vAmp < 10.5) {
+    const dropReasons = [];
+    if (vDropPct > 5.0) dropReasons.push(`queda ${vDropPct.toFixed(1)}% > 5%`);
+    dropReasons.push(vAmp < 10.5 ? `V_amp = ${vAmp.toFixed(2)} V < 10.5 V` : `V_amp = ${vAmp.toFixed(2)} V`);
     elIssues.push({
       code: 'ELE_VOLTAGE_DROP_CRITICAL',
       severity: 'critical',
-      msg: `Queda de tensão DC crítica: ${vDropPct.toFixed(1)}% (V_amp = ${vAmp.toFixed(2)} V < 10.5 V). Aumente a bitola do cabo.`
+      msg: `Queda de tensão DC crítica (${dropReasons.join(' · ')}). Aumente a bitola do cabo.`
     });
   }
 

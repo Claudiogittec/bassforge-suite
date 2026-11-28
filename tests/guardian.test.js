@@ -2104,6 +2104,76 @@ runSuite('30. Lote P1 Engenharia & Regra 5.6 (Zero Silent Catches, ELE-05/09/11/
   assert(kpiTitle && kpiTitle === kpiTxt, `PRO-11: kpi1Val.title ("${kpiTitle}") deve espelhar textContent ("${kpiTxt}")`);
 });
 
+runSuite('31. Live Browser QA Fixes (Slot L-Port 3D Bounds, ELE-08 Copy, 5-20k Decade Priority)', () => {
+  // --- 31.1 Slot L-Port 3D Bounds (Horiz & Vert confinados na caixa, sem caixa gigante p/ fora) ---
+  for (const orient of ['horizontal', 'vertical']) {
+    elements.get('driverPreset').value = 'oversound';
+    vm.runInContext('loadPreset(); selectTopology("bass-reflex"); setTuningMode(false);', ctx);
+    elements.get('fbInput').value = '26';
+    elements.get('portType').value = 'slot_wall';
+    elements.get('slotW').value = '58';
+    elements.get('slotH').value = '5.5';
+    elements.get('slotWallThick').value = '18';
+    elements.get('wlPortRouting').value = 'l_bend';
+    elements.get('wlSlotOrient').value = orient;
+    elements.get('wlWidthA').value = '660';
+    elements.get('wlHeightB').value = '573';
+    vm.runInContext('recalculate(); updateWoodlock();', ctx);
+    const geomCheck = vm.runInContext(`(() => {
+      const g = lastBuildPack.geometry;
+      const env = g.envelope;
+      const ports = g.parts.filter(p => p.kind === 'port');
+      return { F: env.F, E: env.E, D_ext: env.D_ext, ports };
+    })()`, ctx);
+    assert(geomCheck.ports.length >= 1, `31.1 (${orient}): ao menos 1 peça de duto esperada`);
+    for (const pt of geomCheck.ports) {
+      assert(pt.origin[0] >= -0.5 && pt.origin[1] >= -0.5 && pt.origin[2] >= -0.5, `31.1 (${orient}) ${pt.id}: origin negativo ${JSON.stringify(pt.origin)}`);
+      assert(pt.origin[0] + pt.size[0] <= geomCheck.F + 0.5, `31.1 (${orient}) ${pt.id}: X excede F (${pt.origin[0]}+${pt.size[0]} > ${geomCheck.F})`);
+      assert(pt.origin[1] + pt.size[1] <= geomCheck.E + 0.5, `31.1 (${orient}) ${pt.id}: Y excede E (${pt.origin[1]}+${pt.size[1]} > ${geomCheck.E})`);
+      assert(pt.origin[2] + pt.size[2] <= geomCheck.D_ext + 0.5, `31.1 (${orient}) ${pt.id}: Z excede D_ext (${pt.origin[2]}+${pt.size[2]} > ${geomCheck.D_ext})`);
+      const minDim = Math.min(pt.size[0], pt.size[1], pt.size[2]);
+      assert.strictEqual(minDim, 18, `31.1 (${orient}) ${pt.id}: espessura do MDF do duto régua deve ser 18 mm, obtido ${minDim} (${JSON.stringify(pt.size)})`);
+    }
+  }
+
+  // --- 31.2 ELE-08 Copy Truthfulness: >5% sem V_amp < 10.5V não pode imprimir "< 10.5 V" ---
+  elements.get('elAmpPower').value = '1000';
+  elements.get('elVbat').value = '12.6';
+  elements.get('elPwrLen').value = '4.5';
+  elements.get('elPwrGauge').value = '21';
+  vm.runInContext('updateElectrical(false)', ctx);
+  const msgPctOnly = vm.runInContext('(lastElectricalAudit.issues.find(i => i.code === "ELE_VOLTAGE_DROP_CRITICAL") || {}).msg || ""', ctx);
+  assert(msgPctOnly.includes('> 5%') && !msgPctOnly.includes('< 10.5 V'), `31.2: 11.87 V não pode dizer "< 10.5 V" (obtido: ${msgPctOnly})`);
+
+  elements.get('elPwrGauge').value = '6';
+  vm.runInContext('updateElectrical(false)', ctx);
+  const msgUnder105 = vm.runInContext('(lastElectricalAudit.issues.find(i => i.code === "ELE_VOLTAGE_DROP_CRITICAL") || {}).msg || ""', ctx);
+  assert(msgUnder105.includes('< 10.5 V'), `31.2: V_amp < 10.5 V deve incluir "< 10.5 V" (obtido: ${msgUnder105})`);
+
+  // --- 31.3 5–20k Decade Priority: 100, 1k e 10k nunca são ocultados ---
+  const placedFreqs = vm.runInContext(`(() => {
+    const majors = getLogFreqTicks(5, 20000, true).majors;
+    const padL = 55, pw = 860, tw = 26;
+    const xMap = f => padL + ((Math.log10(f) - Math.log10(5)) / (Math.log10(20000) - Math.log10(5))) * pw;
+    const cands = majors.map((f, idx) => {
+      const x = xMap(f);
+      return { f, idx, x, txt: String(f), tw, align: 'center', left: x - tw / 2, right: x + tw / 2 };
+    });
+    return selectNonOverlappingFreqLabels(cands, 4).map(c => c.f);
+  })()`, ctx);
+  for (const must of [5, 10, 50, 100, 500, 1000, 5000, 10000, 20000]) {
+    assert(placedFreqs.includes(must), `31.3: década ${must} Hz foi ocultada (obtidos: ${placedFreqs.join(',')})`);
+  }
+
+  // Restaura estado padrão limpo
+  elements.get('wlPortRouting').value = 'straight';
+  elements.get('wlSlotOrient').value = 'horizontal';
+  elements.get('elAmpPower').value = '1600';
+  elements.get('elPwrGauge').value = '21';
+  elements.get('driverPreset').value = 'oversound';
+  vm.runInContext('setTuningMode(true); loadPreset();', ctx);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');
