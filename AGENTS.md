@@ -4,12 +4,13 @@ Este arquivo define os **contratos obrigatórios** para qualquer humano ou agent
 
 ---
 
-## 1. Arquitetura e Regra Standalone
+## 1. Arquitetura Modular + Build Offline
 
-- **Núcleo do produto**: dois arquivos HTML5 + ES6 standalone zero-build:
-  - `index.html` — **BassForge Workstation** (Simulador 5 topologias, 13 gráficos, Wizard, WoodLock, Elétrica/DSP, Comparador A/B).
-  - `drivers-db.html` — **Driver Database PRO** (Banco oficial de drivers, auditoria T/S, filtros, TSV/CSV/JSON, PDF).
-- **Compatibilidade `file://` obrigatória**: ambos os arquivos devem continuar abrindo diretamente no navegador (via `F5` local ou GitHub Pages) sem exigir servidor HTTP ou bundler.
+- **Fonte da verdade (`src/`)**: os módulos ficam organizados em `src/` para edição segura (todos os arquivos `< 350 KB`), compilados sem dependências externas pelo script `scripts/build.js`:
+  - `src/sim/` (`template.html`, `styles.css`, `01-presets-analysis.js` .. `09-shell-wizard.js`) ➔ gera `index.html` (**BassForge Workstation**)
+  - `src/db/` (`template.html`, `styles.css`, `app.js`) + `src/data/drivers-catalog.json` (1.063 drivers) ➔ gera `drivers-db.html` (**Driver Database PRO**)
+- **Nunca editar os HTMLs gerados diretamente**: altere sempre os arquivos em `src/` e execute `node scripts/build.js --mirror` para regerar `index.html`, `drivers-db.html` e sincronizar o espelho `../bassforge-pro-x/`.
+- **Compatibilidade `file://` obrigatória**: ambos os HTMLs compilados continuam 100% standalone zero-dependência e devem abrir diretamente no navegador sem servidor HTTP.
 - **Preservação**: nunca deletar ou sobrescrever arquivos em diretórios de arquivo histórico (`_arquivo*`).
 
 ---
@@ -52,7 +53,9 @@ Este arquivo define os **contratos obrigatórios** para qualquer humano ou agent
 Antes de **qualquer commit ou push**, execute obrigatoriamente:
 
 ```bash
+node scripts/build.js --mirror
+node scripts/build.js --check
 node tests/guardian.test.js
 ```
 
-Nenhuma alteração pode ser considerada concluída se qualquer uma das suítes do Guardian falhar. Consulte [engineering/ARCHITECTURE.md](engineering/ARCHITECTURE.md) para o mapa completo de módulos, contratos e módulos congelados.
+Nenhuma alteração pode ser considerada concluída se `--check` falhar ou se qualquer uma das suítes do Guardian falhar. Consulte [engineering/ARCHITECTURE.md](engineering/ARCHITECTURE.md) para o mapa completo de módulos, contratos e módulos congelados.

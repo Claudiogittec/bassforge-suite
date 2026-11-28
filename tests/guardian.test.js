@@ -2174,6 +2174,38 @@ runSuite('31. Live Browser QA Fixes (Slot L-Port 3D Bounds, ELE-08 Copy, 5-20k D
   vm.runInContext('setTuningMode(true); loadPreset();', ctx);
 });
 
+runSuite('32. Modular Architecture & Build Integrity (src/ -> index.html & drivers-db.html)', () => {
+  const buildMod = require(path.join(ROOT, 'scripts', 'build.js'));
+  const chk = buildMod.verifyBuild(ROOT);
+  assert.strictEqual(chk.indexMatch, true, `Build drift em index.html: src=${chk.indexHash.slice(0,12)} vs disk=${chk.indexDiskHash.slice(0,12)}`);
+  assert.strictEqual(chk.dbMatch, true, `Build drift em drivers-db.html: src=${chk.dbHash.slice(0,12)} vs disk=${chk.dbDiskHash.slice(0,12)}`);
+  assert.strictEqual(chk.ok, true, 'scripts/build.js verifyBuild(ROOT) deve retornar ok=true');
+
+  const catalog = JSON.parse(fs.readFileSync(path.join(ROOT, 'src', 'data', 'drivers-catalog.json'), 'utf8'));
+  assert(Array.isArray(catalog) && catalog.length >= 1063, `drivers-catalog.json deve conter >= 1063 drivers (obtido ${catalog.length})`);
+
+  const forbiddenAll = /\b(bassbox|bb6|elisa|winisd|ht audio|hornresp|vituixcad|boxsim|unibox|akabak)\b/gi;
+  const srcFiles = [];
+  const walk = dir => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else srcFiles.push(full);
+    }
+  };
+  walk(path.join(ROOT, 'src'));
+  assert(srcFiles.length >= 14, `Esperados >= 14 arquivos em src/, obtidos ${srcFiles.length}`);
+  for (const fp of srcFiles) {
+    const st = fs.statSync(fp);
+    assert(st.size < 350 * 1024, `Arquivo modular excede 350 KB (${st.size} B): ${path.relative(ROOT, fp)}`);
+    const content = fs.readFileSync(fp, 'utf8');
+    const hits = content.match(forbiddenAll) || [];
+    assert.strictEqual(hits.length, 0, `IP Hygiene: ${path.relative(ROOT, fp)} contém termo proibido: ${[...new Set(hits)].join(', ')}`);
+  }
+  const buildHits = fs.readFileSync(path.join(ROOT, 'scripts', 'build.js'), 'utf8').match(forbiddenAll) || [];
+  assert.strictEqual(buildHits.length, 0, `IP Hygiene: scripts/build.js contém termo proibido`);
+});
+
 console.log('\n---------------------------------------------------------------');
 console.log(`  RESULTADO: ${passed} passed, ${failed} failed`);
 console.log('---------------------------------------------------------------\n');

@@ -1,0 +1,1167 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect x='1' y='1' width='26' height='26' rx='6' fill='%2310141b' stroke='%2338a3d1' stroke-width='1.5'/%3E%3Ccircle cx='14' cy='14' r='7.5' fill='none' stroke='%2338a3d1' stroke-width='1.6'/%3E%3Ccircle cx='14' cy='14' r='3' fill='%2338a3d1'/%3E%3C/svg%3E">
+<title>BassForge — Simulador Eletroacústico</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+{{INLINE_CSS}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <rect x="1" y="1" width="26" height="26" rx="5" fill="#10141b" stroke="#38a3d1" stroke-opacity="0.6" stroke-width="1.4"/>
+      <circle cx="14" cy="14" r="7.5" stroke="#38a3d1" stroke-width="1.5"/>
+      <circle cx="14" cy="14" r="3" fill="#38a3d1" fill-opacity="0.25" stroke="#38a3d1" stroke-width="1.3"/>
+    </svg>
+    <div style="display:flex; flex-direction:column; line-height:1.15;">
+      <span class="brand-title">BassForge</span>
+      <span class="brand-sub">ENGENHARIA ELETROACÚSTICA</span>
+    </div>
+    <span class="brand-sep"></span>
+    <nav class="suite-nav" aria-label="Alternar módulo BassForge">
+      <a href="./drivers-db.html" class="suite-pill">Banco de Drivers</a>
+      <a href="./index.html" class="suite-pill active">Simulador 4ª Ordem</a>
+    </nav>
+  </div>
+  <div style="display:flex; align-items:center; gap:6px;">
+    <button type="button" class="tb-btn accent-wiz" onclick="openWizardModal()" title="Assistente Guiado de Projeto (F6)">Assistente (F6)</button>
+    <button type="button" class="tb-btn" id="tbFreezeA" onclick="captureSnapshotA()" title="Congelar Curva A para comparação A/B (F8)">Curva A</button>
+    <button type="button" class="tb-btn active" id="tbToggleSidebar" onclick="toggleQuickSidebar()" title="Mostrar / Ocultar Painel Lateral (F9)">Painel</button>
+  </div>
+</header>
+
+<!-- BARRA DE MENUS DESKTOP (com ações rápidas de arquivo integradas à direita) -->
+<div class="desktop-menubar" id="desktopMenubar" role="navigation" aria-label="Menu principal">
+  <div class="menubar-left">
+    <div class="menu-item">
+      <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Arquivo</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" onclick="resetCurrentProject(); closeAllMenus()"><span>Novo Projeto (Padrão)</span><kbd>Ctrl+N</kbd></button>
+        <button type="button" class="menu-action" onclick="document.getElementById('projJsonInput').click(); closeAllMenus()"><span>Abrir Projeto (.json)...</span><kbd>Ctrl+O</kbd></button>
+        <button type="button" class="menu-action" onclick="exportProjectJson(); closeAllMenus()"><span>Salvar Projeto (.json)</span><kbd>Ctrl+S</kbd></button>
+        <button type="button" id="menuExportBuildPackHtml" class="menu-action" onclick="exportBuildPackHtml(); closeAllMenus()"><span>Exportar Pacote de Obra (HTML)</span><kbd>CAD</kbd></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" onclick="document.getElementById('dbJsonInput').click(); closeAllMenus()"><span>Importar Driver (.json)</span></button>
+        <button type="button" class="menu-action" onclick="exportExpandedPNG(); closeAllMenus()"><span>Exportar Gráfico (PNG)</span></button>
+        <button type="button" id="menuPrintBuildPackA4" class="menu-action" onclick="printBuildPackA4(); closeAllMenus()"><span>Imprimir / Salvar Dossiê A4 (PDF)</span><kbd>Ctrl+P</kbd></button>
+      </div>
+    </div>
+    <div class="menu-item">
+      <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Projeto</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" onclick="openWizardModal(); closeAllMenus()"><span>Assistente de Projeto</span><kbd>F6</kbd></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" onclick="openConfigModal('modalDriver'); closeAllMenus()"><span>Propriedades do Driver (T/S)</span><kbd>F2</kbd></button>
+        <button type="button" class="menu-action" onclick="openConfigModal('modalBox'); closeAllMenus()"><span>Propriedades da Caixa e Dutos</span><kbd>F3</kbd></button>
+        <button type="button" class="menu-action" onclick="openConfigModal('modalEnv'); closeAllMenus()"><span>Ambiente, Cabine, DSP e Térmica</span><kbd>F4</kbd></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" onclick="window.open('./drivers-db.html', '_blank'); closeAllMenus()"><span>Abrir Banco de Drivers</span></button>
+      </div>
+    </div>
+    <div class="menu-item">
+      <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Gráficos</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" onclick="switchTab('grid'); closeAllMenus()"><span>Grade dos 13 Gráficos</span><kbd>1</kbd></button>
+        <button type="button" class="menu-action" onclick="switchTab('expanded'); closeAllMenus()"><span>Gráfico Expandido com Cursor</span><kbd>2</kbd></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" onclick="captureSnapshotA(); closeAllMenus()"><span>Congelar Curva A (A/B)</span><kbd>F8</kbd></button>
+        <button type="button" class="menu-action" onclick="clearSnapshotA(); closeAllMenus()"><span>Limpar Curva A</span></button>
+        <div class="menu-sep"></div>
+        <button type="button" class="menu-action" onclick="openConfigModal('modalGraphPrefs'); closeAllMenus()"><span>Preferências dos Gráficos</span><kbd>F7</kbd></button>
+      </div>
+    </div>
+    <div class="menu-item">
+      <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Ferramentas</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" onclick="switchTab('woodlock'); closeAllMenus()"><span>Marcenaria CAD (WoodLock)</span><kbd>3</kbd></button>
+        <button type="button" class="menu-action" onclick="switchTab('electrical'); closeAllMenus()"><span>Engenharia Elétrica e DSP</span><kbd>4</kbd></button>
+        <button type="button" class="menu-action" onclick="switchTab('audit'); closeAllMenus()"><span>Verificação Numérica</span><kbd>5</kbd></button>
+      </div>
+    </div>
+    <div class="menu-item">
+      <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Exibir</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" onclick="toggleQuickSidebar(); closeAllMenus()"><span>Mostrar / Ocultar Painel Lateral</span><kbd>F9</kbd></button>
+        <button type="button" class="menu-action" onclick="toggleChartOpt('autoScaleY'); closeAllMenus()"><span>Alternar Auto-Scale Y</span></button>
+        <button type="button" class="menu-action" onclick="toggleChartOpt('showMarkers'); closeAllMenus()"><span>Alternar Marcadores (Fb/F3/Fs)</span></button>
+        <button type="button" class="menu-action" onclick="toggleChartOpt('showLimits'); closeAllMenus()"><span>Alternar Limites (Xmax/Mach/20ms)</span></button>
+      </div>
+    </div>
+    <div class="menu-item">
+      <button type="button" class="menu-trigger" onclick="toggleMenu(this)">Ajuda</button>
+      <div class="menu-dropdown">
+        <button type="button" class="menu-action" onclick="openConfigModal('modalShortcuts'); closeAllMenus()"><span>Atalhos de Teclado e Guia</span><kbd>F1</kbd></button>
+      </div>
+    </div>
+  </div>
+  <div class="menubar-right">
+    <button type="button" class="menu-trigger" onclick="document.getElementById('projJsonInput').click()" title="Abrir Projeto .json (Ctrl+O)">Abrir</button>
+    <button type="button" class="menu-trigger" onclick="exportProjectJson()" title="Salvar Projeto .json (Ctrl+S)">Salvar</button>
+    <span class="tb-sep"></span>
+    <button type="button" class="menu-trigger" onclick="openConfigModal('modalDriver')" title="Propriedades do Driver e T/S (F2)">Driver (F2)</button>
+    <button type="button" class="menu-trigger" onclick="openConfigModal('modalBox')" title="Propriedades da Caixa e Dutos (F3)">Caixa (F3)</button>
+  </div>
+</div>
+
+<div class="app-container">
+  
+  <!-- PAINEL LATERAL INSPETOR DE PROPRIEDADES (F9) -->
+  <aside class="sidebar" id="quickSidebar">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+      <span style="font-family:var(--mono); font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.4px;">Transdutor</span>
+      <button type="button" onclick="openConfigModal('modalDriver')" style="background:none; border:none; color:var(--accent); font-family:var(--mono); font-size:11px; font-weight:600; cursor:pointer;">T/S (F2) ▸</button>
+    </div>
+    <div style="margin-bottom:7px;">
+      <select id="driverPreset" aria-label="Selecionar Driver" onchange="loadPreset({ autoDesign: true })" style="width:100%; background:var(--bg-input); border:1px solid var(--border); border-radius:4px; color:var(--text-main); font-size:11.5px; padding:5px 7px;">
+        <optgroup label="Drivers de Referência">
+          <option value="oversound">Oversound 18 SUB 800 XT (18" · 800W)</option>
+          <option value="alumapro">Alumapro Alchemy 12-8 (12" · 300W)</option>
+          <option value="kicker">Kicker Comp 12 (12" · 300W)</option>
+          <option value="jbl">JBL 15SWT2200 (15" · 1100W)</option>
+          <option value="eighteen">18 Sound 18W1300 (18" · 600W)</option>
+          <option value="dayton">Dayton Audio UMII12-22 (12" · 800W)</option>
+        </optgroup>
+        <optgroup id="customDriversGroup" label="Banco de Drivers (DB)"></optgroup>
+      </select>
+      <input type="file" id="dbJsonInput" accept=".json" style="display:none" aria-label="Importar banco de drivers JSON" onchange="importDriversJsonFile(this)">
+      <input type="file" id="projJsonInput" accept=".json" style="display:none" aria-label="Abrir projeto BassForge JSON" onchange="importProjectJsonFile(this)">
+    </div>
+    <div id="dbDriverBadge" style="display:none; margin-bottom:7px; padding:5px 7px; border-radius:5px; background:rgba(16,185,129,0.08); border:1px solid rgba(16,185,129,0.28); font-size:10px; color:#a7f3d0; line-height:1.35;"></div>
+
+    <!-- PÍLULAS DE TOPOLOGIAS DISPONÍVEIS / APTIDÃO DO DRIVER -->
+    <div class="topo-pills" id="topoSuitPills" role="group" aria-label="Topologias recomendadas para este driver">
+      <button type="button" class="topo-pill" data-topo="sealed" onclick="selectTopology('sealed')"><span class="topo-dot">●</span>Selada</button>
+      <button type="button" class="topo-pill active" data-topo="bass-reflex" onclick="selectTopology('bass-reflex')"><span class="topo-dot">●</span>Dutada</button>
+      <button type="button" class="topo-pill" data-topo="bp4" onclick="selectTopology('bp4')"><span class="topo-dot">●</span>BP4</button>
+      <button type="button" class="topo-pill" data-topo="bp6" onclick="selectTopology('bp6')"><span class="topo-dot">●</span>BP6</button>
+      <button type="button" class="topo-pill" data-topo="planar" onclick="selectTopology('planar')"><span class="topo-dot">●</span>Planar</button>
+      <button type="button" class="topo-pill" data-topo="free-air" onclick="selectTopology('free-air')"><span class="topo-dot">●</span>Free-Air</button>
+    </div>
+
+    <!-- MINIATURA VETORIAL DA TOPOLOGIA -->
+    <div class="box-thumb-wrap">
+      <div id="boxThumbSvg" style="width:46px; height:36px; display:flex; align-items:center; justify-content:center;"></div>
+      <div style="flex:1; font-family:var(--mono); font-size:10px; line-height:1.4; color:var(--text-muted);">
+        <div id="thumbBoxTitle" style="color:#fff; font-weight:700;">Bass-Reflex 4ª Ordem</div>
+        <div id="thumbBoxSub">Vb 130.0 L · Fb 44.6 Hz</div>
+      </div>
+    </div>
+
+    <!-- GRUPO 1: DADOS DA CAIXA -->
+    <details class="prop-group" id="grpBoxData" open>
+      <summary>Dados da Caixa</summary>
+      <div class="prop-body">
+        <div class="prop-row">
+          <label for="boxType">Topologia:</label>
+          <select id="boxType" onchange="selectTopology(this.value)">
+            <option value="bass-reflex" selected>Bass-Reflex (Dutada)</option>
+            <option value="sealed">Caixa Selada</option>
+            <option value="bp4">Band-Pass 4ª (BP4)</option>
+            <option value="bp6">Band-Pass 6ª (BP6)</option>
+            <option value="planar">Planar Horn</option>
+            <option value="free-air">Baffle Infinito (Free-Air)</option>
+          </select>
+        </div>
+        <div class="prop-row">
+          <label for="simNumDrivers">Qtde. Subs:</label>
+          <select id="simNumDrivers" onchange="onSimNumDriversChange()">
+            <option value="1" selected>1x Driver</option>
+            <option value="2">2x (+6 dB)</option>
+            <option value="3">3x (+9.5 dB)</option>
+            <option value="4">4x (+12 dB)</option>
+            <option value="6">6x (+15.6 dB)</option>
+            <option value="8">8x (+18 dB)</option>
+          </select>
+        </div>
+        <div class="prop-row" style="margin-top:4px; padding-top:6px; border-top:1px dashed var(--border);">
+          <label for="autoDesignProfile" title="Alinhamento alvo para dimensionamento automático">Perfil Auto:</label>
+          <select id="autoDesignProfile" onchange="onAutoDesignProfileChange()">
+            <option value="musical" selected>Musical / Plano (≤1 dB)</option>
+            <option value="subgrave">Subgrave / EBS Estendido</option>
+            <option value="spl">SPL / Ataque (+2 dB)</option>
+          </select>
+        </div>
+        <button type="button" id="btnAutoDesign" class="btn" style="width:100%; margin:4px 0 3px; background:var(--accent-muted); border-color:var(--accent-border); color:var(--accent);" onclick="runAutoDesignForCurrentState('manual', { enableHpfIfNeeded: true })">Auto-Dimensionar Caixa</button>
+        <div id="autoDesignStatus" style="font-family:var(--mono); font-size:10.5px; font-variant-numeric:tabular-nums; color:var(--text-muted); line-height:1.35; margin-bottom:6px; display:none;"></div>
+        <div class="prop-row">
+          <label for="vbInput" id="vbInputLabel">Vol. Vb (L):</label>
+          <input type="number" id="vbInput" value="130" step="1" oninput="onVbInputChange(this.value)">
+        </div>
+        <input type="range" id="vbRange" class="prop-slider" min="20" max="350" step="1" value="130" aria-label="Ajuste deslizante do volume Vb (L)" oninput="onVbRangeChange(this.value)">
+
+        <!-- CONTROLES EXTRAS PARA BAND-PASS (BP4 / BP6) -->
+        <div id="bpControls" style="display:none; flex-direction:column; gap:5px; padding:5px 0; border-top:1px dashed var(--border); border-bottom:1px dashed var(--border);">
+          <div class="prop-row">
+            <label for="vrInput">Câm. Tras. VR (L):</label>
+            <input type="number" id="vrInput" value="60" min="5" step="1" oninput="onVrInputChange(this.value)">
+          </div>
+          <input type="range" id="vrRange" class="prop-slider" min="10" max="300" step="1" value="60" aria-label="Ajuste deslizante do volume traseiro VR (L)" oninput="onVrRangeChange(this.value)">
+          <div id="bp6ExtraRow" style="display:none; flex-direction:column; gap:5px;">
+            <div class="prop-row">
+              <label for="fbVrInput">Sint. VR (Hz):</label>
+              <div style="display:flex; gap:4px; align-items:center;">
+                <input type="number" id="fbVrInput" value="35" min="15" max="120" step="0.5" oninput="onFbVrInputChange(this.value)">
+                <button type="button" id="fbVrLockBtn" class="fb-lock-btn" onclick="setTuningMode(!isAutoTune)" title="Alternar Sintonia Automática BP6 (VR+VF) / Manual">AUTO</button>
+              </div>
+            </div>
+            <input type="range" id="fbVrRange" class="prop-slider" min="15" max="90" step="0.5" value="35" aria-label="Ajuste deslizante da sintonia traseira FbVR (Hz)" oninput="onFbVrRangeChange(this.value)">
+          </div>
+
+          <!-- SÍNTESE PARAMÉTRICA BAND-PASS (Q't, S, DF, Pa) -->
+          <div id="bpSynthSection" style="display:flex; flex-direction:column; gap:4px; margin-top:3px; padding-top:5px; border-top:1px dashed var(--border);">
+            <div class="prop-row">
+              <label for="bpAlignPreset">Síntese BP:</label>
+              <select id="bpAlignPreset" onchange="onBpAlignPresetChange()">
+                <option value="butterworth" selected>Butterworth B4 (S=0.707, 0dB)</option>
+                <option value="bessel">Bessel Fase Linear (S=0.866)</option>
+                <option value="extended">Sub-Grave Estendido (Pa -2dB)</option>
+                <option value="chebyshev_mild">Chebyshev Musical (S=0.60, +1.5dB)</option>
+                <option value="chebyshev_spl">Chebyshev SPL (S=0.50, +3dB)</option>
+                <option value="bp6_flat">BP6 Quasi-Plana (Equilibrada)</option>
+                <option value="bp6_ext">BP6 Sub-Grave Estendida</option>
+                <option value="bp6_spl">BP6 Alto Ganho (SPL)</option>
+              </select>
+            </div>
+            <div id="bp4SynthParams" style="display:flex; gap:4px; align-items:center;">
+              <label for="bpTargetS" style="font-size:10px; color:var(--text-muted); white-space:nowrap;" title="Fator de forma S = 1/(2·Q't) = DF/2">S:</label>
+              <input type="number" id="bpTargetS" value="0.707" min="0.35" max="1.20" step="0.01" style="width:54px;" title="Fator S (0.707=Butterworth, 0.50=Chebyshev, 0.866=Bessel)">
+              <label for="bpTargetPa" style="font-size:10px; color:var(--text-muted); white-space:nowrap;" title="Ganho acústico alvo Pa na banda passante (dB)">Pa:</label>
+              <input type="number" id="bpTargetPa" value="0.0" min="-6.0" max="6.0" step="0.5" style="width:48px;" title="Ganho acústico alvo Pa (dB)">
+              <button type="button" id="bpSynthApplyBtn" class="fb-lock-btn" onclick="applyBandPassSynthesis()" title="Calcular VR, VF e Fb exatos para o alinhamento Band-Pass" style="width:auto; padding:0 7px; font-size:10px; font-weight:700; color:#38bdf8;">Aplicar</button>
+            </div>
+            <div id="bp6SynthBtnRow" style="display:none; justify-content:flex-end;">
+              <button type="button" id="bp6SynthApplyBtn" class="fb-lock-btn" onclick="applyBandPassSynthesis()" title="Sintetizar VR, VF, FbVR e Fb para o perfil BP6 selecionado" style="width:100%; height:24px; font-size:10.5px; color:var(--accent);">Sintetizar Alinhamento BP6</button>
+            </div>
+            <div id="bpTelemetryBox" style="padding:5px 7px; border-radius:4px; background:var(--bg-input); border:1px solid var(--border); font-family:var(--mono); font-size:10.5px; font-variant-numeric:tabular-nums; color:var(--text-muted); line-height:1.45;"></div>
+          </div>
+        </div>
+
+        <div id="fbControlGroup">
+          <div class="prop-row">
+            <label for="fbInput">Sintonia Fb (Hz):</label>
+            <div style="display:flex; gap:4px; align-items:center;">
+              <input type="number" id="fbInput" value="44.62" step="0.1" oninput="onFbInputChange(this.value)">
+              <button type="button" id="fbLockBtn" class="fb-lock-btn" onclick="setTuningMode(!isAutoTune)" title="Alternar Sintonia Automática (α^0.31) / Manual">AUTO</button>
+            </div>
+          </div>
+          <input type="range" id="fbRange" class="prop-slider" min="20" max="80" step="0.1" value="44.62" aria-label="Ajuste deslizante da sintonia Fb (Hz)" oninput="onFbRangeChange(this.value)">
+        </div>
+        <span id="vbValBadge" style="display:none;"></span>
+        <span id="fbValBadge" style="display:none;"></span>
+        <div id="tuningModeContainer" style="display:none;"></div>
+
+        <div class="prop-row">
+          <label for="qlInput">Perda QL:</label>
+          <input type="number" id="qlInput" value="15" step="0.5" oninput="recalculate()">
+        </div>
+        <div class="prop-row">
+          <label for="tempInput">Temp. (°C):</label>
+          <input type="number" id="tempInput" value="20" step="1" oninput="recalculate()">
+        </div>
+        <div class="prop-row" id="rowCabinLen">
+          <label for="cabinLen">Cabine (m):</label>
+          <input type="number" id="cabinLen" value="3.4" step="0.1" oninput="recalculate()">
+        </div>
+        <div id="roomControls" style="display:none; flex-direction:column; gap:5px; margin-top:3px; padding-top:5px; border-top:1px dashed var(--border);">
+          <div class="prop-row">
+            <label for="roomLen">Sala L (m):</label>
+            <input type="number" id="roomLen" value="5.0" min="2.0" max="25.0" step="0.2" oninput="recalculate()">
+          </div>
+          <div class="prop-row">
+            <label for="roomWid">Sala W (m):</label>
+            <input type="number" id="roomWid" value="4.0" min="2.0" max="25.0" step="0.2" oninput="recalculate()">
+          </div>
+          <div class="prop-row">
+            <label for="roomHgt">Sala H (m):</label>
+            <input type="number" id="roomHgt" value="2.7" min="2.0" max="10.0" step="0.1" oninput="recalculate()">
+          </div>
+          <div class="prop-row">
+            <label for="roomPlacement">Posição:</label>
+            <select id="roomPlacement" onchange="recalculate()">
+              <option value="free">Livre 4π (0 dB)</option>
+              <option value="half">Piso / Parede 2π (+3 dB)</option>
+              <option value="quarter" selected>Parede+Piso π (+6 dB)</option>
+              <option value="corner">Canto π/2 (+9 dB)</option>
+            </select>
+          </div>
+          <div class="prop-row">
+            <label for="roomRt60">RT60 (s):</label>
+            <input type="number" id="roomRt60" value="0.45" min="0.15" max="1.50" step="0.05" oninput="recalculate()">
+          </div>
+        </div>
+
+        <div style="border-top:1px dashed var(--border); margin-top:4px; padding-top:5px; display:flex; flex-direction:column; gap:2px;">
+          <div class="prop-ro"><span>EBP (Fs/Qes):</span><b id="propEbp" style="color:#38bdf8;">--</b></div>
+          <div class="prop-ro"><span>Razão α:</span><b id="propAlpha">--</b></div>
+          <div class="prop-ro"><span>Corte F3:</span><b id="propF3" style="color:#4ade80;">--</b></div>
+          <div class="prop-ro"><span>Vol. Total:</span><b id="propVtot">--</b></div>
+        </div>
+      </div>
+    </details>
+
+    <!-- GRUPO 2: FILTROS HPF / LPF & TÉRMICA -->
+    <details class="prop-group" id="grpDspThermal" open>
+      <summary>Filtros HPF / LPF &amp; Térmica</summary>
+      <div class="prop-body">
+        <div class="prop-row">
+          <label for="hpfCutoff">HPF (Hz):</label>
+          <div style="display:flex; gap:4px; align-items:center;">
+            <input type="number" id="hpfCutoff" value="36.0" min="5" max="500" step="1" oninput="recalculate()" style="opacity:0.45;" title="Frequência de corte do filtro passa-altas (subsônico)">
+            <button type="button" id="hpfToggleBtn" class="fb-lock-btn" onclick="toggleHpfEnabled()" title="Ativar/Desativar filtro passa-altas (HPF)" style="width:36px; font-family:var(--mono); font-size:10px; font-weight:600; color:var(--text-muted);">OFF</button>
+          </div>
+        </div>
+        <div class="prop-row">
+          <label for="hpfType">Tipo HPF:</label>
+          <select id="hpfType" onchange="recalculate()" style="opacity:0.45;">
+            <option value="BW6">BW 6 dB/oit (1ª)</option>
+            <option value="BW12">BW 12 dB/oit (2ª)</option>
+            <option value="LR12">LR 12 dB/oit (2ª)</option>
+            <option value="BS12">Bessel 12 dB/oit (2ª)</option>
+            <option value="BW18">BW 18 dB/oit (3ª)</option>
+            <option value="BW24">BW 24 dB/oit (4ª)</option>
+            <option value="LR24" selected>LR 24 dB/oit (4ª)</option>
+            <option value="BS24">Bessel 24 dB/oit (4ª)</option>
+            <option value="BW36">BW 36 dB/oit (6ª)</option>
+            <option value="LR36">LR 36 dB/oit (6ª)</option>
+            <option value="BW48">BW 48 dB/oit (8ª)</option>
+            <option value="LR48">LR 48 dB/oit (8ª)</option>
+          </select>
+        </div>
+        <div class="prop-row" style="margin-top:3px; padding-top:5px; border-top:1px dashed var(--border);">
+          <label for="lpfCutoff">LPF (Hz):</label>
+          <div style="display:flex; gap:4px; align-items:center;">
+            <input type="number" id="lpfCutoff" value="80.0" min="25" max="2000" step="5" oninput="recalculate()" style="opacity:0.45;" title="Frequência de corte do filtro passa-baixas (LPF)">
+            <button type="button" id="lpfToggleBtn" class="fb-lock-btn" onclick="toggleLpfEnabled()" title="Ativar/Desativar filtro passa-baixas (LPF)" style="width:36px; font-family:var(--mono); font-size:10px; font-weight:600; color:var(--text-muted);">OFF</button>
+          </div>
+        </div>
+        <div class="prop-row">
+          <label for="lpfType">Tipo LPF:</label>
+          <select id="lpfType" onchange="recalculate()" style="opacity:0.45;">
+            <option value="BW6">BW 6 dB/oit (1ª)</option>
+            <option value="BW12">BW 12 dB/oit (2ª)</option>
+            <option value="LR12">LR 12 dB/oit (2ª)</option>
+            <option value="BS12">Bessel 12 dB/oit (2ª)</option>
+            <option value="BW18">BW 18 dB/oit (3ª)</option>
+            <option value="BW24">BW 24 dB/oit (4ª)</option>
+            <option value="LR24" selected>LR 24 dB/oit (4ª)</option>
+            <option value="BS24">Bessel 24 dB/oit (4ª)</option>
+            <option value="BW36">BW 36 dB/oit (6ª)</option>
+            <option value="LR36">LR 36 dB/oit (6ª)</option>
+            <option value="BW48">BW 48 dB/oit (8ª)</option>
+            <option value="LR48">LR 48 dB/oit (8ª)</option>
+          </select>
+        </div>
+        <div class="prop-row" style="margin-top:3px; padding-top:5px; border-top:1px dashed var(--border);">
+          <label for="thermalDeltaT">Bobina ΔT:</label>
+          <select id="thermalDeltaT" onchange="recalculate()">
+            <option value="0" selected>0 °C (Nominal)</option>
+            <option value="60">+60 °C (+23.6% Re)</option>
+            <option value="100">+100 °C (+39.3% Re)</option>
+            <option value="130">+130 °C (+51.1% Re)</option>
+          </select>
+        </div>
+        <div id="thermalCompBadge" style="display:none; padding:4px 6px; border-radius:4px; background:rgba(212,148,42,0.10); border:1px solid rgba(212,148,42,0.35); font-family:var(--mono); font-size:10.5px; color:#fde68a; line-height:1.35;"></div>
+      </div>
+    </details>
+
+    <!-- GRUPO 3: DUTO -->
+    <details class="prop-group" id="portControls" open>
+      <summary>Duto (Aerodinâmica)</summary>
+      <div class="prop-body">
+        <div id="portVfHeader" style="display:none; font-size:10px; font-weight:700; color:#38bdf8; letter-spacing:0.4px; text-transform:uppercase; padding-bottom:2px; border-bottom:1px dashed var(--border);">Câmara Frontal (VF)</div>
+        <div class="prop-row">
+          <label for="portType">Geometria:</label>
+          <select id="portType" onchange="onPortTypeChange()">
+            <option value="round" selected>Cilíndrico (0.732)</option>
+            <option value="flared">Aeroport (0.850)</option>
+            <option value="slot">Régua Livre (0.732)</option>
+            <option value="slot_wall">Régua Parede (1.343)</option>
+            <option value="triangle">Triângulo Canto (1.343)</option>
+          </select>
+        </div>
+        <div id="portRoundFields" style="display:flex; flex-direction:column; gap:5px;">
+          <div class="prop-row"><label for="numDucts">Qtde. Dutos:</label><input type="number" id="numDucts" value="2" min="1" step="1" oninput="recalculate()"></div>
+          <div class="prop-row"><label for="ductDia">Diâm. (pol):</label><input type="number" id="ductDia" value="6.0" step="0.5" oninput="recalculate()"></div>
+          <div class="prop-row"><label for="ductThick">Espess. (mm):</label><input type="number" id="ductThick" value="1.5" step="0.5" oninput="recalculate()"></div>
+        </div>
+        <div id="portSlotFields" style="display:none; flex-direction:column; gap:5px;">
+          <div class="prop-row"><label for="slotW">Larg. W (cm):</label><input type="number" id="slotW" value="35.0" min="1" step="0.5" oninput="recalculate()"></div>
+          <div class="prop-row"><label for="slotH">Alt. H (cm):</label><input type="number" id="slotH" value="6.0" min="1" step="0.5" oninput="recalculate()"></div>
+          <div class="prop-row"><label for="slotWallThick">MDF (mm):</label><input type="number" id="slotWallThick" value="18.0" min="1" step="1" oninput="recalculate()"></div>
+        </div>
+        <div id="portTriFields" style="display:none; flex-direction:column; gap:5px;">
+          <div class="prop-row"><label for="triCount">Qtde. Cantos:</label><input type="number" id="triCount" value="2" min="1" max="4" step="1" oninput="recalculate()"></div>
+          <div class="prop-row"><label for="triA">Cateto A (cm):</label><input type="number" id="triA" value="14.0" min="2" step="0.5" oninput="recalculate()"></div>
+          <div class="prop-row"><label for="triB">Cateto B (cm):</label><input type="number" id="triB" value="14.0" min="2" step="0.5" oninput="recalculate()"></div>
+        </div>
+        <div id="portTelemetryBox" style="margin-top:3px; padding:6px 7px; border-radius:4px; background:rgba(6,9,15,0.85); border:1px solid var(--border); font-family:var(--mono); font-size:9.8px; color:#cbd5e1; line-height:1.45;"></div>
+
+        <!-- GERENCIAMENTO INDEPENDENTE DE DUTO DA CÂMARA TRASEIRA VR (BP6) -->
+        <div id="portVrSection" style="display:none; flex-direction:column; gap:5px; margin-top:7px; padding-top:7px; border-top:1px dashed var(--border);">
+          <div id="portVrHeader" style="font-size:10px; font-weight:700; color:#c084fc; letter-spacing:0.4px; text-transform:uppercase; padding-bottom:2px;">Câmara Traseira (VR)</div>
+          <div id="portVrRoundFields" style="display:flex; flex-direction:column; gap:5px;">
+            <div class="prop-row"><label for="numDuctsVr">Qtde. Dutos VR:</label><input type="number" id="numDuctsVr" value="1" min="1" max="4" step="1" oninput="recalculate()"></div>
+            <div class="prop-row"><label for="ductDiaVr">Diâm. VR (pol):</label><input type="number" id="ductDiaVr" value="4.0" min="1" step="0.5" oninput="recalculate()"></div>
+            <div class="prop-row"><label for="ductThickVr">Espess. VR (mm):</label><input type="number" id="ductThickVr" value="1.5" min="0.5" step="0.5" oninput="recalculate()"></div>
+          </div>
+          <div id="portTelemetryBoxVr" style="margin-top:2px; padding:6px 7px; border-radius:4px; background:rgba(15,10,28,0.85); border:1px solid rgba(192,132,252,0.3); font-family:var(--mono); font-size:9.8px; color:#cbd5e1; line-height:1.45;"></div>
+        </div>
+      </div>
+    </details>
+  </aside>
+
+  <!-- PAINEL PRINCIPAL DE RESULTADOS -->
+  <main>
+    <!-- KPI ROW -->
+    <div class="kpi-row">
+      <div class="kpi-card" id="kpi1Card">
+        <div class="kpi-label" id="kpi1Label">Sintonia Fb</div>
+        <div class="kpi-value" id="kpi1Val">44.62 Hz</div>
+        <div class="kpi-sub" id="kpi1Sub">h = 1.116</div>
+      </div>
+      <div class="kpi-card" id="kpi2Card">
+        <div class="kpi-label" id="kpi2Label">Corte F3 (-3dB)</div>
+        <div class="kpi-value" id="kpi2Val">46.71 Hz</div>
+        <div class="kpi-sub" id="kpi2Sub">F3/Fs = 1.168</div>
+      </div>
+      <div class="kpi-card" id="kpiAlignCard">
+        <div class="kpi-label" id="kpiAlignLabel">Alinhamento 4ª Ordem</div>
+        <div class="kpi-value" id="kpiAlignVal" style="font-size: 13px; color: #38bdf8;">SC4 / QB3 Ótimo</div>
+        <div class="kpi-sub" id="kpiAlignSub">Fb = Fs · α^0.31</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Razão α (Vas/Vb)</div>
+        <div class="kpi-value" id="kpiAlfaVal">1.42</div>
+        <div class="kpi-sub" id="kpiAlfaSub">Vb = 130.0 L</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Volume Total</div>
+        <div class="kpi-value" id="kpiVtotVal">148.73 L</div>
+        <div class="kpi-sub" id="kpiVtotSub">Vb + Vsub + Vduto</div>
+      </div>
+      <div class="kpi-card good" id="kpiPortCard">
+        <div class="kpi-label">Velocidade Duto</div>
+        <div class="kpi-value" id="kpiVelVal">12.6 m/s</div>
+        <div class="kpi-sub" id="kpiVelSub">3.67% Mach (Laminar)</div>
+      </div>
+      <div class="kpi-card" id="kpiEpdrCard">
+        <div class="kpi-label">EPDR Mínimo (AES)</div>
+        <div class="kpi-value" id="kpiEpdrVal">2.38 Ω</div>
+        <div class="kpi-sub" id="kpiEpdrSub">Carga Reativa Real</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Cabine (F100)</div>
+        <div class="kpi-value" id="kpiF100Val">100.99 Hz</div>
+        <div class="kpi-sub">L = 3.4 m @ 20°C</div>
+      </div>
+    </div>
+
+    <!-- DIAGNÓSTICO ACÚSTICO INTELIGENTE DO TRANSDUTOR -->
+    <div id="driverInsightsBar" class="insights-bar"></div>
+
+    <!-- TABS BAR (LINHA ÚNICA) -->
+    <div class="tabs-bar">
+      <div style="display:flex; gap:4px; flex-wrap:nowrap;">
+        <button type="button" class="tab-btn active" onclick="switchTab('grid')">Grade (13)</button>
+        <button type="button" class="tab-btn" onclick="switchTab('expanded')">Expandido</button>
+        <button type="button" class="tab-btn" onclick="switchTab('woodlock')">Marcenaria CAD</button>
+        <button type="button" class="tab-btn" onclick="switchTab('electrical')">Elétrica e DSP</button>
+        <button type="button" class="tab-btn" onclick="switchTab('audit')">Verificação</button>
+      </div>
+      <!-- CONTROLE COMPACTO DOS GRÁFICOS NA MESMA LINHA -->
+      <div id="chartToolbar" style="display:flex; align-items:center; gap:5px; flex-wrap:nowrap;">
+        <span class="chart-toolbar-label">Ambiente:</span>
+        <button type="button" class="chart-pill-btn" data-env-btn="architectural" onclick="setAnalysisEnvironment('architectural')" title="Perfil Sala / Estúdio (fidelidade e resposta temporal)">Sala / Estúdio</button>
+        <button type="button" class="chart-pill-btn active" data-env-btn="automotive" onclick="setAnalysisEnvironment('automotive')" title="Perfil Automotivo (ganho de cabine e limites SPL)">Automotivo</button>
+        <span style="width:1px; height:14px; background:var(--border); margin:0 2px;"></span>
+        <span class="chart-toolbar-label">Banda:</span>
+        <button type="button" class="chart-pill-btn" data-freq-btn="15-200" onclick="setFreqRange(15, 200, this)">15–200</button>
+        <button type="button" class="chart-pill-btn" data-freq-btn="15-500" onclick="setFreqRange(15, 500, this)">15–500</button>
+        <button type="button" class="chart-pill-btn active" data-freq-btn="10-1000" onclick="setFreqRange(10, 1000, this)">10–1k</button>
+        <button type="button" class="chart-pill-btn" data-freq-btn="10-2000" onclick="setFreqRange(10, 2000, this)">10–2k</button>
+        <button type="button" class="chart-pill-btn" data-freq-btn="5-20000" onclick="setFreqRange(5, 20000, this)">5–20k</button>
+        <span id="snapshotABadge" style="display:none; font-family:var(--mono); font-size:10.5px; color:var(--warning); font-weight:600; margin-left:2px;"></span>
+        <button type="button" id="btnClearA" class="chart-pill-btn" style="display:none; border-color:rgba(212,148,42,0.5); color:var(--warning);" onclick="clearSnapshotA()">Limpar A</button>
+        <button type="button" class="chart-pill-btn" onclick="openConfigModal('modalGraphPrefs')" title="Preferências dos Gráficos (F7)">Prefs (F7)</button>
+      </div>
+    </div>
+
+    <!-- TAB 1: GRADE 13 GRÁFICOS -->
+    <div id="tabGrid" class="charts-grid-12">
+      <!-- Os 13 canvases serão montados aqui via JS -->
+    </div>
+
+    <!-- TAB 2: GRÁFICO EXPANDIDO -->
+    <div id="tabExpanded" class="expanded-view">
+      <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:10px;">
+        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px;">
+          <select id="expandedSelect" aria-label="Selecione o Gráfico Expandido" style="padding:6px 12px; background:var(--bg-input); border:1px solid var(--border); color:#fff; border-radius:6px;" onchange="renderExpanded()">
+            <option value="G1">#1 Max Power (Watts RMS)</option>
+            <option value="G2">#2 Vent SPL (dB-SPL)</option>
+            <option value="G3">#3 Free Air Impedance (Ohms)</option>
+            <option value="G4" selected>#4 Normalized Amplitude (dB)</option>
+            <option value="G5">#5 SPL in Car (dB)</option>
+            <option value="G6">#6 SPL Thermic (dB)</option>
+            <option value="G7">#7 Cabin Gain (dB)</option>
+            <option value="G8">#8 Cone Excursion (mm)</option>
+            <option value="G9">#9 Port Air Velocity (m/s)</option>
+            <option value="G10">#10 Cone SPL (dB-SPL)</option>
+            <option value="G11">#11 In Box Impedance (Ohms)</option>
+            <option value="G12">#12 Fase Acústica (Graus)</option>
+            <option value="G13">#13 Group Delay (ms)</option>
+          </select>
+          <select id="expandedOverlay" aria-label="Sobreposição de Curvas" style="padding:6px 12px; background:var(--bg-input); border:1px solid var(--border); color:#cbd5e1; border-radius:6px;" onchange="onExpandedOverlayChange()">
+            <option value="none">Sobreposição: Nenhuma</option>
+            <option value="spl_box">Composto SPL: Térmico + Cone + Duto</option>
+            <option value="spl_car">Cabine vs Térmico: In-Car vs Térmico</option>
+            <option value="z_dual">Impedância: Na Caixa vs Ar Livre</option>
+          </select>
+          <button type="button" class="chart-pill-btn" onclick="exportExpandedPNG()" title="Salvar imagem PNG do gráfico atual">Exportar PNG</button>
+        </div>
+        <span id="expandedCursorInfo" style="font-family:var(--mono); font-size:12px; font-variant-numeric:tabular-nums; color:var(--accent); font-weight:600;">Mova o mouse sobre a curva</span>
+      </div>
+      <canvas id="expandedCanvas" class="expanded-canvas"></canvas>
+    </div>
+
+    <!-- TAB 3: MARCENARIA CAD & PLANO DE CORTE (WOODLOCK) -->
+    <div id="tabWoodlock" style="display:none; flex-direction:column; gap:12px;">
+      <div class="wl-main-grid">
+        <!-- Painel de Parâmetros Estruturais -->
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px;">
+          <h3 style="font-size:12.5px; font-weight:600; color:var(--text-main); margin-bottom:10px; text-transform:uppercase; letter-spacing:0.3px;">Parâmetros Geométricos e Estruturais (WoodLock CAD)</h3>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="wlShape">Formato do Gabinete</label>
+              <select id="wlShape" onchange="updateWoodlock()">
+                <option value="rectangular">Prismático Retangular (90°)</option>
+                <option value="trapezoidal">Trapezoidal Automotivo (Traseira Inclinada)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="wlThickness">Espessura da Chapa MDF (mm)</label>
+              <select id="wlThickness" onchange="updateWoodlock()">
+                <option value="15">15 mm (MDF Naval Leve)</option>
+                <option value="18" selected>18 mm (Padrão Profissional)</option>
+                <option value="20">20 mm (Alta Rigidez)</option>
+                <option value="25">25 mm (Subgrave Extremo)</option>
+              </select>
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="wlMountMode">Montagem do Alto-Falante</label>
+              <select id="wlMountMode" onchange="updateWoodlock()">
+                <option value="normal" selected>Normal (Ímã p/ Dentro · Desconta Vsub)</option>
+                <option value="inverted">Invertida (Ímã p/ Fora · Vsub = 0 L)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="wlSlotOrient">Orientação Duto Régua</label>
+              <select id="wlSlotOrient" onchange="onSlotOrientChange()">
+                <option value="horizontal" selected>Horizontal (Base · Baffle A×C4)</option>
+                <option value="vertical">Vertical (Lateral · Baffle Reduzido)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="wlPortLayout">Arranjo 2 Subs / Duto</label>
+              <select id="wlPortLayout" onchange="updateWoodlock()">
+                <option value="standard" selected>Padrão (Câmaras Independentes)</option>
+                <option value="center_shared">Duto Único Central (2 Subs)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="wlPortOffset" id="wlPortOffsetLabel" title="0 mm = faceado com o painel; limites físicos automáticos por tipo de duto">Posição Duto (mm · 0=Faceado)</label>
+              <input type="number" id="wlPortOffset" value="0" min="0" max="300" step="5" onchange="updateWoodlock()">
+            </div>
+            <div class="form-group">
+              <label for="wlPortRouting" title="Roteamento interno do duto quando Lv excede a profundidade C">Roteamento do Duto</label>
+              <select id="wlPortRouting" onchange="updateWoodlock()">
+                <option value="straight" selected>Reto (Frontal · Eixo C)</option>
+                <option value="l_bend">Duto em "L" (90° Interno)</option>
+                <option value="side_firing">Lateral (Side-Firing · Eixo A)</option>
+              </select>
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="wlPlanarStyle">Geometria Planar Horn</label>
+              <select id="wlPlanarStyle" onchange="onPlanarGeomChange()">
+                <option value="square" selected>Planar Quadrado (CG, Baffle A×C4, Div. A4×R)</option>
+                <option value="triangle">Planar Triângulo / Euclides (Octogonal + 4× 45° V×Z)</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="wlPlanarRecuoG" title="Profundidade do túnel frontal λ/4 (recuo do baffle). 0 = automático (~42% de B)">Recuo Túnel G (mm · 0=Auto)</label>
+              <input type="number" id="wlPlanarRecuoG" value="0" min="0" max="600" step="5" onchange="onPlanarGeomChange()">
+            </div>
+            <div class="form-group">
+              <label>Travamento Estrutural (6 Eixos)</label>
+              <div style="display:grid; grid-template-columns:repeat(3,auto); justify-content:start; gap:6px 14px; font-size:11px; color:#cbd5e1; padding-top:4px;">
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceFF" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">F–F</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceTB" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">T–B</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceLR" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">E–D</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceCross" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">Cruz</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceBaffle" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">Baffle</label>
+                <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlBraceRear" style="width:auto;flex-shrink:0;margin:0;" onchange="onWoodlockBracingChange()">Trás</label>
+              </div>
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="wlWidthA">Cota [A] Largura Interna Livre (mm) <small id="wlMinALabel" style="color:var(--accent);"></small></label>
+              <input type="number" id="wlWidthA" value="150" min="150" max="2000" step="5" onchange="onWoodlockDimChange('A')">
+            </div>
+            <div class="form-group">
+              <label for="wlHeightB">Cota [B] Altura Interna Livre (mm) <small id="wlMinBLabel" style="color:var(--accent);"></small></label>
+              <input type="number" id="wlHeightB" value="150" min="150" max="1500" step="5" onchange="onWoodlockDimChange('B')">
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="wlAngle">Ângulo Traseiro Trapezoidal (°)</label>
+              <input type="number" id="wlAngle" value="15" min="0" max="35" step="1" onchange="updateWoodlock()">
+            </div>
+            <div class="form-group">
+              <label for="wlBattens">Travamentos Internos (Nº Sarrafos)</label>
+              <input type="number" id="wlBattens" value="0" min="0" max="16" step="1" onchange="updateWoodlock()">
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="wlSheetPrice">Preço Chapa MDF 2750×1830 (R$)</label>
+              <input type="number" id="wlSheetPrice" value="260" min="0" step="10" onchange="updateWoodlock()">
+            </div>
+            <div class="form-group">
+              <label for="wlWheelCut">Desconto Caixas de Roda / Obj. (L)</label>
+              <input type="number" id="wlWheelCut" value="0" min="0" max="200" step="1" onchange="updateWoodlock()">
+            </div>
+          </div>
+          <div style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:12px; font-size:12px; line-height:1.6;" id="wlSummaryBox">
+            <!-- Resumo Volumétrico e Modal injetado via JS -->
+          </div>
+          <div id="wlAutofixBanner" style="display:none; margin-top:8px; background:rgba(0,212,255,0.10); border:1px solid rgba(0,212,255,0.40); border-radius:6px; padding:8px 11px; font-size:11.5px; color:#bae6fd; line-height:1.45;"></div>
+          <div id="wlValidationBox" style="margin-top:10px; background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px 12px; font-size:11.5px; line-height:1.5;">
+            <!-- Validador Geométrico P0 injetado via JS -->
+          </div>
+          <div style="display:flex; gap:6px; margin-top:10px; flex-wrap:wrap;">
+            <button type="button" id="btnPrintDossierA4" class="tb-btn active" onclick="printBuildPackA4()">Imprimir / PDF (Dossiê A4)</button>
+            <button type="button" id="btnExportBuildPack" class="tb-btn accent-wiz" onclick="exportBuildPackHtml()">Pacote de Obra (.html)</button>
+            <button type="button" id="btnExportBuildJson" class="tb-btn" onclick="exportBuildPackJson()">BuildPack (.json)</button>
+            <button type="button" id="btnExportBuildDxf" class="tb-btn" onclick="exportBuildPackDxf()">CAD 2D (.dxf)</button>
+            <button type="button" id="btnExportBuildDxf3d" class="tb-btn" onclick="exportBuildPackDxf3d()">CAD 3D (.dxf)</button>
+            <button type="button" id="btnExportBuildObj" class="tb-btn" onclick="exportBuildPackObj()">3D Sólido (.obj)</button>
+            <button type="button" id="btnExportBuildFreeCad" class="tb-btn" onclick="exportBuildPackFreeCadMacro()">FreeCAD (.FCMacro)</button>
+          </div>
+        </div>
+
+        <!-- Desenho Técnico CAD 2D/Isométrico -->
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px; display:flex; flex-direction:column; align-self:start; position:sticky; top:6px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+            <h3 id="wlCanvasTitle" style="font-size:12.5px; font-weight:600; color:var(--text-main); margin:0;">Vista 3D Montada (0%)</h3>
+            <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+              <button type="button" class="tb-btn" data-wl-view="blueprint" onclick="setWoodlockViewMode('blueprint')">Blueprint 2D</button>
+              <button type="button" class="tb-btn active" data-wl-view="exploded" onclick="setWoodlockViewMode('exploded')">3D / Explodida</button>
+              <button type="button" class="tb-btn" data-wl-view="cutplan" onclick="setWoodlockViewMode('cutplan')">Planificação</button>
+              <button type="button" class="tb-btn" data-wl-view="nesting" onclick="setWoodlockViewMode('nesting')">Chapa MDF</button>
+              <span id="wlExplodeBar" style="display:inline-flex; gap:2px; margin-left:4px; padding-left:6px; border-left:1px solid var(--border);">
+                <button type="button" class="tb-btn active" data-wl-exp="0" onclick="setWoodlockExplode(0)">0%</button>
+                <button type="button" class="tb-btn" data-wl-exp="0.5" onclick="setWoodlockExplode(0.5)">50%</button>
+                <button type="button" class="tb-btn" data-wl-exp="1" onclick="setWoodlockExplode(1)">100%</button>
+                <button type="button" id="btnWlXray" class="tb-btn active" onclick="toggleWoodlockXray()" title="Alternar transparência Raio-X para ver o interior">Raio-X</button>
+                <button type="button" class="tb-btn" onclick="resetWoodlockCam()" title="Resetar ângulo da câmera 3D">Reset</button>
+              </span>
+            </div>
+          </div>
+          <canvas id="woodlockCanvas" style="width:100%; height:clamp(380px, calc(100vh - 320px), 640px); background:var(--bg-base); border:1px solid var(--border-subtle); border-radius:5px; cursor:grab;"></canvas>
+        </div>
+      </div>
+
+      <!-- Tabela de Plano de Corte (Cut-Sheet) -->
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px;">
+        <h3 style="font-size:12.5px; font-weight:600; color:var(--text-main); margin-bottom:8px;">Plano de Corte Industrial — MDF, Sarrafos e Dutos (Laterais Embutidas)</h3>
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Peça / Orientação</th>
+              <th>Qtd</th>
+              <th>Largura (mm)</th>
+              <th>Altura / Compr. (mm)</th>
+              <th>Chanfro (°)</th>
+              <th>Área Líquida (m²)</th>
+              <th>Instrução de Montagem</th>
+            </tr>
+          </thead>
+          <tbody id="cutSheetTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- Gabarito de Furação do Baffle (Coordenadas Reais) -->
+      <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px;">
+        <h3 style="font-size:12.5px; font-weight:600; color:var(--text-main); margin-bottom:6px;">Gabarito de Furação do Painel Frontal (Origem X=0, Y=0 no canto inferior-esquerdo externo)</h3>
+        <div id="wlBaffleOriginNote" style="font-size:11px; color:var(--text-muted); margin-bottom:8px;"></div>
+        <table class="comparison-table">
+          <thead>
+            <tr>
+              <th>Elemento</th>
+              <th>Tipo / Forma</th>
+              <th>Centro X Ext. (mm)</th>
+              <th>Centro Y Ext. (mm)</th>
+              <th>Dimensão Recorte (mm)</th>
+              <th>Flange / Folga (mm)</th>
+            </tr>
+          </thead>
+          <tbody id="wlHolesTableBody"></tbody>
+        </table>
+      </div>
+
+      <!-- ALOJAMENTO REAL NO VEÍCULO + ENGENHARIA REVERSA (DESCOBRIR LITRAGEM) -->
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap:12px;">
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px;">
+          <h3 style="font-size:12.5px; font-weight:600; color:var(--text-main); margin-bottom:8px;">Verificador de Alojamento no Veículo (Porta-Malas / Caçamba)</h3>
+          <div class="grid-3" style="margin-bottom:8px;">
+            <div class="form-group"><label for="wlTrunkW">Larg. Máx (mm)</label><input type="number" id="wlTrunkW" value="950" min="200" step="10" oninput="updateWoodlock()"></div>
+            <div class="form-group"><label for="wlTrunkH">Alt. Máx (mm)</label><input type="number" id="wlTrunkH" value="500" min="200" step="10" oninput="updateWoodlock()"></div>
+            <div class="form-group"><label for="wlTrunkD">Prof. Máx (mm)</label><input type="number" id="wlTrunkD" value="520" min="200" step="10" oninput="updateWoodlock()"></div>
+          </div>
+          <div class="grid-3" style="margin-bottom:8px;">
+            <div class="form-group"><label for="wlMatrixCols">Grade Colunas (DIV)</label><input type="number" id="wlMatrixCols" value="1" min="1" max="6" step="1" onchange="updateWoodlock()"></div>
+            <div class="form-group"><label for="wlMatrixRows">Grade Linhas (DIV)</label><input type="number" id="wlMatrixRows" value="1" min="1" max="6" step="1" onchange="updateWoodlock()"></div>
+            <div class="form-group" style="display:flex;flex-direction:column;justify-content:center;gap:4px;font-size:11px;color:#cbd5e1;">
+              <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlWheelArch" style="width:auto;flex-shrink:0;margin:0;" onchange="updateWoodlock()">Cx. Rodas</label>
+              <label style="display:inline-flex;align-items:center;justify-content:flex-start;gap:5px;cursor:pointer;white-space:nowrap;margin:0;width:auto;"><input type="checkbox" id="wlProtectBar" style="width:auto;flex-shrink:0;margin:0;" onchange="updateWoodlock()">Barra Prot.</label>
+            </div>
+          </div>
+          <div class="grid-3" style="margin-bottom:8px;">
+            <div class="form-group"><label for="wlWheelK">Roda Intrusão K (mm)</label><input type="number" id="wlWheelK" value="120" min="40" max="350" step="10" onchange="updateWoodlock()"></div>
+            <div class="form-group"><label for="wlWheelH">Roda Compr. H (mm)</label><input type="number" id="wlWheelH" value="260" min="80" max="600" step="10" onchange="updateWoodlock()"></div>
+            <div class="form-group"><label for="wlWheelJ">Roda Altura J (mm)</label><input type="number" id="wlWheelJ" value="180" min="60" max="450" step="10" onchange="updateWoodlock()"></div>
+          </div>
+          <div id="wlTrunkResult" style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px; font-family:var(--mono); font-size:11.5px; line-height:1.55;"></div>
+        </div>
+
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px;">
+          <h3 style="font-size:12.5px; font-weight:600; color:var(--text-main); margin-bottom:8px;">Engenharia Reversa — Volume Interno de Caixa Pronta</h3>
+          <div class="grid-3" style="margin-bottom:8px;">
+            <div class="form-group"><label for="revW">Larg. Ext (cm)</label><input type="number" id="revW" value="80" min="10" step="0.5" oninput="updateReverseVolume()"></div>
+            <div class="form-group"><label for="revH">Alt. Ext (cm)</label><input type="number" id="revH" value="42" min="10" step="0.5" oninput="updateReverseVolume()"></div>
+            <div class="form-group"><label for="revMdf">MDF (mm)</label><input type="number" id="revMdf" value="18" min="6" step="1" oninput="updateReverseVolume()"></div>
+          </div>
+          <div class="grid-2" style="margin-bottom:8px;">
+            <div class="form-group"><label for="revD1">Prof. Superior Ext (cm)</label><input type="number" id="revD1" value="32" min="10" step="0.5" oninput="updateReverseVolume()"></div>
+            <div class="form-group"><label for="revD2">Prof. Inferior Ext (cm)</label><input type="number" id="revD2" value="44" min="10" step="0.5" oninput="updateReverseVolume()"></div>
+          </div>
+          <div id="revVolResult" style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px; font-family:var(--mono); font-size:11.5px; line-height:1.55;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 4: ENGENHARIA ELÉTRICA, CABOS, GANHO & DSP -->
+    <div id="tabElectrical" style="display:none; flex-direction:column; gap:12px;">
+      <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap:12px;">
+        <!-- Card 1: Associação de Alto-Falantes e Bobinas -->
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px;">
+          <h3 style="font-size:12.5px; font-weight:600; color:var(--text-main); margin-bottom:8px;">01 · Associação de Transdutores e Bobinas (Lei de Ohm)</h3>
+          <div class="input-row" style="margin-bottom:8px;">
+            <div class="form-group">
+              <label for="elNumSpk">Qtd. Alto-Falantes</label>
+              <input type="number" id="elNumSpk" value="1" min="1" max="16" step="1" onchange="updateElectrical(true)">
+            </div>
+            <div class="form-group">
+              <label for="elCoils">Tipo de Bobina</label>
+              <select id="elCoils" onchange="updateElectrical()">
+                <option value="1" selected>Bobina Simples (SVC)</option>
+                <option value="2">Bobina Dupla (DVC)</option>
+              </select>
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:8px;">
+            <div class="form-group">
+              <label for="elZCoil">Impedância Nominal / Bobina (Ω)</label>
+              <select id="elZCoil" onchange="updateElectrical()">
+                <option value="2">2.0 Ω</option>
+                <option value="4">4.0 Ω</option>
+                <option value="8" selected>8.0 Ω</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="elCoilMode">Ligação das Bobinas (se DVC)</label>
+              <select id="elCoilMode" onchange="updateElectrical()">
+                <option value="parallel" selected>Bobinas em Paralelo</option>
+                <option value="series">Bobinas em Série</option>
+              </select>
+            </div>
+          </div>
+          <div class="form-group" style="margin-bottom:10px;">
+            <label for="elSpkMode">Ligação entre Alto-Falantes</label>
+            <select id="elSpkMode" onchange="updateElectrical()">
+              <option value="parallel" selected>Todos em Paralelo</option>
+              <option value="series">Todos em Série</option>
+              <option value="series-parallel">Série-Paralelo (Grupos Balanceados)</option>
+            </select>
+          </div>
+          <div id="elWiringResult" style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; line-height:1.6;"></div>
+        </div>
+
+        <!-- Card 2: Dimensionamento de Cabos DC 12V e Áudio -->
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px;">
+          <h3 style="font-size:12.5px; font-weight:600; color:var(--text-main); margin-bottom:8px;">02 · Barramento DC 12V/14.4V e Cabo de Áudio (NBR 5410)</h3>
+          <div class="input-row" style="margin-bottom:8px;">
+            <div class="form-group">
+              <label for="elAmpPower">Potência Total RMS (W)</label>
+              <input type="number" id="elAmpPower" value="1600" min="50" max="20000" step="50" onchange="updateElectrical()">
+            </div>
+            <div class="form-group">
+              <label for="elVbat">Tensão da Bateria (V)</label>
+              <input type="number" id="elVbat" value="12.6" min="10.0" max="15.5" step="0.1" onchange="updateElectrical()">
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:8px;">
+            <div class="form-group">
+              <label for="elPwrLen">Comp. Cabo Força DC (m)</label>
+              <input type="number" id="elPwrLen" value="4.5" min="0.5" max="15.0" step="0.5" onchange="updateElectrical()">
+            </div>
+            <div class="form-group">
+              <label for="elPwrGauge">Bitola Cabo Força (mm²)</label>
+              <select id="elPwrGauge" onchange="updateElectrical()">
+                <option value="10">10 mm² (8 AWG)</option>
+                <option value="16">16 mm² (6 AWG)</option>
+                <option value="21" selected>21 mm² (4 AWG)</option>
+                <option value="35">35 mm² (2 AWG)</option>
+                <option value="50">50 mm² (1/0 AWG)</option>
+                <option value="70">70 mm² (2/0 AWG)</option>
+              </select>
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px;">
+            <div class="form-group">
+              <label for="elSpkLen">Comp. Cabo Áudio (m)</label>
+              <input type="number" id="elSpkLen" value="3.0" min="0.5" max="30.0" step="0.5" onchange="updateElectrical()">
+            </div>
+            <div class="form-group">
+              <label for="elSpkGauge">Bitola Cabo Áudio (mm²)</label>
+              <select id="elSpkGauge" onchange="updateElectrical()">
+                <option value="1.5">1.5 mm² (16 AWG)</option>
+                <option value="2.5">2.5 mm² (14 AWG)</option>
+                <option value="4.0" selected>4.0 mm² (11 AWG)</option>
+                <option value="6.0">6.0 mm² (9 AWG)</option>
+                <option value="10.0">10.0 mm² (7 AWG)</option>
+              </select>
+            </div>
+          </div>
+          <div id="elCableResult" style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; line-height:1.6;"></div>
+        </div>
+
+        <!-- Card 3: Estrutura de Ganho RMS, Limiter DSP & Crossover Passivo + Zobel -->
+        <div style="background:var(--bg-card); border:1px solid var(--border); border-radius:6px; padding:12px;">
+          <h3 style="font-size:12.5px; font-weight:600; color:var(--text-main); margin-bottom:8px;">03 · Estrutura de Ganho True-RMS, Limiter DSP e Rede Zobel</h3>
+          <div class="input-row" style="margin-bottom:8px;">
+            <div class="form-group">
+              <label for="elPreoutV">Tensão Saída Player/DSP (V RMS)</label>
+              <input type="number" id="elPreoutV" value="2.0" min="0.2" max="10.0" step="0.1" onchange="updateElectrical()">
+            </div>
+            <div class="form-group">
+              <label for="elLimProfile">Perfil Dinâmico Limiter RMS/Peak</label>
+              <select id="elLimProfile" onchange="updateElectrical()">
+                <option value="sq_slow">Subgrave Macio (SQ - 0.50T)</option>
+                <option value="musical" selected>Musical Balanceado (0.25T)</option>
+                <option value="fast_trio">Proteção Estrita Trio (0.15T)</option>
+              </select>
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:8px;">
+            <div class="form-group">
+              <label for="elXoverHz">Frequência Crossover Passivo (Hz)</label>
+              <input type="number" id="elXoverHz" value="80" min="30" max="5000" step="5" onchange="updateElectrical()">
+            </div>
+            <div class="form-group">
+              <label for="elLeMh">Indutância Bobina Le (mH @ 1kHz)</label>
+              <input type="number" id="elLeMh" value="1.5" min="0.1" max="10.0" step="0.1" onchange="updateElectrical()">
+            </div>
+          </div>
+          <div class="input-row" style="margin-bottom:10px; align-items:center;">
+            <div class="form-group">
+              <label for="elMeasV">Tensão Medida Multímetro (V RMS)</label>
+              <input type="number" id="elMeasV" value="" min="0" max="300" step="0.5" placeholder="opc. p/ temp. bobina" oninput="updateElectrical()">
+            </div>
+            <div class="form-group" style="display:flex; align-items:center; gap:6px; padding-top:16px;">
+              <input type="checkbox" id="elDerate70" style="width:auto;" onchange="updateElectrical()">
+              <label for="elDerate70" style="margin:0; cursor:pointer; font-size:11px; color:#fbbf24;">Derating 70% (Proteção IEC/NBR)</label>
+            </div>
+          </div>
+          <div id="elDspResult" style="background:var(--bg-input); border:1px solid var(--border); border-radius:6px; padding:10px; font-size:12px; line-height:1.6;"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB 5: TABELA DE VERIFICAÇÃO NUMÉRICA DE REFERÊNCIA -->
+    <div id="tabAudit" style="display:none; background:var(--bg-card); border-radius:6px; padding:14px; border:1px solid var(--border);">
+      <h3 style="font-size:13px; font-weight:600; margin-bottom:4px; color:var(--text-main);">Verificação Numérica de Referência Analítica</h3>
+      <div style="font-size:11px; color:var(--text-muted); margin-bottom:10px;">Casos-base de calibração estática (Oversound 18" Bass-Reflex e Alumapro 12" Selada).</div>
+      <table class="comparison-table">
+        <thead>
+          <tr>
+            <th>Grandeza / Parâmetro</th>
+            <th>Referência Analítica</th>
+            <th>Valor Calculado</th>
+            <th>Diferença Absoluta</th>
+            <th>Conformidade</th>
+          </tr>
+        </thead>
+        <tbody id="auditTableBody">
+          <!-- Linhas injetadas via JS -->
+        </tbody>
+      </table>
+    </div>
+
+  </main>
+</div>
+
+<!-- BARRA DE STATUS INFERIOR (DESKTOP STATUS BAR) -->
+<footer class="desktop-statusbar" id="desktopStatusBar">
+  <div class="sb-group">
+    <span class="sb-item" id="sbDriver" style="color:var(--text-main); font-weight:600;">Driver: --</span>
+    <span class="sb-sep">|</span>
+    <span class="sb-item" id="sbBox">Caixa: --</span>
+    <span class="sb-sep">|</span>
+    <span class="sb-item" id="sbPort">Duto: --</span>
+    <span class="sb-sep">|</span>
+    <span class="sb-item" id="sbEpdr">EPDR: --</span>
+  </div>
+  <div class="sb-group">
+    <span class="sb-item" id="sbThermal" style="display:none; color:var(--warning);"></span>
+    <span class="sb-item" id="sbAB" style="display:none; color:var(--warning);"></span>
+    <span class="sb-item sb-ok">● Pronto</span>
+  </div>
+</footer>
+
+<!-- JANELA MODAL 1: PROPRIEDADES DO DRIVER (F2) -->
+<div class="bf-modal-backdrop" id="modalDriver" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">Propriedades do Driver — Parâmetros Thiele-Small e Motor (F2)</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body">
+      <div class="bf-modal-tabs">
+        <button type="button" class="bf-mtab-btn active" data-mtab="drv-ts" onclick="switchModalTab('modalDriver','drv-ts',this)">Parâmetros Thiele-Small</button>
+        <button type="button" class="bf-mtab-btn" data-mtab="drv-adv" onclick="switchModalTab('modalDriver','drv-adv',this)">Catálogo e Auditoria</button>
+      </div>
+      <div data-mpane="drv-ts">
+        <div class="grid-3">
+          <div class="form-group"><label for="tsFs">Fs <small>(Hz)</small></label><input type="number" id="tsFs" value="40" step="0.1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsQes">Qes</label><input type="number" id="tsQes" value="0.446" step="0.001" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsQms">Qms</label><input type="number" id="tsQms" value="7.2" step="0.1" oninput="recalculate()"></div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group"><label for="tsVas">Vas <small>(L)</small></label><input type="number" id="tsVas" value="185" step="1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsRe">Re <small>(Ω)</small></label><input type="number" id="tsRe" value="5.1" step="0.1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsPe">Pe <small>(W RMS)</small></label><input type="number" id="tsPe" value="800" step="10" oninput="recalculate()"></div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group"><label for="tsSd">Sd <small>(cm²)</small></label><input type="number" id="tsSd" value="1186" step="1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsXmax">Xmax <small>(mm)</small></label><input type="number" id="tsXmax" value="9.8" step="0.1" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsVsub">Vsub <small>(L)</small></label><input type="number" id="tsVsub" value="9.0" step="0.5" oninput="recalculate()"></div>
+        </div>
+      </div>
+      <div data-mpane="drv-adv" style="display:none;">
+        <div class="grid-3">
+          <div class="form-group"><label for="tsLe">Le <small>(mH)</small></label><input type="number" id="tsLe" value="1.5" step="0.01" oninput="syncSimLeToElec(); recalculate()"></div>
+          <div class="form-group"><label for="tsZnom">Znom <small>(Ω)</small></label><input type="number" id="tsZnom" value="4" step="1" oninput="syncSimZnomToElec(); recalculate()"></div>
+          <div class="form-group"><label for="tsDia">Diâm <small>(pol)</small></label><input type="number" id="tsDia" value="15" step="1" oninput="recalculate()"></div>
+        </div>
+        <div class="grid-3">
+          <div class="form-group"><label for="tsCoils">Hvc / Hgap</label><input type="text" id="tsCoils" value="" placeholder="mm/mm" oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsMmsCat">Mms Cat. <small>(g)</small></label><input type="number" id="tsMmsCat" value="" step="0.1" placeholder="opc." oninput="recalculate()"></div>
+          <div class="form-group"><label for="tsBlCat">Bl Cat. <small>(T·m)</small></label><input type="number" id="tsBlCat" value="" step="0.01" placeholder="opc." oninput="recalculate()"></div>
+        </div>
+      </div>
+      <div id="simAdvancedGrid" style="display:grid; grid-template-columns:repeat(3, 1fr); gap:6px 10px; font-family:var(--mono); font-size:11px; background:var(--bg-card); border:1px solid var(--border); border-radius:7px; padding:10px 12px; color:#cbd5e1;">
+        <div>Qts: <b id="sim-qts" style="color:#4ade80;">--</b></div>
+        <div>EBP: <b id="sim-ebp" style="color:#38bdf8;">--</b></div>
+        <div>Mms (deriv.): <b id="sim-mms">--</b></div>
+        <div>Mmd (s/ ar): <b id="sim-mmd">--</b></div>
+        <div>Cms: <b id="sim-cms">--</b></div>
+        <div>Rms: <b id="sim-rms">--</b></div>
+        <div>Bl (deriv.): <b id="sim-bl">--</b></div>
+        <div>Bl²/Re: <b id="sim-bl2re">--</b></div>
+        <div>η₀: <b id="sim-eta0">--</b></div>
+        <div>SPL 1W/2.83V: <b id="sim-spl1w">--</b></div>
+        <div>Vd / Xgeom: <b id="sim-vd">--</b></div>
+        <div>Pico R0: <b id="sim-r0">--</b></div>
+        <div style="grid-column:1 / -1; border-top:1px dashed var(--border); padding-top:6px; color:#94a3b8;" id="sim-audit">Auditoria: --</div>
+      </div>
+    </div>
+    <div class="bf-modal-ftr">
+      <button type="button" class="tb-btn" onclick="window.open('./drivers-db.html', '_blank')">Abrir Banco de Drivers</button>
+      <button type="button" class="tb-btn active" onclick="closeConfigModals()">Concluir (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- (Caixa/Dutos F3 e Ambiente/Térmica F4 ficam no Inspetor Lateral sem duplicar IDs) -->
+
+<!-- JANELA MODAL 4: PREFERÊNCIAS DOS GRÁFICOS (F7) -->
+<div class="bf-modal-backdrop" id="modalGraphPrefs" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal" style="max-width:540px;">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">Preferências dos Gráficos e Comparador A/B (F7)</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body">
+      <div class="form-group">
+        <label>Banda de Frequência (Eixo X Logarítmico)</label>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">
+          <button type="button" class="chart-pill-btn" data-freq-btn-modal="15-200" onclick="setFreqRange(15, 200, document.querySelector('[data-freq-btn=&quot;15-200&quot;]'))">15–200 Hz</button>
+          <button type="button" class="chart-pill-btn" data-freq-btn-modal="15-500" onclick="setFreqRange(15, 500, document.querySelector('[data-freq-btn=&quot;15-500&quot;]'))">15–500 Hz</button>
+          <button type="button" class="chart-pill-btn active" data-freq-btn-modal="10-1000" onclick="setFreqRange(10, 1000, document.querySelector('[data-freq-btn=&quot;10-1000&quot;]'))">10–1k Hz</button>
+          <button type="button" class="chart-pill-btn" data-freq-btn-modal="10-2000" onclick="setFreqRange(10, 2000, document.querySelector('[data-freq-btn=&quot;10-2000&quot;]'))">10–2k Hz</button>
+          <button type="button" class="chart-pill-btn" data-freq-btn-modal="5-20000" onclick="setFreqRange(5, 20000, document.querySelector('[data-freq-btn=&quot;5-20000&quot;]'))">5–20k Hz</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Camadas de Diagnóstico (Eixo Y e Engenharia)</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+          <button type="button" id="btnAutoScaleY" class="chart-pill-btn active" onclick="toggleChartOpt('autoScaleY')">Auto-Scale Y</button>
+          <button type="button" id="btnShowMarkers" class="chart-pill-btn" onclick="toggleChartOpt('showMarkers')">Marcadores (Fb/F3/Fs/HPF)</button>
+          <button type="button" id="btnShowLimits" class="chart-pill-btn active" onclick="toggleChartOpt('showLimits')">Limites (Xmax/Mach/20ms)</button>
+        </div>
+      </div>
+      <div class="form-group">
+        <label>Comparador A/B e Exportação</label>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:4px;">
+          <button type="button" id="btnFreezeA" class="chart-pill-btn" onclick="captureSnapshotA()">Congelar Curva A (F8)</button>
+          <button type="button" class="chart-pill-btn" onclick="clearSnapshotA()">Limpar Curva A</button>
+          <button type="button" class="chart-pill-btn" onclick="exportExpandedPNG()">Exportar PNG (1280×720)</button>
+        </div>
+      </div>
+    </div>
+    <div class="bf-modal-ftr">
+      <span style="font-size:11px; color:var(--text-dim);">Clique com o botão direito sobre qualquer gráfico para ações rápidas.</span>
+      <button type="button" class="tb-btn active" onclick="closeConfigModals()">Concluir (Esc)</button>
+    </div>
+  </div>
+</div>
+
+<!-- JANELA MODAL 5: ASSISTENTE DE PROJETO (F6) -->
+<div class="bf-modal-backdrop" id="modalWizard" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal" style="max-width:640px;">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">Assistente de Projeto (F6)</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body">
+      <div id="wizDriverSummary" style="background:var(--bg-card); border:1px solid var(--border); border-radius:5px; padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--text-muted); line-height:1.55;"></div>
+      <div class="form-group" style="margin-bottom:4px;">
+        <label>1. Perfil de Sintonia (6 Alvos Acústicos)</label>
+        <div class="wiz-goal-grid">
+          <button type="button" class="wiz-goal-card active" data-wiz-goal="optimum" onclick="selectWizardGoal('optimum', this)">
+            <div style="font-weight:600; color:var(--text-main); font-size:11.5px;">Equilibrado (Flat)</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Equilíbrio entre extensão, resposta plana e controle.</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="lowbass" onclick="selectWizardGoal('lowbass', this)">
+            <div style="font-weight:600; color:var(--text-main); font-size:11.5px;">Subgrave Estendido</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Ênfase nas oitavas mais baixas (cinema / subgrave).</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="attack" onclick="selectWizardGoal('attack', this)">
+            <div style="font-weight:600; color:var(--text-main); font-size:11.5px;">Ataque / Transiente</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Resposta rápida e amortecida para grave articulado.</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="trio" onclick="selectWizardGoal('trio', this)">
+            <div style="font-weight:600; color:var(--text-main); font-size:11.5px;">Trio (70–110 Hz)</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Pressão acústica concentrada para ambiente aberto.</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="subext" onclick="selectWizardGoal('subext', this)">
+            <div style="font-weight:600; color:var(--text-main); font-size:11.5px;">Subgrave Profundo</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Sintonia dedicada entre 30 e 40 Hz.</div>
+          </button>
+          <button type="button" class="wiz-goal-card" data-wiz-goal="spl" onclick="selectWizardGoal('spl', this)">
+            <div style="font-weight:600; color:var(--text-main); font-size:11.5px;">SPL Máximo (Pico)</div>
+            <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Ganho máximo de pico na banda de passagem.</div>
+          </button>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label for="wizPortPref">2. Preferência de Duto (se Dutada/BP)</label>
+          <select id="wizPortPref" onchange="updateWizardPreview()">
+            <option value="round" selected>Cilíndrico Padrão (PVC / Aero)</option>
+            <option value="slot_wall">Duto Régua em Parede / Shelf (MDF)</option>
+            <option value="triangle">Duto Triângulo nos Cantos (MDF)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="wizBoxOverride">3. Topologia Recomendada</label>
+          <select id="wizBoxOverride" onchange="updateWizardPreview()">
+            <option value="auto" selected>Automática pelo EBP / Qts do Driver</option>
+            <option value="bass-reflex">Forçar Bass-Reflex (Dutada)</option>
+            <option value="sealed">Forçar Caixa Selada</option>
+            <option value="bp4">Forçar Band-Pass 4ª (BP4)</option>
+            <option value="bp6">Forçar Band-Pass 6ª (BP6)</option>
+            <option value="planar">Forçar Planar Horn</option>
+          </select>
+        </div>
+      </div>
+      <div id="wizPreviewBox" style="background:rgba(46,160,112,0.08); border:1px solid rgba(46,160,112,0.35); border-radius:5px; padding:10px 12px; font-family:var(--mono); font-size:11px; color:var(--text-main); line-height:1.6;"></div>
+    </div>
+    <div class="bf-modal-ftr">
+      <button type="button" class="tb-btn" onclick="closeConfigModals()">Cancelar</button>
+      <button type="button" class="tb-btn accent-wiz" onclick="applyWizardRecommendation()">Aplicar Projeto</button>
+    </div>
+  </div>
+</div>
+
+<!-- JANELA MODAL 6: ATALHOS & GUIA RÁPIDO (F1) -->
+<div class="bf-modal-backdrop" id="modalShortcuts" onclick="if(event.target===this) closeConfigModals()">
+  <div class="bf-modal" style="max-width:520px;">
+    <div class="bf-modal-hdr">
+      <div class="bf-modal-title">Atalhos de Teclado e Guia Rápido — BassForge</div>
+      <button type="button" class="bf-modal-close" onclick="closeConfigModals()" aria-label="Fechar">×</button>
+    </div>
+    <div class="bf-modal-body" style="font-family:var(--mono); font-size:11.5px; color:var(--text-muted); line-height:1.7;">
+      <div style="display:grid; grid-template-columns:110px 1fr; gap:6px 12px;">
+        <b style="color:var(--accent);">F2</b><span>Abrir Propriedades do Driver (T/S e Auditoria)</span>
+        <b style="color:var(--accent);">F3</b><span>Abrir Propriedades da Caixa e Dutos</span>
+        <b style="color:var(--accent);">F4</b><span>Abrir Ambiente, Cabine, HPF e Térmica</span>
+        <b style="color:var(--accent);">F7</b><span>Abrir Preferências dos Gráficos</span>
+        <b style="color:var(--accent);">F6</b><span>Abrir Assistente de Projeto</span>
+        <b style="color:var(--accent);">F8</b><span>Congelar / Atualizar Curva A (Comparador A/B)</span>
+        <b style="color:var(--accent);">F9</b><span>Mostrar / Ocultar Painel Lateral</span>
+        <b style="color:var(--accent);">Ctrl + S / O</b><span>Salvar / Abrir Projeto Completo (.json)</span>
+        <b style="color:var(--accent);">Botão Direito</b><span>Menu de contexto sobre qualquer gráfico</span>
+        <b style="color:var(--accent);">← / →</b><span>Mover mira fixada (Shift: rápido · Ctrl: 0.1 Hz)</span>
+        <b style="color:var(--accent);">↑ / ↓</b><span>Alternar gráfico no modo Expandido</span>
+        <b style="color:var(--accent);">Esc</b><span>Fechar janelas, menus e soltar mira fixada</span>
+      </div>
+    </div>
+    <div class="bf-modal-ftr">
+      <span style="font-size:11px; color:var(--text-dim);">BassForge · Simulador Eletroacústico</span>
+      <button type="button" class="tb-btn active" onclick="closeConfigModals()">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MENU DE CONTEXTO (BOTÃO DIREITO NOS GRÁFICOS) -->
+<div class="bf-ctx-menu" id="chartContextMenu" role="menu">
+  <button type="button" class="menu-action" onclick="ctxAction('expand')"><span>Abrir no Gráfico Expandido</span></button>
+  <button type="button" class="menu-action" onclick="ctxAction('freezeA')"><span>Congelar Curva A (A/B)</span><kbd>F8</kbd></button>
+  <button type="button" class="menu-action" id="ctxClearA" style="display:none;" onclick="ctxAction('clearA')"><span>Limpar Curva A</span></button>
+  <div class="menu-sep"></div>
+  <button type="button" class="menu-action" onclick="ctxAction('exportPng')"><span>Exportar este Gráfico (PNG)</span></button>
+  <button type="button" class="menu-action" onclick="ctxAction('autoScale')"><span>Alternar Auto-Scale Y</span></button>
+  <button type="button" class="menu-action" onclick="ctxAction('prefs')"><span>Preferências dos Gráficos</span><kbd>F7</kbd></button>
+</div>
+
+<script>
+{{INLINE_JS}}
+</script>
+</body>
+</html>
+

@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>BassForge — Banco de Drivers e Auditoria T/S</title>
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 28 28'%3E%3Crect x='1' y='1' width='26' height='26' rx='6' fill='%2310141b' stroke='%2338a3d1' stroke-width='1.5'/%3E%3Ccircle cx='14' cy='14' r='7.5' fill='none' stroke='%2338a3d1' stroke-width='1.6'/%3E%3Ccircle cx='14' cy='14' r='3' fill='%2338a3d1'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+{{INLINE_CSS}}
+  </style>
+</head>
+<body>
+
+  <!-- ═══════════ HEADER UNIFICADO ═══════════ -->
+  <header>
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <rect x="1" y="1" width="26" height="26" rx="5" fill="#10141b" stroke="#38a3d1" stroke-opacity="0.6" stroke-width="1.4"/>
+        <circle cx="14" cy="14" r="7.5" stroke="#38a3d1" stroke-width="1.5"/>
+        <circle cx="14" cy="14" r="3" fill="#38a3d1" fill-opacity="0.25" stroke="#38a3d1" stroke-width="1.3"/>
+      </svg>
+      <div style="display:flex; flex-direction:column; line-height:1.15;">
+        <span class="brand-title">BassForge</span>
+        <span class="brand-sub">ENGENHARIA ELETROACÚSTICA</span>
+      </div>
+      <span class="brand-sep"></span>
+      <nav class="suite-nav" aria-label="Alternar módulo BassForge">
+        <a href="./drivers-db.html" class="suite-pill active">Banco de Drivers</a>
+        <a href="./index.html" class="suite-pill">Simulador 4ª Ordem</a>
+      </nav>
+    </div>
+
+    <div class="h-actions">
+      <button type="button" class="btn" id="btn-catalog-open" onclick="openCatalogModal()">Catálogo (...)</button>
+      <button type="button" class="btn" onclick="openImportTSVModal()">Importar</button>
+      <button type="button" class="btn" onclick="exportTSV()">TSV</button>
+      <button type="button" class="btn" onclick="exportCSV()">CSV</button>
+      <button type="button" class="btn" onclick="exportJSON()">JSON</button>
+      <button type="button" class="btn btn-primary" onclick="openReportModal()">Relatório PDF</button>
+    </div>
+  </header>
+
+  <!-- ═══════════ CORPO PRINCIPAL ═══════════ -->
+  <div class="app-body">
+
+    <!-- ═══ PAINEL ESQUERDO: CADASTRO E DERIVAÇÃO DE PARÂMETROS ═══ -->
+    <aside class="pane-form">
+      <div class="pane-header">
+        <div class="pane-title">CADASTRO DO TRANSDUTOR</div>
+        <button type="button" class="btn" style="height:22px; padding:2px 8px; font-size:10.5px;" onclick="resetForm()">Limpar</button>
+      </div>
+
+      <div class="form-scroll">
+        <!-- 1. Identificação -->
+        <div class="field-grid-2">
+          <div class="field-group">
+            <label class="field-label" for="inp-brand">FABRICANTE / MARCA *</label>
+            <input type="text" id="inp-brand" class="field-input" value="JBL" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-model">MODELO *</label>
+            <input type="text" id="inp-model" class="field-input" value="15SWT2200" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-4">
+          <div class="field-group">
+            <label class="field-label" for="inp-series">SÉRIE / LINHA</label>
+            <input type="text" id="inp-series" class="field-input" value="Tornado" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-year">ANO</label>
+            <input type="number" id="inp-year" class="field-input" value="2023" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-dia">DIÂMETRO (″)</label>
+            <input type="number" id="inp-dia" class="field-input" value="15" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-znom">ZNOM (Ω)</label>
+            <input type="number" id="inp-znom" class="field-input" value="4" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-3">
+          <div class="field-group">
+            <label class="field-label" for="inp-pe">PE (W RMS) *</label>
+            <input type="number" id="inp-pe" class="field-input" value="1100" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-sd">SD (cm²) *</label>
+            <input type="number" id="inp-sd" class="field-input" value="841" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-origin">ORIGEM DADOS</label>
+            <select id="inp-origin" class="field-input" onchange="onParamInput()">
+              <option value="datasheet" selected>[D] Datasheet</option>
+              <option value="measured">[M] Medido (Lab)</option>
+              <option value="hybrid">[H] Híbrido</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- 2. Parâmetros Thiele/Small Primários -->
+        <div class="field-grid-4">
+          <div class="field-group">
+            <label class="field-label" for="inp-fs">FS (Hz) *</label>
+            <input type="number" id="inp-fs" class="field-input" value="41.0" step="0.1" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-vas">VAS (L) *</label>
+            <input type="number" id="inp-vas" class="field-input" value="76.3" step="0.1" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-qes">QES *</label>
+            <input type="number" id="inp-qes" class="field-input" value="0.45" step="0.01" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-qms">QMS *</label>
+            <input type="number" id="inp-qms" class="field-input" value="16.32" step="0.01" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-4">
+          <div class="field-group">
+            <label class="field-label" for="inp-xmax">XMAX (mm)</label>
+            <input type="number" id="inp-xmax" class="field-input" value="10.6" step="0.1" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-re">RE (Ω)</label>
+            <input type="number" id="inp-re" class="field-input" value="3.39" step="0.01" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-le">LE (mH)</label>
+            <input type="number" id="inp-le" class="field-input" value="2.79" step="0.01" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-coils">HVC / HGAP</label>
+            <input type="text" id="inp-coils" class="field-input" value="29 / 12" placeholder="Hvc / Hgap" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-3">
+          <div class="field-group">
+            <label class="field-label" for="inp-mms">MMS CAT. (g) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <input type="number" id="inp-mms" class="field-input" value="" step="0.1" placeholder="Opcional" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-bl">BL CAT. (T·m) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <input type="number" id="inp-bl" class="field-input" value="" step="0.01" placeholder="Opcional" oninput="onParamInput()">
+          </div>
+          <div class="field-group">
+            <label class="field-label" for="inp-vsub">VSUB (L) <span style="color:var(--txt3); font-weight:400;">[OPC]</span></label>
+            <input type="number" id="inp-vsub" class="field-input" value="" step="0.1" placeholder="Auto" oninput="onParamInput()">
+          </div>
+        </div>
+
+        <div class="field-grid-2">
+          <button type="button" class="btn btn-primary" onclick="adicionarTabela()" style="width:100%; justify-content:center; height:30px;">
+            Salvar no Banco
+          </button>
+          <button type="button" class="btn btn-success" onclick="enviarFormularioParaSimulador()" style="width:100%; justify-content:center; height:30px;">
+            Abrir no Simulador
+          </button>
+        </div>
+
+        <!-- 3. Card de Parâmetros Eletromecânicos & Acústicos Fundamentais -->
+        <div class="card-box">
+          <div class="card-hdr">
+            <span>01 · MECÂNICA, ACÚSTICA E MASSA</span>
+            <span id="badge-ebp" style="background:var(--bg-input); color:var(--acc); padding:1px 6px; border-radius:3px; font-size:10.5px;">EBP: 91.1</span>
+          </div>
+          <div class="grid-derived">
+            <div class="row-derived"><span>Qts (Total):</span><span class="val-derived" id="drv-qts">0.438</span></div>
+            <div class="row-derived"><span>Cms (Compliância):</span><span class="val-derived" id="drv-cms">0.106 mm/N</span></div>
+            <div class="row-derived"><span>Kms (Rigidez):</span><span class="val-derived" id="drv-kms">9.4 N/mm</span></div>
+            <div class="row-derived"><span>Mms (Massa Total):</span><span class="val-derived" id="drv-mms">141.2 g</span></div>
+            <div class="row-derived"><span>Mmd (Cone s/ ar):</span><span class="val-derived" id="drv-mmd">128.4 g</span></div>
+            <div class="row-derived"><span>Rms (Perdas):</span><span class="val-derived" id="drv-rms">2.23 kg/s</span></div>
+            <div class="row-derived"><span>Cas (Compl. Acúst):</span><span class="val-derived" id="drv-cas">5.45 ×10⁻⁸</span></div>
+            <div class="row-derived"><span>Mas (Massa Acúst):</span><span class="val-derived" id="drv-mas">199.6 kg/m⁴</span></div>
+            <div class="row-derived"><span>Ras (Resist. Acúst):</span><span class="val-derived" id="drv-ras">3150 N·s/m⁵</span></div>
+            <div class="row-derived"><span>Raio do Pistão (a):</span><span class="val-derived" id="drv-radius">16.36 cm</span></div>
+          </div>
+        </div>
+
+        <!-- 4. Card de Dinâmica do Motor & Resposta a Transientes -->
+        <div class="card-box">
+          <div class="card-hdr">
+            <span>02 · MOTOR, DINÂMICA E TRANSIENTES</span>
+            <span id="drv-motor-dense" style="color:var(--txt2); font-size:10.5px;">Bl²/Re: 115.6 N²/W</span>
+          </div>
+          <div class="grid-derived">
+            <div class="row-derived"><span>Bl (Força Motor):</span><span class="val-derived" id="drv-bl">19.80 T·m</span></div>
+            <div class="row-derived"><span>Bl²/Re (Densidade):</span><span class="val-derived" id="drv-bl2re">115.6 N²/W</span></div>
+            <div class="row-derived"><span>Aceleração Cone (Γ):</span><span class="val-derived" id="drv-accel">140.2 m/s²/A</span></div>
+            <div class="row-derived"><span>Breakup Cone (f_max):</span><span class="val-derived" id="drv-fbreak">1050 Hz</span></div>
+            <div class="row-derived"><span>Constante Elétrica (τe):</span><span class="val-derived" id="drv-taue">0.82 ms</span></div>
+            <div class="row-derived"><span>Constante Mecânica (τm):</span><span class="val-derived" id="drv-taum">1.22 ms</span></div>
+          </div>
+        </div>
+
+        <!-- 5. Card de Eficiência, Potência & Limites Térmicos -->
+        <div class="card-box">
+          <div class="card-hdr">
+            <span>03 · EFICIÊNCIA, POTÊNCIA E LIMITES</span>
+            <span id="drv-splmax-badge" style="color:var(--acc); font-size:10.5px;">SPL Max: 126.1 dB</span>
+          </div>
+          <div class="grid-derived">
+            <div class="row-derived"><span>η₀ (Eficiência):</span><span class="val-derived" id="drv-eta">2.24 %</span></div>
+            <div class="row-derived"><span>SPL (1W @ 1m):</span><span class="val-derived" id="drv-spl1w">95.7 dB</span></div>
+            <div class="row-derived"><span>SPL (2.83V @ 1m):</span><span class="val-derived" id="drv-spl2v">99.4 dB</span></div>
+            <div class="row-derived"><span>SPL Max (Térmico):</span><span class="val-derived" id="drv-splmax">126.1 dB</span></div>
+            <div class="row-derived"><span>Potência Acústica (Pac):</span><span class="val-derived" id="drv-pac">24.6 W ac</span></div>
+            <div class="row-derived"><span>Volume Deslocado (Vd):</span><span class="val-derived" id="drv-vd">0.891 L</span></div>
+            <div class="row-derived"><span>Xmax Geométrico:</span><span class="val-derived" id="drv-xgeom">8.50 mm</span></div>
+            <div class="row-derived"><span>Pico Ressonância (R0):</span><span class="val-derived" id="drv-r0">126.3 Ω</span></div>
+          </div>
+        </div>
+
+      </div>
+    </aside>
+
+    <!-- ═══ PAINEL DIREITO: AUDITORIA CIENTÍFICA & TABELA MASTER ═══ -->
+    <main class="pane-right">
+
+      <!-- 1. SEÇÃO DE AUDITORIA CRUZADA (RECOLHÍVEL) -->
+      <details class="sec-audit" open>
+        <summary>
+          <div style="font-family:var(--mono); font-weight:600; font-size:11px; color:var(--txt); display:flex; align-items:center; gap:6px;">
+            <span>AUDITORIA CRUZADA DE DATASHEET (ISO 9613-1)</span>
+            <span style="font-size:10px; color:var(--txt3); font-weight:400;">[clique para recolher]</span>
+          </div>
+          <div style="font-family:var(--mono); font-size:11px; color:var(--txt3);" id="lbl-atmo-cond">
+            c = 343.21 m/s · ρ = 1.2041 kg/m³ · P₀ = 1013.25 hPa
+          </div>
+        </summary>
+
+        <div class="audit-grid">
+          <!-- Card 1: Rotas Classe I de Fs -->
+          <div class="audit-card">
+            <div style="font-weight:600; color:var(--txt2); border-bottom:1px solid var(--border-subtle); padding-bottom:3px; margin-bottom:2px;">
+              01 · ROTAS INDEPENDENTES DE FS
+            </div>
+            <div style="display:flex; justify-content:space-between;"><span>FS-01 (Mecânica Mms·Cms):</span><b id="aud-fs-1" style="color:var(--txt)">41.0 Hz (0.0%)</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>FS-02 (Acústica Vas·Sd):</span><b id="aud-fs-2" style="color:var(--txt)">41.0 Hz (0.0%)</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>FS-03 (Elétrica Bl·Re·Qes):</span><b id="aud-fs-3" style="color:var(--txt)">41.0 Hz (0.0%)</b></div>
+          </div>
+
+          <!-- Card 2: Derivação Algébrica & Impedância -->
+          <div class="audit-card">
+            <div style="font-weight:600; color:var(--txt2); border-bottom:1px solid var(--border-subtle); padding-bottom:3px; margin-bottom:2px;">
+              02 · DERIVAÇÕES E IMPEDÂNCIA
+            </div>
+            <div style="display:flex; justify-content:space-between;"><span>Pico Impedância (R0):</span><b id="aud-r0" style="color:var(--txt)">126.3 Ω</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Largura Banda (Δf = f2 - f1):</span><b id="aud-deltaf" style="color:var(--acc)">15.3 Hz</b></div>
+            <div style="display:flex; justify-content:space-between;"><span>Pressão Implícita (ENV-05):</span><b id="aud-p-imp" style="color:var(--txt)">1013 hPa</b></div>
+          </div>
+
+          <!-- Card 3: Veredito de Consistência -->
+          <div class="audit-card" id="aud-veredito-card" style="border-left:3px solid var(--status-ok);">
+            <div style="font-weight:600; color:var(--status-ok); display:flex; align-items:center; justify-content:space-between;">
+              <span id="aud-ver-title">CONSISTENTE</span>
+              <span class="status-dot" id="aud-ver-dot"></span>
+            </div>
+            <div style="font-size:11px; color:var(--txt2); line-height:1.4;" id="aud-ver-desc">
+              Parâmetros consistentes entre as 3 formulações físicas.
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <!-- 2. SEÇÃO DA TABELA MESTRE -->
+      <div class="sec-table">
+        <div class="table-toolbar">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span style="font-family:var(--mono); font-size:11px; color:var(--txt3);">TOTAL:</span>
+            <b id="db-total-count" style="font-family:var(--mono); font-size:12.5px; color:var(--acc); font-variant-numeric:tabular-nums;">—</b>
+            <input type="text" id="db-search" class="field-input" placeholder="Buscar marca, modelo ou série..." style="width:210px;" oninput="renderTable()">
+          </div>
+
+          <div style="display:flex; align-items:center; gap:5px; flex-wrap:nowrap; flex:1; justify-content:flex-end;">
+            <button type="button" class="btn btn-primary" id="btn-load-driver" disabled onclick="carregarLinhaSelecionada()" title="Carregar driver selecionado no formulário (ou duplo clique na linha)">Carregar</button>
+            <button type="button" class="btn btn-success" id="btn-send-sim" disabled onclick="enviarLinhaParaSimulador()" title="Enviar driver selecionado direto ao Simulador">Enviar ao Simulador</button>
+            <button type="button" class="btn" id="btn-del-driver" disabled onclick="excluirSelecionado()">Excluir</button>
+            <button type="button" class="btn" onclick="restaurarCatalogoFabrica()" title="Restaurar o catálogo padrão de fábrica">Restaurar</button>
+            <button type="button" class="btn btn-danger" onclick="excluirTodos()" style="margin-left:4px;">Excluir Todos</button>
+          </div>
+        </div>
+
+        <!-- FILTROS PARAMÉTRICOS COMBINADOS + APTIDÃO DE CAIXA -->
+        <div style="display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:6px 14px; background:var(--bg0); border-bottom:1px solid var(--bdr); font-family:var(--mono); font-size:11px; color:var(--txt3);">
+          <span>FILTROS:</span>
+          <select id="flt-topo" aria-label="Filtrar por topologia de caixa" class="field-input" style="width:146px;" onchange="renderTable()">
+            <option value="all">Caixa: Todas</option>
+            <option value="sealed">Ideal p/ Selada</option>
+            <option value="bass-reflex">Ideal p/ Dutada</option>
+            <option value="bp4">Ideal p/ BP4</option>
+            <option value="bp6">Ideal p/ BP6</option>
+            <option value="planar">Ideal p/ Planar</option>
+          </select>
+          <select id="flt-dia" aria-label="Filtrar por diâmetro nominal" class="field-input" style="width:110px;" onchange="renderTable()">
+            <option value="0">Diâm: Todos</option>
+            <option value="8">8″</option>
+            <option value="10">10″</option>
+            <option value="12">12″</option>
+            <option value="15">15″</option>
+            <option value="18">18″</option>
+            <option value="21">21″</option>
+          </select>
+          <input type="number" id="flt-pe-min" class="field-input" placeholder="Pe ≥ (W)" style="width:86px;" oninput="renderTable()">
+          <input type="number" id="flt-fs-max" class="field-input" placeholder="Fs ≤ (Hz)" style="width:86px;" oninput="renderTable()">
+          <input type="number" id="flt-qts-max" class="field-input" placeholder="Qts ≤" step="0.05" style="width:78px;" oninput="renderTable()">
+          <button type="button" class="btn" onclick="resetDbFilters()">Limpar</button>
+        </div>
+
+        <div class="table-scroll">
+          <table class="db-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Origem</th><th>Marca</th><th>Modelo</th><th>Série</th><th>Ano</th><th>Diâm</th>
+                <th>Znom</th><th>Pe</th><th>Sd</th><th>Fs</th><th>Vas</th><th>Qes</th><th>Qms</th>
+                <th>Xmax</th><th>Re</th><th>Le</th><th>Hvc</th><th>Hgap</th><th>Mms Cat</th><th>Bl Cat</th><th>Vsub</th>
+                <th>Qts</th><th>Cms</th><th>Kms</th><th>Mms</th><th>Bl</th><th>Rms</th>
+                <th>Bl²/Re</th><th>Γ (Acel)</th><th>η₀</th><th>SPL1W</th><th>SPL2.83</th><th>SPL_Max</th><th>Vd</th><th>EBP</th>
+                <th>Veredito</th>
+              </tr>
+            </thead>
+            <tbody id="db-table-body">
+              <!-- Preenchido via Javascript -->
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- ════════ MODAL: CATÁLOGO DE DRIVERS ════════ -->
+  <div class="modal-overlay" id="modal-catalog" onclick="if(event.target===this) closeModal('modal-catalog')">
+    <div class="modal-box">
+      <div class="modal-hdr">
+        <span id="modal-catalog-title">CATÁLOGO DE DRIVERS</span>
+        <button type="button" class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-catalog')">Fechar</button>
+      </div>
+      <div class="modal-body" style="display:flex; flex-direction:column; gap:12px;">
+        <input type="text" id="cat-search" class="field-input" placeholder="Filtrar marca, modelo ou série..." oninput="renderCatalogList()">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; max-height:420px; overflow-y:auto;" id="cat-list-container">
+          <!-- Drivers do Catálogo -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ MODAL: IMPORTAÇÃO TSV / JSON COM PREVIEW SELETIVO ════════ -->
+  <div class="modal-overlay" id="modal-import" onclick="if(event.target===this) closeModal('modal-import')">
+    <div class="modal-box">
+      <div class="modal-hdr">
+        <span>IMPORTAÇÃO TSV / JSON COM PRÉ-VISUALIZAÇÃO</span>
+        <button type="button" class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-import')">Fechar</button>
+      </div>
+      <div class="modal-body">
+        <input type="file" id="tsvFileInput" aria-label="Selecionar arquivo TSV ou JSON" accept=".json,.tsv,.txt,.csv" onchange="handleTSVFileSelect(this)" style="margin-bottom:12px;">
+        <div id="tsv-preview-area" style="font-family:var(--mono); font-size:11px; max-height:300px; overflow:auto;">
+          Selecione um arquivo .json (BassForge) ou .tsv para pré-visualizar os drivers antes de confirmar.
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" onclick="closeModal('modal-import')">Cancelar</button>
+        <button type="button" class="btn btn-primary" id="btn-confirm-import" disabled onclick="confirmTSVImport()">Confirmar Importação</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════ MODAL: RELATÓRIO TÉCNICO EM PDF ════════ -->
+  <div class="modal-overlay" id="modal-report" onclick="if(event.target===this) closeModal('modal-report')">
+    <div class="modal-box" style="width:900px;">
+      <div class="modal-hdr">
+        <span>RELATÓRIO TÉCNICO DE TRANSDUTOR (PDF)</span>
+        <button type="button" class="btn" style="height:22px; padding:2px 8px;" onclick="closeModal('modal-report')">Fechar</button>
+      </div>
+      <div class="modal-body">
+        <div id="report-printable" style="background:#fff; color:#000; padding:24px; font-family:var(--sans); border-radius:4px;">
+          <!-- Preenchido dinamicamente -->
+        </div>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn" onclick="window.print()">Imprimir</button>
+        <button type="button" class="btn btn-primary" onclick="downloadReportPDF()">Baixar PDF</button>
+      </div>
+    </div>
+  </div>
+  <div class="bf-toast" id="bf-toast" role="status" aria-live="polite"></div>
+
+  <!-- ══════════════════════════════════════════════════════════════════════════
+       MOTOR COMPLETO DE FÍSICA ELETROACÚSTICA AVANÇADA (28 PARÂMETROS)
+       ══════════════════════════════════════════════════════════════════════════ -->
+  <script>
+    let DRIVER_CATALOG = [];
+    /**
+ * Catálogo Embutido de Drivers CL.Audio
+ * Gerado automaticamente a partir de drivers_export.tsv (77 alto-falantes)
+ */
+(function (global) {
+  'use strict';
+  const CATALOG = {{CATALOG_JSON}};
+
+  if (typeof window !== 'undefined') {
+    window.DRIVERS_CATALOG = CATALOG;
+  }
+  if (typeof module !== 'undefined' && module.exports) {
+    module.exports = CATALOG;
+  }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+{{INLINE_JS}}
+  </script>
+</body>
+</html>
